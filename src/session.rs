@@ -992,7 +992,7 @@ mod probe_device {
 #[cfg(test)]
 mod output_mode_tests {
     use super::refresh_millihz;
-    use drm::control::ModeFlags;
+    use super::control::ModeFlags;
 
     #[test]
     fn output_refresh_is_reported_in_millihertz() {
