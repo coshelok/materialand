@@ -25,6 +25,12 @@ pub struct IsolatedSessionBus {
 pub fn start() -> Option<IsolatedSessionBus> {
     let child_result = Command::new("dbus-daemon")
         .args(["--session", "--nofork", "--print-address=1"])
+        // The bus daemon can launch services on this session bus. Do not let
+        // those services inherit a direct address to the host's session bus.
+        .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .env_remove("DBUS_STARTER_ADDRESS")
+        .env_remove("DBUS_STARTER_BUS_TYPE")
+        .env_remove("DBUS_SESSION_BUS_PID")
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
