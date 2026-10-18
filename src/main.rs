@@ -395,3 +395,27 @@ fn render_nested(
     ui::send_frames_all(state);
     true
 }
+
+
+#[cfg(test)]
+mod runtime_dir_tests {
+    use super::is_usable_runtime_dir;
+    use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+
+    #[test]
+    fn runtime_dir_must_be_private_and_owned_by_current_user() {
+        let uid = smithay::reexports::rustix::process::getuid().as_raw();
+        let path: PathBuf = std::env::temp_dir()
+            .join(format!("materialand-runtime-dir-test-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&path);
+        fs::create_dir(&path).expect("create test runtime directory");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
+            .expect("make test directory private");
+
+        assert!(is_usable_runtime_dir(&path, uid));
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
+            .expect("make test directory public");
+        assert!(!is_usable_runtime_dir(&path, uid));
+        fs::remove_dir_all(&path).expect("remove test runtime directory");
+    }
+}
