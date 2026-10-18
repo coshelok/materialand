@@ -582,16 +582,48 @@ fn pick_connector(
     None
 }
 
-fn refresh_millihz(refresh_hz: u32) -> i32 {
-    (refresh_hz as i32).saturating_mul(1_000)
+fn refresh_millihz(
+    clock_khz: u32,
+    htotal: u32,
+    vtotal: u32,
+    flags: control::ModeFlags,
+    vscan: u16,
+) -> i32 {
+    if htotal == 0 || vtotal == 0 {
+        return 0;
+    }
+
+    // DRM's clock is in kHz. Convert the exact timing ratio directly to mHz
+    // instead of rounding to whole Hz first (which loses 59.94 Hz, for example).
+    let mut numerator = u64::from(clock_khz) * 1_000_000;
+    let mut denominator = u64::from(htotal) * u64::from(vtotal);
+    if flags.contains(control::ModeFlags::INTERLACE) {
+        numerator *= 2;
+    }
+    if flags.contains(control::ModeFlags::DBLSCAN) {
+        denominator *= 2;
+    }
+    if vscan > 1 {
+        denominator *= u64::from(vscan);
+    }
+
+    ((numerator + denominator / 2) / denominator).min(i32::MAX as u64) as i32
 }
 
 fn to_output_mode(mode: control::Mode) -> OutputMode {
     let (w, h) = mode.size();
+    let (_, _, htotal) = mode.hsync();
+    let (_, _, vtotal) = mode.vsync();
     OutputMode {
         size: Size::from((w as i32, h as i32)),
         // wl_output.mode.refresh is expressed in millihertz, not hertz.
-        refresh: refresh_millihz(mode.vrefresh()),
+        refresh: refresh_millihz(
+            mode.clock(),
+            u32::from(htotal),
+            u32::from(vtotal),
+            mode.flags(),
+            mode.vscan(),
+        ),
     }
 }
 
@@ -960,11 +992,24 @@ mod probe_device {
 #[cfg(test)]
 mod output_mode_tests {
     use super::refresh_millihz;
+    use drm::control::ModeFlags;
 
     #[test]
     fn output_refresh_is_reported_in_millihertz() {
-        assert_eq!(refresh_millihz(60), 60_000);
-        assert_eq!(refresh_millihz(144), 144_000);
-        assert_eq!(refresh_millihz(0), 0);
+        assert_eq!(refresh_millihz(148_500, 2_200, 1_125, ModeFlags::empty(), 1), 60_000);
+        assert_eq!(refresh_millihz(148_352, 2_200, 1_125, ModeFlags::empty(), 1), 59_940);
+    }
+
+    #[test]
+    fn refresh_calculation_accounts_for_scan_flags() {
+        assert_eq!(
+            refresh_millihz(148_500, 2_200, 1_125, ModeFlags::INTERLACE, 1),
+            120_000
+        );
+        assert_eq!(
+            refresh_millihz(148_500, 2_200, 1_125, ModeFlags::DBLSCAN, 1),
+            30_000
+        );
+        assert_eq!(refresh_millihz(148_500, 0, 1_125, ModeFlags::empty(), 1), 0);
     }
 }
