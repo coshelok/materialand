@@ -10,6 +10,7 @@ Materialand is a compositor prototype, so the aim is not to replace working Smit
 
 - **Pointer frames were never sent, and scroll events were discarded.** Input forwarded `motion` and `button` through Smithay but did not send `pointer.frame()`. Smithay's [Anvil input handler](https://github.com/Smithay/smithay/blob/v0.7.0/anvil/src/input_handler.rs) ends forwarded pointer events with a frame. This can make client input appear stale or unresponsive. Motion, forwarded presses, releases, and scroll events now terminate the frame; both nested and DRM/libinput backends route scroll input.
 - **Clicks could be intercepted by a toplevel with no surface under the pointer.** A toplevel could be mapped before receiving its first buffer, and the click path did not consistently follow the same content/surface-under test used by rendering. Hit testing now skips windows without content and continues to lower windows when a non-fullscreen surface/input-region hit misses.
+- **The session menu could reopen after leaving fullscreen.** Entering fullscreen hid several shell overlays but left the power menu's open state and animation intact. The fullscreen transition now closes the power menu too, with a regression test for overlay state.
 - **A nested compositor could issue host power actions.** The shell exposed `systemctl poweroff/reboot` even in `--nested`, which is a development window rather than an owning session. Those operations are now ignored in nested mode; logging out only closes Materialand.
 - **Child processes could bypass the chosen Wayland socket.** `WAYLAND_SOCKET` takes precedence over `WAYLAND_DISPLAY`, and was inherited untouched. Child processes now remove it.
 - **Multiple compositor instances could collide on one socket.** Both backends used the fixed `materialand-0` name. Each instance now binds a PID-scoped socket name and launches clients with that actual name.
@@ -17,6 +18,11 @@ Materialand is a compositor prototype, so the aim is not to replace working Smit
 - **Nested or secondary sessions could reuse a host desktop process through D-Bus activation.** Merely changing `WAYLAND_DISPLAY` does not change the environment of an already-running app. The compositor now tries to start a private D-Bus session and removes inherited bus-starter metadata. If `dbus-daemon` cannot be started, the host bus address is replaced with an unreachable Unix-socket address; it is not left unset, because some clients may auto-discover the host bus. This still cannot prevent applications from forwarding requests through their own shared-profile IPC.
 - **DRM refresh was advertised in the wrong units and lost fractional rates.** `wl_output.mode.refresh` uses millihertz, whereas the old code passed the integer hertz value. The compositor now calculates millihertz directly from DRM clock/timing totals and accounts for interlaced, double-scan and vertical-scan modes instead of rounding to whole Hz first.
 - **Window surface stacking could be inverted inside a single window.** Each window's surface-tree element group is reversed before the whole scene list is reversed for rendering.
+
+## Additional follow-up defects not fixed in this pass
+
+- **Terminal fallback does not match the documented behavior.** The README describes `foot` as a fallback, while `Shell::new` and the `Terminal=true` Exec wrapper still hard-code `kitty`. This should be fixed in a separate app-launcher change that selects a terminal available in `PATH` and uses the same selection for pinned Terminal and terminal desktop entries.
+- **Pointer/cursor coordinates still need a live reproduction.** This branch deliberately does not change the renderer transform based on inspection alone. The project uses a Winit framebuffer transform and Smithay's output transform metadata; they need to be validated together with scale factor and event coordinates in both nested and DRM modes.
 
 ## Structure and complexity findings
 
