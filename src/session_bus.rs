@@ -61,7 +61,7 @@ pub fn start() -> Option<IsolatedSessionBus> {
         tracing::warn!("dbus-daemon returned an invalid session-bus address");
         let _ = child.kill();
         let _ = child.wait();
-        clear_inherited_bus();
+        disable_inherited_bus();
         return None;
     }
 
