@@ -5,7 +5,6 @@ mod font;
 mod input;
 mod render;
 mod session;
-mod session_bus;
 mod shell;
 mod state;
 mod style;
@@ -33,61 +32,43 @@ use smithay::{
 };
 
 use crate::{
+    config::SOCKET_NAME,
     font::Fonts,
     state::{ClientState, State},
 };
 
-/// Whether a path is a private runtime directory owned by the current user.
-fn is_usable_runtime_dir(path: &std::path::Path, uid: u32) -> bool {
-    use std::os::unix::fs::MetadataExt;
-
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return false;
-    };
-    metadata.is_dir()
-        && metadata.uid() == uid
-        && metadata.mode() & 0o077 == 0
-}
-
 /// Guarantees that `XDG_RUNTIME_DIR` points at a usable per-user runtime
-/// directory. A graphical login session usually sets it, but a bare TTY may not.
+/// directory. A graphical login session always sets it, but launching the
+/// compositor from a bare TTY (e.g. `DISPLAY=:1 ./materialand`) leaves it
+/// unset, which makes `ListeningSocket::bind` fail with `RuntimeDirNotSet`.
 ///
-/// An absolute path is not enough: stale, missing, world-readable or
-/// wrong-owner paths can make Wayland sockets fail to bind or expose them to
-/// other users. Prefer the user manager's runtime dir; use a private temporary
-/// directory only when no valid system path is available.
+/// When the variable is missing we fall back to `/run/user/<uid>`, and, if
+/// that does not exist, create a private directory under the system temp dir.
 fn ensure_runtime_dir() -> Result<(), Box<dyn std::error::Error>> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let uid = smithay::reexports::rustix::process::getuid().as_raw();
     if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
         let path = PathBuf::from(&dir);
-        if is_usable_runtime_dir(&path, uid) {
+        if path.is_absolute() {
             return Ok(());
         }
-        tracing::warn!(dir = %path.display(), "ignoring invalid XDG_RUNTIME_DIR");
-        std::env::remove_var("XDG_RUNTIME_DIR");
     }
 
+    let uid = smithay::reexports::rustix::process::getuid().as_raw();
     let system = PathBuf::from(format!("/run/user/{uid}"));
-    if is_usable_runtime_dir(&system, uid) {
+    if system.is_dir() {
         std::env::set_var("XDG_RUNTIME_DIR", &system);
-        tracing::info!(dir = %system.display(), "using the system runtime directory");
+        tracing::info!(dir = %system.display(), "XDG_RUNTIME_DIR was unset; using system runtime dir");
         return Ok(());
     }
 
     let fallback = std::env::temp_dir().join(format!("materialand-{uid}"));
     std::fs::create_dir_all(&fallback)?;
-    std::fs::set_permissions(&fallback, PermissionsExt::from_mode(0o700))?;
-    if !is_usable_runtime_dir(&fallback, uid) {
-        return Err(format!(
-            "runtime directory {} is not private or is not owned by uid {uid}",
-            fallback.display()
-        )
-        .into());
-    }
+    // The Wayland protocol requires this directory to be private to the user.
+    std::fs::set_permissions(
+        &fallback,
+        std::os::unix::fs::PermissionsExt::from_mode(0o700),
+    )?;
     std::env::set_var("XDG_RUNTIME_DIR", &fallback);
-    tracing::warn!(dir = %fallback.display(), "using a temporary runtime directory");
+    tracing::warn!(dir = %fallback.display(), "XDG_RUNTIME_DIR was unset; using a temporary runtime dir");
     Ok(())
 }
 
@@ -161,18 +142,14 @@ fn run_session() -> Result<(), Box<dyn std::error::Error>> {
     let dmabuf_formats = backend.dmabuf_formats();
 
     let (display, mut state) = init_common(dmabuf_formats)?;
-    let socket_name = format!("materialand-{}", std::process::id());
-    let listener = ListeningSocket::bind(&socket_name)?;
+    let listener = ListeningSocket::bind(SOCKET_NAME)?;
 
     // Clients spawned later must connect to us. There is no XWayland, so
     // `DISPLAY` stays unset; the session metadata tells toolkits which kind of
     // session they are in.
-    std::env::set_var("WAYLAND_DISPLAY", &socket_name);
+    std::env::set_var("WAYLAND_DISPLAY", SOCKET_NAME);
     std::env::set_var("XDG_SESSION_TYPE", "wayland");
     std::env::set_var("XDG_CURRENT_DESKTOP", "Materialand");
-    // Start this after libseat/backend setup so seat acquisition still uses the
-    // original login-session context, but before any child applications launch.
-    let _session_bus = session_bus::start();
     input::set_session_mode(true);
 
     let ticker = ui::Ticker::new(&mut state);
@@ -196,18 +173,12 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
     let dmabuf_formats: Vec<_> = backend.renderer().dmabuf_formats().iter().copied().collect();
     let (mut display, mut state) = init_common(dmabuf_formats)?;
 
-    let socket_name = format!("materialand-{}", std::process::id());
-    let listener = ListeningSocket::bind(&socket_name)?;
+    let listener = ListeningSocket::bind(SOCKET_NAME)?;
 
     // Must be set *after* `winit::init`: the nested backend needs the host's
     // `WAYLAND_DISPLAY` to create its window, while clients spawned later must
     // connect to us instead.
-    std::env::set_var("WAYLAND_DISPLAY", &socket_name);
-    std::env::set_var("XDG_SESSION_TYPE", "wayland");
-    std::env::set_var("XDG_CURRENT_DESKTOP", "Materialand");
-    // Winit has already connected to the host. Now isolate services launched
-    // by Materialand from the host session bus before starting client apps.
-    let _session_bus = session_bus::start();
+    std::env::set_var("WAYLAND_DISPLAY", SOCKET_NAME);
 
     let initial = backend.window_size();
     update_output(&mut state, initial);
@@ -222,7 +193,7 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
 
     // Launch the detected terminal so there is something to see immediately.
     input::spawn_program(&state.shell.terminal);
-    tracing::info!("compositor ready on WAYLAND_DISPLAY={socket_name}");
+    tracing::info!("compositor ready on WAYLAND_DISPLAY={SOCKET_NAME}");
 
     // Redraw only when something actually changed: an idle compositor must not
     // repaint the whole screen every frame. Set whenever our own shell state
@@ -243,12 +214,6 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 WinitEvent::Input(InputEvent::PointerButton { event }) => {
                     input::on_pointer_button(&mut state, &event);
-                }
-                WinitEvent::Input(InputEvent::PointerAxis { event }) => {
-                    input::on_pointer_axis::<smithay::backend::winit::WinitInput>(
-                        &mut state,
-                        event,
-                    );
                 }
                 WinitEvent::CloseRequested => state.running = false,
                 _ => {}
@@ -400,28 +365,4 @@ fn render_nested(
     // Frame callbacks toward clients.
     ui::send_frames_all(state);
     true
-}
-
-
-#[cfg(test)]
-mod runtime_dir_tests {
-    use super::is_usable_runtime_dir;
-    use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
-
-    #[test]
-    fn runtime_dir_must_be_private_and_owned_by_current_user() {
-        let uid = smithay::reexports::rustix::process::getuid().as_raw();
-        let path: PathBuf = std::env::temp_dir()
-            .join(format!("materialand-runtime-dir-test-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir(&path).expect("create test runtime directory");
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o700))
-            .expect("make test directory private");
-
-        assert!(is_usable_runtime_dir(&path, uid));
-        fs::set_permissions(&path, fs::Permissions::from_mode(0o755))
-            .expect("make test directory public");
-        assert!(!is_usable_runtime_dir(&path, uid));
-        fs::remove_dir_all(&path).expect("remove test runtime directory");
-    }
 }

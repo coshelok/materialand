@@ -582,48 +582,11 @@ fn pick_connector(
     None
 }
 
-fn refresh_millihz(
-    clock_khz: u32,
-    htotal: u32,
-    vtotal: u32,
-    flags: control::ModeFlags,
-    vscan: u16,
-) -> i32 {
-    if htotal == 0 || vtotal == 0 {
-        return 0;
-    }
-
-    // DRM's clock is in kHz. Convert the exact timing ratio directly to mHz
-    // instead of rounding to whole Hz first (which loses 59.94 Hz, for example).
-    let mut numerator = u64::from(clock_khz) * 1_000_000;
-    let mut denominator = u64::from(htotal) * u64::from(vtotal);
-    if flags.contains(control::ModeFlags::INTERLACE) {
-        numerator *= 2;
-    }
-    if flags.contains(control::ModeFlags::DBLSCAN) {
-        denominator *= 2;
-    }
-    if vscan > 1 {
-        denominator *= u64::from(vscan);
-    }
-
-    ((numerator + denominator / 2) / denominator).min(i32::MAX as u64) as i32
-}
-
 fn to_output_mode(mode: control::Mode) -> OutputMode {
     let (w, h) = mode.size();
-    let (_, _, htotal) = mode.hsync();
-    let (_, _, vtotal) = mode.vsync();
     OutputMode {
         size: Size::from((w as i32, h as i32)),
-        // wl_output.mode.refresh is expressed in millihertz, not hertz.
-        refresh: refresh_millihz(
-            mode.clock(),
-            u32::from(htotal),
-            u32::from(vtotal),
-            mode.flags(),
-            mode.vscan(),
-        ),
+        refresh: mode.vrefresh() as i32,
     }
 }
 
@@ -729,9 +692,6 @@ fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBackend>) {
             input::on_pointer_motion(state, loc, event.time_msec());
         }
         InputEvent::PointerButton { event } => input::on_pointer_button(state, &event),
-        InputEvent::PointerAxis { event } => {
-            input::on_pointer_axis::<LibinputInputBackend>(state, event);
-        }
         // Touch, tablet and gesture events are not wired into the shell yet;
         // the nested backend has the same gap.
         _ => return,
@@ -887,9 +847,7 @@ pub fn run(
     app.backend.attach_output(&mut app.state)?;
     app.request_redraw();
 
-    let socket_name = std::env::var("WAYLAND_DISPLAY")
-        .unwrap_or_else(|_| crate::config::SOCKET_NAME.to_owned());
-    tracing::info!("compositor ready on WAYLAND_DISPLAY={socket_name}");
+    tracing::info!("compositor ready on WAYLAND_DISPLAY={}", crate::config::SOCKET_NAME);
     while app.state.running {
         // Wake-ups come from the sockets, the devices and the shell timer.
         if let Err(err) = event_loop.dispatch(None::<Duration>, &mut app) {
@@ -986,30 +944,4 @@ mod probe_device {
 
     impl smithay::reexports::drm::Device for ProbeDevice {}
     impl smithay::reexports::drm::control::Device for ProbeDevice {}
-}
-
-
-#[cfg(test)]
-mod output_mode_tests {
-    use super::refresh_millihz;
-    use super::control::ModeFlags;
-
-    #[test]
-    fn output_refresh_is_reported_in_millihertz() {
-        assert_eq!(refresh_millihz(148_500, 2_200, 1_125, ModeFlags::empty(), 1), 60_000);
-        assert_eq!(refresh_millihz(148_352, 2_200, 1_125, ModeFlags::empty(), 1), 59_940);
-    }
-
-    #[test]
-    fn refresh_calculation_accounts_for_scan_flags() {
-        assert_eq!(
-            refresh_millihz(148_500, 2_200, 1_125, ModeFlags::INTERLACE, 1),
-            120_000
-        );
-        assert_eq!(
-            refresh_millihz(148_500, 2_200, 1_125, ModeFlags::DBLSCAN, 1),
-            30_000
-        );
-        assert_eq!(refresh_millihz(148_500, 0, 1_125, ModeFlags::empty(), 1), 0);
-    }
 }

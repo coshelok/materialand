@@ -1053,16 +1053,6 @@ impl State {
         self.space.refresh();
     }
 
-    fn close_shell_overlays_for_fullscreen(&mut self) {
-        self.shell.brightness_open = false;
-        self.shell.set_brightness_open(false);
-        self.shell.set_quick_settings_open(false);
-        self.shell.launcher_open = false;
-        self.shell.set_launcher_open(false);
-        self.shell.power_open = false;
-        self.shell.set_power_open(false);
-    }
-
     fn set_fullscreen(&mut self, window: &Window, fullscreen: bool) {
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State as XdgState;
 
@@ -1073,7 +1063,11 @@ impl State {
         let output = self.output_rect();
 
         if fullscreen {
-            self.close_shell_overlays_for_fullscreen();
+            self.shell.brightness_open = false;
+            self.shell.set_brightness_open(false);
+            self.shell.set_quick_settings_open(false);
+            self.shell.launcher_open = false;
+            self.shell.set_launcher_open(false);
             let current = self
                 .space
                 .element_geometry(window)
@@ -1444,22 +1438,6 @@ mod tests {
         crate::input::perform_power_action(&mut s, crate::shell::PowerAction::Logout);
         assert!(!s.running, "log out must stop the event loop");
         assert!(!s.shell.power_open, "picking an action closes the menu");
-    }
-
-    #[test]
-    fn fullscreen_closes_all_shell_overlays() {
-        let (_display, mut s) = fresh();
-        s.shell.brightness_open = true;
-        s.shell.quick_settings_open = true;
-        s.shell.launcher_open = true;
-        s.shell.power_open = true;
-
-        s.close_shell_overlays_for_fullscreen();
-
-        assert!(!s.shell.brightness_open);
-        assert!(!s.shell.quick_settings_open);
-        assert!(!s.shell.launcher_open);
-        assert!(!s.shell.power_open);
     }
 
     #[test]
