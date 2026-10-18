@@ -40,21 +40,29 @@ pub fn spawn_program(args: &[String]) {
     let session_mode = SESSION_MODE.load(std::sync::atomic::Ordering::Relaxed);
     let mut cmd = std::process::Command::new(&args[0]);
     cmd.args(&args[1..]);
-    cmd.env("WAYLAND_DISPLAY", config::SOCKET_NAME);
+    cmd.env("WAYLAND_DISPLAY", config::SOCKET_NAME)
+        // WAYLAND_SOCKET takes precedence over WAYLAND_DISPLAY in clients. If
+        // inherited from a launcher, it can bypass our socket and reconnect
+        // straight to the host compositor.
+        .env_remove("WAYLAND_SOCKET");
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
         cmd.env("XDG_RUNTIME_DIR", runtime);
     }
-    // Isolate the client from the host session: dropping `DISPLAY` stops
-    // XWayland clients from opening a window on the host compositor, and
-    // dropping the session bus prevents D-Bus activation from reusing an
-    // already-running host instance (e.g. GNOME Files). In a real session the
-    // bus belongs to us and is what portals and activation use.
+    // The child belongs to this compositor, including in nested development
+    // mode. Do not let host X11 selection or desktop identity override it.
+    cmd.env("XDG_SESSION_TYPE", "wayland");
+    cmd.env("XDG_CURRENT_DESKTOP", "Materialand");
     cmd.env_remove("DISPLAY");
-    if session_mode {
-        cmd.env("XDG_SESSION_TYPE", "wayland");
-        cmd.env("XDG_CURRENT_DESKTOP", "Materialand");
-    } else {
+
+    // In a real session this is our D-Bus bus, used by portals and activation.
+    // Nested mode must not inherit the host's direct bus address or starter
+    // address. This reduces accidental host activation but cannot prevent an
+    // application from forwarding requests to an already-running instance
+    // through its own IPC or shared profile directory.
+    if !session_mode {
         cmd.env_remove("DBUS_SESSION_BUS_ADDRESS");
+        cmd.env_remove("DBUS_STARTER_ADDRESS");
+        cmd.env_remove("XDG_ACTIVATION_TOKEN");
     }
     // A client must not inherit the compositor's stdio: doing so leaks the
     // controlling terminal / pipe and lets a chatty client block on a full pipe.
@@ -637,6 +645,11 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         // from the top of the stack and hit-test its full frame.
         let windows: Vec<_> = state.space.elements().cloned().collect();
         for window in windows.into_iter().rev() {
+            // Toplevels can be announced before they attach their first buffer.
+            // The renderer omits such windows, so they must not intercept input.
+            if !state.window_has_content(&window) {
+                continue;
+            }
             let Some(geom) = state.space.element_geometry(&window) else {
                 continue;
             };
@@ -656,23 +669,29 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 if !inside {
                     continue;
                 }
+                let local = pos - state.window_surface_origin(&window).to_f64();
+                let Some((surface, surface_loc)) =
+                    window.surface_under(local, WindowSurfaceType::ALL)
+                else {
+                    // A transparent/input-excluded part of a normal window is
+                    // not a hit. Keep searching lower windows instead of
+                    // swallowing the click. Fullscreen still owns the output.
+                    if fullscreen {
+                        state.swallowed_buttons.insert(button);
+                        return;
+                    }
+                    continue;
+                };
                 state.space.raise_element(&window, false);
                 state.focus_window(Some(window.clone()), serial);
-                let local = pos - state.window_surface_origin(&window).to_f64();
-                if let Some((surface, surface_loc)) =
-                    window.surface_under(local, WindowSurfaceType::ALL)
-                {
-                    state.last_interactive_press = Some((serial, window.clone()));
-                    let handle = state.pointer.clone();
-                    let move_event = MotionEvent { location: pos, serial, time };
-                    handle.motion(state, Some((surface, surface_loc.to_f64())), &move_event);
-                    let button_event = ButtonEvent {
-                        serial, time, button, state: ButtonState::Pressed,
-                    };
-                    handle.button(state, &button_event);
-                } else {
-                    state.swallowed_buttons.insert(button);
-                }
+                state.last_interactive_press = Some((serial, window.clone()));
+                let handle = state.pointer.clone();
+                let move_event = MotionEvent { location: pos, serial, time };
+                handle.motion(state, Some((surface, surface_loc.to_f64())), &move_event);
+                let button_event = ButtonEvent {
+                    serial, time, button, state: ButtonState::Pressed,
+                };
+                handle.button(state, &button_event);
                 return;
             }
             let layout = shell::decor_layout(geom);
@@ -712,10 +731,12 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                     };
                 }
                 DecorHit::None => {
-                    // Clicking the exposed part of a lower window brings it up.
-                    state.space.raise_element(&window, false);
-                    state.focus_window(Some(window.clone()), serial);
+                    // A visible frame can cover lower windows; its border is
+                    // compositor-owned. Inside the content rectangle, however,
+                    // an input-region miss must fall through to lower windows.
                     if !layout.content.contains(pos) {
+                        state.space.raise_element(&window, false);
+                        state.focus_window(Some(window.clone()), serial);
                         state.swallowed_buttons.insert(button);
                         return;
                     }
@@ -723,6 +744,8 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                     if let Some((surface, surface_loc)) =
                         window.surface_under(local, WindowSurfaceType::ALL)
                     {
+                        state.space.raise_element(&window, false);
+                        state.focus_window(Some(window.clone()), serial);
                         let handle = state.pointer.clone();
                         let move_event = MotionEvent {
                             location: pos,
@@ -743,7 +766,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                         };
                         handle.button(state, &button_event);
                     } else {
-                        state.swallowed_buttons.insert(button);
+                        continue;
                     }
                 }
             }
@@ -921,9 +944,21 @@ pub(crate) fn perform_top_action(state: &mut State, action: TopAction) {
 }
 
 /// Run one of the session-menu actions.
+fn host_power_action_allowed(action: shell::PowerAction, session_mode: bool) -> bool {
+    session_mode || action == shell::PowerAction::Logout
+}
+
+/// Run one of the session-menu actions.
 pub(crate) fn perform_power_action(state: &mut State, action: shell::PowerAction) {
     state.shell.power_open = false;
     state.shell.set_power_open(false);
+    let session_mode = SESSION_MODE.load(std::sync::atomic::Ordering::Relaxed);
+    if !host_power_action_allowed(action, session_mode) {
+        // Nested mode is only a development window. Never let its controls
+        // shut down or reboot the host session that contains it.
+        tracing::warn!(?action, "host power action ignored in nested mode");
+        return;
+    }
     match action {
         shell::PowerAction::PowerOff => spawn_system(&["systemctl", "poweroff"]),
         shell::PowerAction::Restart => spawn_system(&["systemctl", "reboot"]),
@@ -983,6 +1018,19 @@ mod tests {
             top,
             bottom,
         }
+    }
+
+    #[test]
+    fn nested_mode_never_runs_host_power_commands() {
+        assert!(!host_power_action_allowed(shell::PowerAction::PowerOff, false));
+        assert!(!host_power_action_allowed(shell::PowerAction::Restart, false));
+        assert!(host_power_action_allowed(shell::PowerAction::Logout, false));
+    }
+
+    #[test]
+    fn real_session_allows_power_actions() {
+        assert!(host_power_action_allowed(shell::PowerAction::PowerOff, true));
+        assert!(host_power_action_allowed(shell::PowerAction::Restart, true));
     }
 
     #[test]
