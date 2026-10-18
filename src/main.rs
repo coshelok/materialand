@@ -142,12 +142,13 @@ fn run_session() -> Result<(), Box<dyn std::error::Error>> {
     let dmabuf_formats = backend.dmabuf_formats();
 
     let (display, mut state) = init_common(dmabuf_formats)?;
-    let listener = ListeningSocket::bind(SOCKET_NAME)?;
+    let socket_name = format!("materialand-{}", std::process::id());
+    let listener = ListeningSocket::bind(&socket_name)?;
 
     // Clients spawned later must connect to us. There is no XWayland, so
     // `DISPLAY` stays unset; the session metadata tells toolkits which kind of
     // session they are in.
-    std::env::set_var("WAYLAND_DISPLAY", SOCKET_NAME);
+    std::env::set_var("WAYLAND_DISPLAY", &socket_name);
     std::env::set_var("XDG_SESSION_TYPE", "wayland");
     std::env::set_var("XDG_CURRENT_DESKTOP", "Materialand");
     input::set_session_mode(true);
@@ -173,12 +174,13 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
     let dmabuf_formats: Vec<_> = backend.renderer().dmabuf_formats().iter().copied().collect();
     let (mut display, mut state) = init_common(dmabuf_formats)?;
 
-    let listener = ListeningSocket::bind(SOCKET_NAME)?;
+    let socket_name = format!("materialand-{}", std::process::id());
+    let listener = ListeningSocket::bind(&socket_name)?;
 
     // Must be set *after* `winit::init`: the nested backend needs the host's
     // `WAYLAND_DISPLAY` to create its window, while clients spawned later must
     // connect to us instead.
-    std::env::set_var("WAYLAND_DISPLAY", SOCKET_NAME);
+    std::env::set_var("WAYLAND_DISPLAY", &socket_name);
 
     let initial = backend.window_size();
     update_output(&mut state, initial);
@@ -193,7 +195,7 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
 
     // Launch the detected terminal so there is something to see immediately.
     input::spawn_program(&state.shell.terminal);
-    tracing::info!("compositor ready on WAYLAND_DISPLAY={SOCKET_NAME}");
+    tracing::info!("compositor ready on WAYLAND_DISPLAY={socket_name}");
 
     // Redraw only when something actually changed: an idle compositor must not
     // repaint the whole screen every frame. Set whenever our own shell state
