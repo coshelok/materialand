@@ -1,0 +1,39 @@
+[package]
+name = "materialand"
+version = "0.1.0"
+edition = "2021"
+description = "A Material 3 themed nested Wayland compositor built on Smithay"
+license = "MIT"
+
+[[bin]]
+name = "materialand"
+path = "src/main.rs"
+
+[dependencies]
+smithay = { version = "0.7.0", default-features = false, features = [
+    "backend_drm",
+    "backend_egl",
+    "backend_gbm",
+    "backend_libinput",
+    "backend_session_libseat",
+    "backend_udev",
+    "backend_winit",
+    "desktop",
+    "renderer_gl",
+    "wayland_frontend",
+] }
+material-colors = { version = "0.4", features = ["image"] }
+tiny-skia = "0.11"
+fontdue = "0.9"
+# Only for the `signals` feature (Ctrl-C / SIGTERM handling): the calloop types
+# themselves come through `smithay::reexports::calloop`, so the feature is
+# unified onto the exact version smithay links against.
+calloop = { version = "0.14", features = ["signals"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+winit = "0.30"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
