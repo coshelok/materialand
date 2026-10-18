@@ -1,6 +1,6 @@
 use smithay::{
     backend::input::{
-        Axis, AxisSource, ButtonState, InputBackend, KeyState, KeyboardKeyEvent,
+        Axis, AxisSource, ButtonState, Event, InputBackend, KeyState, KeyboardKeyEvent,
         PointerAxisEvent, PointerButtonEvent,
     },
     desktop::WindowSurfaceType,
