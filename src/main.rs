@@ -32,7 +32,6 @@ use smithay::{
 };
 
 use crate::{
-    config::SOCKET_NAME,
     font::Fonts,
     state::{ClientState, State},
 };
