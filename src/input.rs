@@ -40,7 +40,9 @@ pub fn spawn_program(args: &[String]) {
     let session_mode = SESSION_MODE.load(std::sync::atomic::Ordering::Relaxed);
     let mut cmd = std::process::Command::new(&args[0]);
     cmd.args(&args[1..]);
-    cmd.env("WAYLAND_DISPLAY", config::SOCKET_NAME)
+    let socket_name = std::env::var("WAYLAND_DISPLAY")
+        .unwrap_or_else(|_| config::SOCKET_NAME.to_owned());
+    cmd.env("WAYLAND_DISPLAY", socket_name)
         // WAYLAND_SOCKET takes precedence over WAYLAND_DISPLAY in clients. If
         // inherited from a launcher, it can bypass our socket and reconnect
         // straight to the host compositor.
@@ -943,7 +945,6 @@ pub(crate) fn perform_top_action(state: &mut State, action: TopAction) {
     }
 }
 
-/// Run one of the session-menu actions.
 fn host_power_action_allowed(action: shell::PowerAction, session_mode: bool) -> bool {
     session_mode || action == shell::PowerAction::Logout
 }
