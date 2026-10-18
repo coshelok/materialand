@@ -3,6 +3,7 @@ use smithay::{
         ButtonState, InputBackend, KeyState, KeyboardKeyEvent, PointerButtonEvent,
     },
     desktop::WindowSurfaceType,
+    reexports::wayland_server::protocol::wl_surface::WlSurface,
     input::{
         keyboard::{FilterResult, Keysym, ModifiersState},
         pointer::{ButtonEvent, MotionEvent},
@@ -18,6 +19,51 @@ use crate::{
 };
 
 const BTN_LEFT: u32 = 0x110;
+
+/// Forward one pointer motion and close the Wayland pointer frame.
+fn send_pointer_motion(
+    state: &mut State,
+    focus: Option<(WlSurface, Point<f64, Logical>)>,
+    event: &MotionEvent,
+) {
+    let pointer = state.pointer.clone();
+    pointer.motion(state, focus, event);
+    pointer.frame(state);
+}
+
+/// Forward one pointer button event and close the Wayland pointer frame.
+fn send_pointer_button(state: &mut State, event: &ButtonEvent) {
+    let pointer = state.pointer.clone();
+    pointer.button(state, event);
+    pointer.frame(state);
+}
+
+/// Forward a client press as one frame containing motion followed by button.
+fn send_client_press(
+    state: &mut State,
+    surface: WlSurface,
+    surface_location: Point<f64, Logical>,
+    location: Point<f64, Logical>,
+    button: u32,
+    serial: smithay::utils::Serial,
+    time: u32,
+) {
+    let pointer = state.pointer.clone();
+    let motion = MotionEvent {
+        location,
+        serial,
+        time,
+    };
+    pointer.motion(state, Some((surface, surface_location)), &motion);
+    let press = ButtonEvent {
+        serial,
+        time,
+        button,
+        state: ButtonState::Pressed,
+    };
+    pointer.button(state, &press);
+    pointer.frame(state);
+}
 
 /// Set when the compositor runs as a real session (`materialand` on DRM)
 /// instead of nested inside another compositor.
@@ -362,23 +408,12 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
     }
 
     let focus = state.surface_under_pointer();
-    let handle = state.pointer.clone();
-    let serial = state.next_serial();
     let event = MotionEvent {
         location,
-        serial,
+        serial: state.next_serial(),
         time,
     };
-    match focus {
-        Some((surface, surface_loc)) => {
-            handle.motion(state, Some((surface, surface_loc)), &event);
-        }
-        None => {
-            handle.motion(state, None, &event);
-        }
-    }
-    // Wayland clients may defer pointer input until the end-of-frame event.
-    handle.frame(state);
+    send_pointer_motion(state, focus, &event);
 }
 
 fn compute_resize(
@@ -469,16 +504,13 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 return;
             }
         }
-        let serial = state.next_serial();
-        let handle = state.pointer.clone();
         let event = ButtonEvent {
-            serial,
+            serial: state.next_serial(),
             time,
             button,
             state: if pressed { ButtonState::Pressed } else { ButtonState::Released },
         };
-        handle.button(state, &event);
-        handle.frame(state);
+        send_pointer_button(state, &event);
         return;
     }
 
@@ -685,14 +717,15 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 state.space.raise_element(&window, false);
                 state.focus_window(Some(window.clone()), serial);
                 state.last_interactive_press = Some((serial, window.clone()));
-                let handle = state.pointer.clone();
-                let move_event = MotionEvent { location: pos, serial, time };
-                handle.motion(state, Some((surface, surface_loc.to_f64())), &move_event);
-                let button_event = ButtonEvent {
-                    serial, time, button, state: ButtonState::Pressed,
-                };
-                handle.button(state, &button_event);
-                handle.frame(state);
+                send_client_press(
+                    state,
+                    surface,
+                    surface_loc.to_f64(),
+                    pos,
+                    button,
+                    serial,
+                    time,
+                );
                 return;
             }
             let layout = shell::decor_layout(geom);
@@ -747,26 +780,16 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                     {
                         state.space.raise_element(&window, false);
                         state.focus_window(Some(window.clone()), serial);
-                        let handle = state.pointer.clone();
-                        let move_event = MotionEvent {
-                            location: pos,
-                            serial,
-                            time,
-                        };
-                        handle.motion(
-                            state,
-                            Some((surface, surface_loc.to_f64())),
-                            &move_event,
-                        );
                         state.last_interactive_press = Some((serial, window.clone()));
-                        let button_event = ButtonEvent {
+                        send_client_press(
+                            state,
+                            surface,
+                            surface_loc.to_f64(),
+                            pos,
+                            button,
                             serial,
                             time,
-                            button,
-                            state: ButtonState::Pressed,
-                        };
-                        handle.button(state, &button_event);
-                        handle.frame(state);
+                        );
                     } else {
                         continue;
                     }
@@ -789,16 +812,13 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         state.shell.set_slider_active(false);
         return;
     }
-    let serial = state.next_serial();
-    let handle = state.pointer.clone();
     let event = ButtonEvent {
-        serial,
+        serial: state.next_serial(),
         time,
         button,
         state: ButtonState::Released,
     };
-    handle.button(state, &event);
-    handle.frame(state);
+    send_pointer_button(state, &event);
 }
 
 /// A release of a press the shell swallowed earlier: spring the visuals back
