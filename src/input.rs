@@ -377,6 +377,8 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             handle.motion(state, None, &event);
         }
     }
+    // Wayland clients may defer pointer input until the end-of-frame event.
+    handle.frame(state);
 }
 
 fn compute_resize(
@@ -476,6 +478,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             state: if pressed { ButtonState::Pressed } else { ButtonState::Released },
         };
         handle.button(state, &event);
+        handle.frame(state);
         return;
     }
 
@@ -689,6 +692,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                     serial, time, button, state: ButtonState::Pressed,
                 };
                 handle.button(state, &button_event);
+                handle.frame(state);
                 return;
             }
             let layout = shell::decor_layout(geom);
@@ -762,6 +766,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                             state: ButtonState::Pressed,
                         };
                         handle.button(state, &button_event);
+                        handle.frame(state);
                     } else {
                         continue;
                     }
@@ -793,6 +798,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         state: ButtonState::Released,
     };
     handle.button(state, &event);
+    handle.frame(state);
 }
 
 /// A release of a press the shell swallowed earlier: spring the visuals back
