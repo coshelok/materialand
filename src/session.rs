@@ -697,6 +697,9 @@ fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBackend>) {
             input::on_pointer_motion(state, loc, event.time_msec());
         }
         InputEvent::PointerButton { event } => input::on_pointer_button(state, &event),
+        InputEvent::PointerAxis { event } => {
+            input::on_pointer_axis::<LibinputInputBackend>(state, event);
+        }
         // Touch, tablet and gesture events are not wired into the shell yet;
         // the nested backend has the same gap.
         _ => return,
