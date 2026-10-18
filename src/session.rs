@@ -582,11 +582,16 @@ fn pick_connector(
     None
 }
 
+fn refresh_millihz(refresh_hz: u32) -> i32 {
+    (refresh_hz as i32).saturating_mul(1_000)
+}
+
 fn to_output_mode(mode: control::Mode) -> OutputMode {
     let (w, h) = mode.size();
     OutputMode {
         size: Size::from((w as i32, h as i32)),
-        refresh: mode.vrefresh() as i32,
+        // wl_output.mode.refresh is expressed in millihertz, not hertz.
+        refresh: refresh_millihz(mode.vrefresh()),
     }
 }
 
@@ -944,4 +949,17 @@ mod probe_device {
 
     impl smithay::reexports::drm::Device for ProbeDevice {}
     impl smithay::reexports::drm::control::Device for ProbeDevice {}
+}
+
+
+#[cfg(test)]
+mod output_mode_tests {
+    use super::refresh_millihz;
+
+    #[test]
+    fn output_refresh_is_reported_in_millihertz() {
+        assert_eq!(refresh_millihz(60), 60_000);
+        assert_eq!(refresh_millihz(144), 144_000);
+        assert_eq!(refresh_millihz(0), 0);
+    }
 }
