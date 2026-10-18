@@ -2,7 +2,7 @@
 name = "materialand"
 version = "0.1.0"
 edition = "2021"
-description = "A Material 3 themed nested Wayland compositor built on Smithay"
+description = "A modular Material 3 Wayland compositor for DRM/KMS and nested sessions"
 license = "MIT"
 
 [[bin]]
