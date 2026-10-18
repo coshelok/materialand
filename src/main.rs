@@ -244,6 +244,12 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
                 WinitEvent::Input(InputEvent::PointerButton { event }) => {
                     input::on_pointer_button(&mut state, &event);
                 }
+                WinitEvent::Input(InputEvent::PointerAxis { event }) => {
+                    input::on_pointer_axis::<smithay::backend::winit::WinitInput>(
+                        &mut state,
+                        event,
+                    );
+                }
                 WinitEvent::CloseRequested => state.running = false,
                 _ => {}
             }
