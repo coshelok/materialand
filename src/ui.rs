@@ -127,7 +127,7 @@ pub fn build_ui(
         ));
         // Window rendering includes all tracked XDG popups (menus, combo boxes,
         // tooltips) and their surface trees in the correct relative position.
-        let content: Vec<UiElement> = window.render_elements::<UiElement>(
+        let mut content: Vec<UiElement> = window.render_elements::<UiElement>(
             renderer,
             scaled_loc,
             smithay::utils::Scale::from(
@@ -135,6 +135,10 @@ pub fn build_ui(
             ),
             walpha,
         );
+        // Keep the surface-tree stacking intact. The final global reverse
+        // below changes layer order, so reverse this group first rather than
+        // accidentally reversing popups/subsurfaces within the same window.
+        content.reverse();
         // Server-side decorations are drawn only for clients that actually
         // handed them over; CSD clients keep their own title bar.
         let server_decor = state.window_server_decor(&window);
