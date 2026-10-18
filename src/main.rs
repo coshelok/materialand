@@ -37,38 +37,57 @@ use crate::{
     state::{ClientState, State},
 };
 
+/// Whether a path is a private runtime directory owned by the current user.
+fn is_usable_runtime_dir(path: &std::path::Path, uid: u32) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    let Ok(metadata) = std::fs::metadata(path) else {
+        return false;
+    };
+    metadata.is_dir()
+        && metadata.uid() == uid
+        && metadata.mode() & 0o077 == 0
+}
+
 /// Guarantees that `XDG_RUNTIME_DIR` points at a usable per-user runtime
-/// directory. A graphical login session always sets it, but launching the
-/// compositor from a bare TTY (e.g. `DISPLAY=:1 ./materialand`) leaves it
-/// unset, which makes `ListeningSocket::bind` fail with `RuntimeDirNotSet`.
+/// directory. A graphical login session usually sets it, but a bare TTY may not.
 ///
-/// When the variable is missing we fall back to `/run/user/<uid>`, and, if
-/// that does not exist, create a private directory under the system temp dir.
+/// An absolute path is not enough: stale, missing, world-readable or
+/// wrong-owner paths can make Wayland sockets fail to bind or expose them to
+/// other users. Prefer the user manager's runtime dir; use a private temporary
+/// directory only when no valid system path is available.
 fn ensure_runtime_dir() -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
-        let path = PathBuf::from(&dir);
-        if path.is_absolute() {
-            return Ok(());
-        }
-    }
+    use std::os::unix::fs::PermissionsExt;
 
     let uid = smithay::reexports::rustix::process::getuid().as_raw();
+    if let Some(dir) = std::env::var_os("XDG_RUNTIME_DIR") {
+        let path = PathBuf::from(&dir);
+        if is_usable_runtime_dir(&path, uid) {
+            return Ok(());
+        }
+        tracing::warn!(dir = %path.display(), "ignoring invalid XDG_RUNTIME_DIR");
+        std::env::remove_var("XDG_RUNTIME_DIR");
+    }
+
     let system = PathBuf::from(format!("/run/user/{uid}"));
-    if system.is_dir() {
+    if is_usable_runtime_dir(&system, uid) {
         std::env::set_var("XDG_RUNTIME_DIR", &system);
-        tracing::info!(dir = %system.display(), "XDG_RUNTIME_DIR was unset; using system runtime dir");
+        tracing::info!(dir = %system.display(), "using the system runtime directory");
         return Ok(());
     }
 
     let fallback = std::env::temp_dir().join(format!("materialand-{uid}"));
     std::fs::create_dir_all(&fallback)?;
-    // The Wayland protocol requires this directory to be private to the user.
-    std::fs::set_permissions(
-        &fallback,
-        std::os::unix::fs::PermissionsExt::from_mode(0o700),
-    )?;
+    std::fs::set_permissions(&fallback, PermissionsExt::from_mode(0o700))?;
+    if !is_usable_runtime_dir(&fallback, uid) {
+        return Err(format!(
+            "runtime directory {} is not private or is not owned by uid {uid}",
+            fallback.display()
+        )
+        .into());
+    }
     std::env::set_var("XDG_RUNTIME_DIR", &fallback);
-    tracing::warn!(dir = %fallback.display(), "XDG_RUNTIME_DIR was unset; using a temporary runtime dir");
+    tracing::warn!(dir = %fallback.display(), "using a temporary runtime directory");
     Ok(())
 }
 
