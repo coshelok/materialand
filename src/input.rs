@@ -1,12 +1,13 @@
 use smithay::{
     backend::input::{
-        ButtonState, InputBackend, KeyState, KeyboardKeyEvent, PointerButtonEvent,
+        Axis, AxisSource, ButtonState, InputBackend, KeyState, KeyboardKeyEvent,
+        PointerAxisEvent, PointerButtonEvent,
     },
     desktop::WindowSurfaceType,
     reexports::wayland_server::protocol::wl_surface::WlSurface,
     input::{
         keyboard::{FilterResult, Keysym, ModifiersState},
-        pointer::{ButtonEvent, MotionEvent},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent},
     },
     utils::{Logical, Point, Rectangle},
 };
@@ -35,6 +36,52 @@ fn send_pointer_motion(
 fn send_pointer_button(state: &mut State, event: &ButtonEvent) {
     let pointer = state.pointer.clone();
     pointer.button(state, event);
+    pointer.frame(state);
+}
+
+/// Forward wheel/touchpad axis events with their source and high-resolution
+/// values intact, then terminate the Wayland pointer frame.
+pub(crate) fn on_pointer_axis<B: InputBackend>(
+    state: &mut State,
+    event: B::PointerAxisEvent,
+) {
+    let horizontal_discrete = event.amount_v120(Axis::Horizontal);
+    let vertical_discrete = event.amount_v120(Axis::Vertical);
+    let horizontal = event.amount(Axis::Horizontal).unwrap_or_else(|| {
+        horizontal_discrete.unwrap_or(0.0) * 15.0 / 120.0
+    });
+    let vertical = event.amount(Axis::Vertical).unwrap_or_else(|| {
+        vertical_discrete.unwrap_or(0.0) * 15.0 / 120.0
+    });
+
+    let mut frame = AxisFrame::new(event.time_msec()).source(event.source());
+    if horizontal != 0.0 {
+        frame = frame
+            .relative_direction(Axis::Horizontal, event.relative_direction(Axis::Horizontal))
+            .value(Axis::Horizontal, horizontal);
+        if let Some(discrete) = horizontal_discrete {
+            frame = frame.v120(Axis::Horizontal, discrete as i32);
+        }
+    }
+    if vertical != 0.0 {
+        frame = frame
+            .relative_direction(Axis::Vertical, event.relative_direction(Axis::Vertical))
+            .value(Axis::Vertical, vertical);
+        if let Some(discrete) = vertical_discrete {
+            frame = frame.v120(Axis::Vertical, discrete as i32);
+        }
+    }
+    if event.source() == AxisSource::Finger {
+        if event.amount(Axis::Horizontal) == Some(0.0) {
+            frame = frame.stop(Axis::Horizontal);
+        }
+        if event.amount(Axis::Vertical) == Some(0.0) {
+            frame = frame.stop(Axis::Vertical);
+        }
+    }
+
+    let pointer = state.pointer.clone();
+    pointer.axis(state, frame);
     pointer.frame(state);
 }
 
