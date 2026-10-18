@@ -852,7 +852,9 @@ pub fn run(
     app.backend.attach_output(&mut app.state)?;
     app.request_redraw();
 
-    tracing::info!("compositor ready on WAYLAND_DISPLAY={}", crate::config::SOCKET_NAME);
+    let socket_name = std::env::var("WAYLAND_DISPLAY")
+        .unwrap_or_else(|_| crate::config::SOCKET_NAME.to_owned());
+    tracing::info!("compositor ready on WAYLAND_DISPLAY={socket_name}");
     while app.state.running {
         // Wake-ups come from the sockets, the devices and the shell timer.
         if let Err(err) = event_loop.dispatch(None::<Duration>, &mut app) {
