@@ -740,7 +740,9 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             // Fullscreen windows own the output, and CSD clients draw their own
             // title bar: neither has a frame of ours to hit-test, so only the
             // client content takes input.
-            if state.window_props(&window).fullscreen || !state.window_server_decor(&window) {
+            let fullscreen = state.window_props(&window).fullscreen;
+            let server_decor = state.window_server_decor(&window);
+            if fullscreen || !server_decor {
                 let inside = pos.x >= geom.loc.x as f64
                     && pos.y >= geom.loc.y as f64
                     && pos.x < (geom.loc.x + geom.size.w) as f64
