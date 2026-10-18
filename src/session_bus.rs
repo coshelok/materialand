@@ -17,10 +17,11 @@ pub struct IsolatedSessionBus {
 
 /// Start a private session bus and publish its address to future child processes.
 ///
-/// If dbus-daemon is unavailable or fails to start, we deliberately remove the
-/// inherited host bus address rather than silently allowing clients to activate
-/// applications in another desktop session. D-Bus-dependent apps may then fail
-/// to start, but they will not be directed to the parent's bus by this code.
+/// If dbus-daemon is unavailable or fails to start, we replace the inherited
+/// host address with a deliberately unreachable Unix-socket address. Some
+/// D-Bus libraries discover a default bus when the variable is unset; merely
+/// removing it would therefore not guarantee isolation. D-Bus-dependent apps
+/// may fail to start, but they cannot silently use the parent's bus.
 pub fn start() -> Option<IsolatedSessionBus> {
     let child_result = Command::new("dbus-daemon")
         .args(["--session", "--nofork", "--print-address=1"])
@@ -32,8 +33,8 @@ pub fn start() -> Option<IsolatedSessionBus> {
     let mut child = match child_result {
         Ok(child) => child,
         Err(error) => {
-            tracing::warn!(%error, "could not start a private D-Bus session; host bus will not be inherited");
-            clear_inherited_bus();
+            tracing::warn!(%error, "could not start a private D-Bus session; disabling D-Bus activation for clients");
+            disable_inherited_bus();
             return None;
         }
     };
@@ -51,7 +52,7 @@ pub fn start() -> Option<IsolatedSessionBus> {
         tracing::warn!(%error, "could not read the private D-Bus address");
         let _ = child.kill();
         let _ = child.wait();
-        clear_inherited_bus();
+        disable_inherited_bus();
         return None;
     }
 
@@ -75,8 +76,10 @@ pub fn start() -> Option<IsolatedSessionBus> {
     Some(IsolatedSessionBus { child })
 }
 
-fn clear_inherited_bus() {
-    std::env::remove_var("DBUS_SESSION_BUS_ADDRESS");
+fn disable_inherited_bus() {
+    // Do not leave the address unset: GLib/other libraries may discover the
+    // user's default bus socket and reconnect to the host desktop.
+    std::env::set_var("DBUS_SESSION_BUS_ADDRESS", "unix:path=/dev/null");
     std::env::remove_var("DBUS_STARTER_ADDRESS");
     std::env::remove_var("DBUS_STARTER_BUS_TYPE");
     std::env::remove_var("DBUS_SESSION_BUS_PID");
