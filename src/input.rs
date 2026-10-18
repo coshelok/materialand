@@ -23,11 +23,11 @@ const BTN_LEFT: u32 = 0x110;
 /// instead of nested inside another compositor.
 static SESSION_MODE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Tell [`spawn_program`] whether the compositor owns its graphical session.
+/// Tell power controls whether this compositor owns the hardware session.
 ///
-/// Nested mode strips the host's `DISPLAY` and session bus so launched apps
-/// cannot leak into the host session; a real session keeps the bus (portals,
-/// activation) but still drops `DISPLAY` because there is no XWayland yet.
+/// This flag is deliberately not used to choose the child application's Wayland
+/// socket or session bus: both backends use the per-instance socket and private
+/// bus established at startup.
 pub fn set_session_mode(enabled: bool) {
     SESSION_MODE.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
@@ -37,7 +37,6 @@ pub fn spawn_program(args: &[String]) {
     if args.is_empty() {
         return;
     }
-    let session_mode = SESSION_MODE.load(std::sync::atomic::Ordering::Relaxed);
     let mut cmd = std::process::Command::new(&args[0]);
     cmd.args(&args[1..]);
     let socket_name = std::env::var("WAYLAND_DISPLAY")
@@ -56,16 +55,12 @@ pub fn spawn_program(args: &[String]) {
     cmd.env("XDG_CURRENT_DESKTOP", "Materialand");
     cmd.env_remove("DISPLAY");
 
-    // In a real session this is our D-Bus bus, used by portals and activation.
-    // Nested mode must not inherit the host's direct bus address or starter
-    // address. This reduces accidental host activation but cannot prevent an
-    // application from forwarding requests to an already-running instance
-    // through its own IPC or shared profile directory.
-    if !session_mode {
-        cmd.env_remove("DBUS_SESSION_BUS_ADDRESS");
-        cmd.env_remove("DBUS_STARTER_ADDRESS");
-        cmd.env_remove("XDG_ACTIVATION_TOKEN");
-    }
+    // The compositor starts a private D-Bus session in both backends. Never
+    // forward a host activation token into this independent desktop session.
+    cmd.env_remove("XDG_ACTIVATION_TOKEN")
+        .env_remove("DBUS_STARTER_ADDRESS")
+        .env_remove("DBUS_STARTER_BUS_TYPE")
+        .env_remove("DBUS_SESSION_BUS_PID");
     // A client must not inherit the compositor's stdio: doing so leaks the
     // controlling terminal / pipe and lets a chatty client block on a full pipe.
     cmd.stdin(std::process::Stdio::null())
