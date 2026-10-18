@@ -5,6 +5,7 @@ mod font;
 mod input;
 mod render;
 mod session;
+mod session_bus;
 mod shell;
 mod state;
 mod style;
@@ -150,6 +151,9 @@ fn run_session() -> Result<(), Box<dyn std::error::Error>> {
     std::env::set_var("WAYLAND_DISPLAY", &socket_name);
     std::env::set_var("XDG_SESSION_TYPE", "wayland");
     std::env::set_var("XDG_CURRENT_DESKTOP", "Materialand");
+    // Start this after libseat/backend setup so seat acquisition still uses the
+    // original login-session context, but before any child applications launch.
+    let _session_bus = session_bus::start();
     input::set_session_mode(true);
 
     let ticker = ui::Ticker::new(&mut state);
@@ -180,6 +184,11 @@ fn run_nested() -> Result<(), Box<dyn std::error::Error>> {
     // `WAYLAND_DISPLAY` to create its window, while clients spawned later must
     // connect to us instead.
     std::env::set_var("WAYLAND_DISPLAY", &socket_name);
+    std::env::set_var("XDG_SESSION_TYPE", "wayland");
+    std::env::set_var("XDG_CURRENT_DESKTOP", "Materialand");
+    // Winit has already connected to the host. Now isolate services launched
+    // by Materialand from the host session bus before starting client apps.
+    let _session_bus = session_bus::start();
 
     let initial = backend.window_size();
     update_output(&mut state, initial);
