@@ -1,11 +1,13 @@
 use smithay::{
     backend::input::{
-        ButtonState, InputBackend, KeyState, KeyboardKeyEvent, PointerButtonEvent,
+        Axis, AxisSource, ButtonState, Event, InputBackend, KeyState, KeyboardKeyEvent,
+        PointerAxisEvent, PointerButtonEvent,
     },
     desktop::WindowSurfaceType,
+    reexports::wayland_server::protocol::wl_surface::WlSurface,
     input::{
         keyboard::{FilterResult, Keysym, ModifiersState},
-        pointer::{ButtonEvent, MotionEvent},
+        pointer::{AxisFrame, ButtonEvent, MotionEvent},
     },
     utils::{Logical, Point, Rectangle},
 };
@@ -19,15 +21,106 @@ use crate::{
 
 const BTN_LEFT: u32 = 0x110;
 
+/// Forward one pointer motion and close the Wayland pointer frame.
+fn send_pointer_motion(
+    state: &mut State,
+    focus: Option<(WlSurface, Point<f64, Logical>)>,
+    event: &MotionEvent,
+) {
+    let pointer = state.pointer.clone();
+    pointer.motion(state, focus, event);
+    pointer.frame(state);
+}
+
+/// Forward one pointer button event and close the Wayland pointer frame.
+fn send_pointer_button(state: &mut State, event: &ButtonEvent) {
+    let pointer = state.pointer.clone();
+    pointer.button(state, event);
+    pointer.frame(state);
+}
+
+/// Forward wheel/touchpad axis events with their source and high-resolution
+/// values intact, then terminate the Wayland pointer frame.
+pub(crate) fn on_pointer_axis<B: InputBackend>(
+    state: &mut State,
+    event: B::PointerAxisEvent,
+) {
+    let horizontal_discrete = event.amount_v120(Axis::Horizontal);
+    let vertical_discrete = event.amount_v120(Axis::Vertical);
+    let horizontal = event.amount(Axis::Horizontal).unwrap_or_else(|| {
+        horizontal_discrete.unwrap_or(0.0) * 15.0 / 120.0
+    });
+    let vertical = event.amount(Axis::Vertical).unwrap_or_else(|| {
+        vertical_discrete.unwrap_or(0.0) * 15.0 / 120.0
+    });
+
+    let mut frame = AxisFrame::new(event.time_msec()).source(event.source());
+    if horizontal != 0.0 {
+        frame = frame
+            .relative_direction(Axis::Horizontal, event.relative_direction(Axis::Horizontal))
+            .value(Axis::Horizontal, horizontal);
+        if let Some(discrete) = horizontal_discrete {
+            frame = frame.v120(Axis::Horizontal, discrete as i32);
+        }
+    }
+    if vertical != 0.0 {
+        frame = frame
+            .relative_direction(Axis::Vertical, event.relative_direction(Axis::Vertical))
+            .value(Axis::Vertical, vertical);
+        if let Some(discrete) = vertical_discrete {
+            frame = frame.v120(Axis::Vertical, discrete as i32);
+        }
+    }
+    if event.source() == AxisSource::Finger {
+        if event.amount(Axis::Horizontal) == Some(0.0) {
+            frame = frame.stop(Axis::Horizontal);
+        }
+        if event.amount(Axis::Vertical) == Some(0.0) {
+            frame = frame.stop(Axis::Vertical);
+        }
+    }
+
+    let pointer = state.pointer.clone();
+    pointer.axis(state, frame);
+    pointer.frame(state);
+}
+
+/// Forward a client press as one frame containing motion followed by button.
+fn send_client_press(
+    state: &mut State,
+    surface: WlSurface,
+    surface_location: Point<f64, Logical>,
+    location: Point<f64, Logical>,
+    button: u32,
+    serial: smithay::utils::Serial,
+    time: u32,
+) {
+    let pointer = state.pointer.clone();
+    let motion = MotionEvent {
+        location,
+        serial,
+        time,
+    };
+    pointer.motion(state, Some((surface, surface_location)), &motion);
+    let press = ButtonEvent {
+        serial,
+        time,
+        button,
+        state: ButtonState::Pressed,
+    };
+    pointer.button(state, &press);
+    pointer.frame(state);
+}
+
 /// Set when the compositor runs as a real session (`materialand` on DRM)
 /// instead of nested inside another compositor.
 static SESSION_MODE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Tell [`spawn_program`] whether the compositor owns its graphical session.
+/// Tell power controls whether this compositor owns the hardware session.
 ///
-/// Nested mode strips the host's `DISPLAY` and session bus so launched apps
-/// cannot leak into the host session; a real session keeps the bus (portals,
-/// activation) but still drops `DISPLAY` because there is no XWayland yet.
+/// This flag is deliberately not used to choose the child application's Wayland
+/// socket or session bus: both backends use the per-instance socket and private
+/// bus established at startup.
 pub fn set_session_mode(enabled: bool) {
     SESSION_MODE.store(enabled, std::sync::atomic::Ordering::Relaxed);
 }
@@ -37,25 +130,30 @@ pub fn spawn_program(args: &[String]) {
     if args.is_empty() {
         return;
     }
-    let session_mode = SESSION_MODE.load(std::sync::atomic::Ordering::Relaxed);
     let mut cmd = std::process::Command::new(&args[0]);
     cmd.args(&args[1..]);
-    cmd.env("WAYLAND_DISPLAY", config::SOCKET_NAME);
+    let socket_name = std::env::var("WAYLAND_DISPLAY")
+        .unwrap_or_else(|_| config::SOCKET_NAME.to_owned());
+    cmd.env("WAYLAND_DISPLAY", socket_name)
+        // WAYLAND_SOCKET takes precedence over WAYLAND_DISPLAY in clients. If
+        // inherited from a launcher, it can bypass our socket and reconnect
+        // straight to the host compositor.
+        .env_remove("WAYLAND_SOCKET");
     if let Ok(runtime) = std::env::var("XDG_RUNTIME_DIR") {
         cmd.env("XDG_RUNTIME_DIR", runtime);
     }
-    // Isolate the client from the host session: dropping `DISPLAY` stops
-    // XWayland clients from opening a window on the host compositor, and
-    // dropping the session bus prevents D-Bus activation from reusing an
-    // already-running host instance (e.g. GNOME Files). In a real session the
-    // bus belongs to us and is what portals and activation use.
+    // The child belongs to this compositor, including in nested development
+    // mode. Do not let host X11 selection or desktop identity override it.
+    cmd.env("XDG_SESSION_TYPE", "wayland");
+    cmd.env("XDG_CURRENT_DESKTOP", "Materialand");
     cmd.env_remove("DISPLAY");
-    if session_mode {
-        cmd.env("XDG_SESSION_TYPE", "wayland");
-        cmd.env("XDG_CURRENT_DESKTOP", "Materialand");
-    } else {
-        cmd.env_remove("DBUS_SESSION_BUS_ADDRESS");
-    }
+
+    // The compositor starts a private D-Bus session in both backends. Never
+    // forward a host activation token into this independent desktop session.
+    cmd.env_remove("XDG_ACTIVATION_TOKEN")
+        .env_remove("DBUS_STARTER_ADDRESS")
+        .env_remove("DBUS_STARTER_BUS_TYPE")
+        .env_remove("DBUS_SESSION_BUS_PID");
     // A client must not inherit the compositor's stdio: doing so leaks the
     // controlling terminal / pipe and lets a chatty client block on a full pipe.
     cmd.stdin(std::process::Stdio::null())
@@ -357,21 +455,12 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
     }
 
     let focus = state.surface_under_pointer();
-    let handle = state.pointer.clone();
-    let serial = state.next_serial();
     let event = MotionEvent {
         location,
-        serial,
+        serial: state.next_serial(),
         time,
     };
-    match focus {
-        Some((surface, surface_loc)) => {
-            handle.motion(state, Some((surface, surface_loc)), &event);
-        }
-        None => {
-            handle.motion(state, None, &event);
-        }
-    }
+    send_pointer_motion(state, focus, &event);
 }
 
 fn compute_resize(
@@ -462,15 +551,13 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 return;
             }
         }
-        let serial = state.next_serial();
-        let handle = state.pointer.clone();
         let event = ButtonEvent {
-            serial,
+            serial: state.next_serial(),
             time,
             button,
             state: if pressed { ButtonState::Pressed } else { ButtonState::Released },
         };
-        handle.button(state, &event);
+        send_pointer_button(state, &event);
         return;
     }
 
@@ -637,6 +724,11 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         // from the top of the stack and hit-test its full frame.
         let windows: Vec<_> = state.space.elements().cloned().collect();
         for window in windows.into_iter().rev() {
+            // Toplevels can be announced before they attach their first buffer.
+            // The renderer omits such windows, so they must not intercept input.
+            if !state.window_has_content(&window) {
+                continue;
+            }
             let Some(geom) = state.space.element_geometry(&window) else {
                 continue;
             };
@@ -648,7 +740,9 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             // Fullscreen windows own the output, and CSD clients draw their own
             // title bar: neither has a frame of ours to hit-test, so only the
             // client content takes input.
-            if state.window_props(&window).fullscreen || !state.window_server_decor(&window) {
+            let fullscreen = state.window_props(&window).fullscreen;
+            let server_decor = state.window_server_decor(&window);
+            if fullscreen || !server_decor {
                 let inside = pos.x >= geom.loc.x as f64
                     && pos.y >= geom.loc.y as f64
                     && pos.x < (geom.loc.x + geom.size.w) as f64
@@ -656,23 +750,31 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 if !inside {
                     continue;
                 }
+                let local = pos - state.window_surface_origin(&window).to_f64();
+                let Some((surface, surface_loc)) =
+                    window.surface_under(local, WindowSurfaceType::ALL)
+                else {
+                    // A transparent/input-excluded part of a normal window is
+                    // not a hit. Keep searching lower windows instead of
+                    // swallowing the click. Fullscreen still owns the output.
+                    if fullscreen {
+                        state.swallowed_buttons.insert(button);
+                        return;
+                    }
+                    continue;
+                };
                 state.space.raise_element(&window, false);
                 state.focus_window(Some(window.clone()), serial);
-                let local = pos - state.window_surface_origin(&window).to_f64();
-                if let Some((surface, surface_loc)) =
-                    window.surface_under(local, WindowSurfaceType::ALL)
-                {
-                    state.last_interactive_press = Some((serial, window.clone()));
-                    let handle = state.pointer.clone();
-                    let move_event = MotionEvent { location: pos, serial, time };
-                    handle.motion(state, Some((surface, surface_loc.to_f64())), &move_event);
-                    let button_event = ButtonEvent {
-                        serial, time, button, state: ButtonState::Pressed,
-                    };
-                    handle.button(state, &button_event);
-                } else {
-                    state.swallowed_buttons.insert(button);
-                }
+                state.last_interactive_press = Some((serial, window.clone()));
+                send_client_press(
+                    state,
+                    surface,
+                    surface_loc.to_f64(),
+                    pos,
+                    button,
+                    serial,
+                    time,
+                );
                 return;
             }
             let layout = shell::decor_layout(geom);
@@ -712,10 +814,12 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                     };
                 }
                 DecorHit::None => {
-                    // Clicking the exposed part of a lower window brings it up.
-                    state.space.raise_element(&window, false);
-                    state.focus_window(Some(window.clone()), serial);
+                    // A visible frame can cover lower windows; its border is
+                    // compositor-owned. Inside the content rectangle, however,
+                    // an input-region miss must fall through to lower windows.
                     if !layout.content.contains(pos) {
+                        state.space.raise_element(&window, false);
+                        state.focus_window(Some(window.clone()), serial);
                         state.swallowed_buttons.insert(button);
                         return;
                     }
@@ -723,27 +827,20 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                     if let Some((surface, surface_loc)) =
                         window.surface_under(local, WindowSurfaceType::ALL)
                     {
-                        let handle = state.pointer.clone();
-                        let move_event = MotionEvent {
-                            location: pos,
-                            serial,
-                            time,
-                        };
-                        handle.motion(
-                            state,
-                            Some((surface, surface_loc.to_f64())),
-                            &move_event,
-                        );
+                        state.space.raise_element(&window, false);
+                        state.focus_window(Some(window.clone()), serial);
                         state.last_interactive_press = Some((serial, window.clone()));
-                        let button_event = ButtonEvent {
+                        send_client_press(
+                            state,
+                            surface,
+                            surface_loc.to_f64(),
+                            pos,
+                            button,
                             serial,
                             time,
-                            button,
-                            state: ButtonState::Pressed,
-                        };
-                        handle.button(state, &button_event);
+                        );
                     } else {
-                        state.swallowed_buttons.insert(button);
+                        continue;
                     }
                 }
             }
@@ -764,15 +861,13 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         state.shell.set_slider_active(false);
         return;
     }
-    let serial = state.next_serial();
-    let handle = state.pointer.clone();
     let event = ButtonEvent {
-        serial,
+        serial: state.next_serial(),
         time,
         button,
         state: ButtonState::Released,
     };
-    handle.button(state, &event);
+    send_pointer_button(state, &event);
 }
 
 /// A release of a press the shell swallowed earlier: spring the visuals back
@@ -920,10 +1015,21 @@ pub(crate) fn perform_top_action(state: &mut State, action: TopAction) {
     }
 }
 
+fn host_power_action_allowed(action: shell::PowerAction, session_mode: bool) -> bool {
+    session_mode || action == shell::PowerAction::Logout
+}
+
 /// Run one of the session-menu actions.
 pub(crate) fn perform_power_action(state: &mut State, action: shell::PowerAction) {
     state.shell.power_open = false;
     state.shell.set_power_open(false);
+    let session_mode = SESSION_MODE.load(std::sync::atomic::Ordering::Relaxed);
+    if !host_power_action_allowed(action, session_mode) {
+        // Nested mode is only a development window. Never let its controls
+        // shut down or reboot the host session that contains it.
+        tracing::warn!(?action, "host power action ignored in nested mode");
+        return;
+    }
     match action {
         shell::PowerAction::PowerOff => spawn_system(&["systemctl", "poweroff"]),
         shell::PowerAction::Restart => spawn_system(&["systemctl", "reboot"]),
@@ -983,6 +1089,19 @@ mod tests {
             top,
             bottom,
         }
+    }
+
+    #[test]
+    fn nested_mode_never_runs_host_power_commands() {
+        assert!(!host_power_action_allowed(shell::PowerAction::PowerOff, false));
+        assert!(!host_power_action_allowed(shell::PowerAction::Restart, false));
+        assert!(host_power_action_allowed(shell::PowerAction::Logout, false));
+    }
+
+    #[test]
+    fn real_session_allows_power_actions() {
+        assert!(host_power_action_allowed(shell::PowerAction::PowerOff, true));
+        assert!(host_power_action_allowed(shell::PowerAction::Restart, true));
     }
 
     #[test]
