@@ -1,51 +1,71 @@
-//! Dock.
+//! Stable creation order, with running pinned applications occupying their pin slot.
 use super::*;
 pub fn dock_items(state: &State) -> Vec<DockItem> {
-    let mut items: Vec<DockItem> = vec![DockItem::Launcher];
-    items.extend(state.shell.pinned.iter().cloned().map(DockItem::Launch));
-    for window in state.windows.space.elements() {
-        // A toplevel without a buffer paints nothing (see `window_has_content`)
-        // and must not occupy a dock slot.
-        if !state.window_has_content(window) {
-            continue;
-        }
-        let meta = state.window_meta(window);
-        let key = if meta.app_id.is_empty() {
-            meta.title
+    let running: Vec<_> = state
+        .windows
+        .order
+        .iter()
+        .filter(|window| state.window_has_content(window) || state.window_props(window).minimized)
+        .map(|window| {
+            let meta = state.window_meta(window);
+            let app = state
+                .shell
+                .pinned
+                .iter()
+                .chain(&state.shell.apps)
+                .chain(std::iter::once(&state.shell.terminal_app))
+                .find(|app| app.matches_app_id(&meta.app_id))
+                .cloned();
+            let key = app.as_ref().map(|a| a.icon.clone()).unwrap_or_else(|| {
+                if meta.app_id.is_empty() {
+                    meta.title
+                } else {
+                    meta.app_id
+                }
+            });
+            (window.clone(), key, app)
+        })
+        .collect();
+    let mut items = vec![DockItem::Launcher];
+    let mut used = std::collections::HashSet::new();
+    for app in &state.shell.pinned {
+        if let Some((i, (window, key, _))) =
+            running
+                .iter()
+                .enumerate()
+                .rev()
+                .find(|(i, (_, _, candidate))| {
+                    !used.contains(i)
+                        && candidate
+                            .as_ref()
+                            .is_some_and(|a| a.identity() == app.identity())
+                })
+        {
+            used.insert(i);
+            items.push(DockItem::Focus {
+                window: window.clone(),
+                key: key.clone(),
+                app: Some(app.clone()),
+                pinned: true,
+            });
         } else {
-            meta.app_id
-        };
-        items.push(DockItem::Focus {
-            window: window.clone(),
-            key,
-        });
-    }
-    // Minimized windows are unmapped but remain launchable from the dock.
-    for (window, props) in &state.windows.props {
-        if !props.minimized {
-            continue;
+            items.push(DockItem::Launch(app.clone()));
         }
-        let meta = state.window_meta(window);
-        let key = if meta.app_id.is_empty() {
-            meta.title
-        } else {
-            meta.app_id
-        };
-        items.push(DockItem::Focus {
-            window: window.clone(),
-            key,
-        });
     }
+    items.extend(
+        running
+            .into_iter()
+            .enumerate()
+            .filter(|(i, _)| !used.contains(i))
+            .map(|(_, (window, key, app))| DockItem::Focus {
+                window,
+                key,
+                app,
+                pinned: false,
+            }),
+    );
     items
 }
-
 pub fn dock_item_count(state: &State) -> usize {
-    let minimized = state.windows.props.values().filter(|p| p.minimized).count();
-    let running = state
-        .windows
-        .space
-        .elements()
-        .filter(|window| state.window_has_content(window))
-        .count();
-    1 + state.shell.pinned.len() + running + minimized
+    dock_items(state).len()
 }

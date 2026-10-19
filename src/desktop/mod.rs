@@ -149,6 +149,8 @@ pub struct State {
     pub keyboard: KeyboardHandle<Self>,
 
     _output_global: GlobalId,
+    /// Disabled outputs remain bindable for clients with registry events in flight.
+    retired_output_globals: Vec<GlobalId>,
 
     pub shell: Shell,
     pub fonts: Fonts,
@@ -161,7 +163,7 @@ pub struct State {
 
     pub cursor: Point<f64, Logical>,
     pub interaction: Interaction,
-    /// Output dimming factor in `[0.2, 1.0]`; `1.0` leaves the image untouched.
+    /// Hardware backlight fraction, independent of the rendered scene.
     pub brightness: f32,
     /// Latest pointer-button serial that was actually delivered to a client.
     /// XDG interactive move/resize requests must match this serial and window.

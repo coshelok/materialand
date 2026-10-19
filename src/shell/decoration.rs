@@ -42,41 +42,12 @@ impl Shell {
         let pw = l.frame.w.ceil() as u32 + 2 * SHADOW_PAD as u32;
         let ph = l.frame.h.ceil() as u32 + 2 * SHADOW_PAD as u32;
         let mut s = Surface::new(pw, ph);
-        // Soft elevation shadow under the floating frame.
-        s.shadow_round_rect(
-            SHADOW_PAD,
-            SHADOW_PAD,
-            l.frame.w,
-            l.frame.h,
-            config::FRAME_RADIUS,
-            SHADOW_SPREAD,
-        );
-
-        // Focus raises the frame to a higher Material elevation.
-        let surface = theme.surface_for_elevation(if focused { 3 } else { 2 });
+        super::decoration_frame::paint_frame(&mut s, &l, theme, focused);
         let on = if focused {
             theme.on_surface
         } else {
             Theme::with_alpha(theme.on_surface, 0.7)
         };
-
-        s.fill_round_rect(
-            SHADOW_PAD,
-            SHADOW_PAD,
-            l.frame.w,
-            l.frame.h,
-            config::FRAME_RADIUS,
-            surface,
-        );
-        s.stroke_round_rect(
-            SHADOW_PAD + 0.5,
-            SHADOW_PAD + 0.5,
-            l.frame.w - 1.0,
-            l.frame.h - 1.0,
-            config::FRAME_RADIUS,
-            1.0,
-            Theme::with_alpha(theme.outline, if focused { 0.35 } else { 0.2 }),
-        );
 
         // Window controls: minimize, maximize/restore, close.
         let cc = (
@@ -109,8 +80,8 @@ impl Shell {
             14.0,
             neutral_on,
         );
-        s.circle(cc.0, cc.1, 13.0, Theme::with_alpha(theme.error, 0.9));
-        fonts.draw_icon_centered(&mut s, cc.0, cc.1, "close", 16.0, theme.on_error);
+        s.circle(cc.0, cc.1, 13.0, theme.error_container);
+        fonts.draw_icon_centered(&mut s, cc.0, cc.1, "close", 16.0, theme.on_error_container);
 
         let key = if meta.app_id.is_empty() {
             meta.title.as_str()
@@ -135,12 +106,18 @@ impl Shell {
         } else {
             TextStyle::TITLE_SMALL
         };
+        let title = fit_text(
+            fonts,
+            title_style,
+            &meta.title,
+            (l.frame.w - 182.0).max(0.0),
+        );
         fonts.draw_text_role(
             &mut s,
             SHADOW_PAD + 46.0,
             mid_y - title_style.line_height / 2.0,
             title_style,
-            &truncate(&meta.title, 42),
+            &title,
             on,
         );
 

@@ -50,6 +50,14 @@ The session entry runs `materialand`. SDDM reads system Wayland-session director
 
 The rendering and lifecycle contracts are documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
+## Appearance and motion
+
+The shell starts with a light cornflower-blue Material You palette. Tonal surfaces, floating rounded bars, pastel app medallions, larger quick-setting tiles and a broad brightness slider take their cues from Android. Dark mode remains available through the theme button or `MATERIALAND_THEME=dark`; custom seeds and all nine palette variants still work.
+
+Panel geometry uses springs with a small visible overshoot, while press feedback has a faster squeeze and rebound. Window opacity uses a critically damped spring. Reduced motion snaps transitions to their final state. Animated panel hit regions follow the same transforms as the rendered layers; client windows retain their actual geometry.
+
+The color and motion approach follows [Material color roles](https://m3.material.io/styles/color/the-color-system) and [Material motion](https://m3.material.io/styles/motion/overview/how-it-works), with spring values tuned for this desktop shell.
+
 ## Controls
 
 - `Super+P`: launcher; type to search, Enter to launch, Escape to close.
@@ -57,15 +65,19 @@ The rendering and lifecycle contracts are documented in [docs/ARCHITECTURE.md](d
 - `Super+D`: light/dark theme.
 - `Super+Q`: close the focused window.
 - Window decorations: move, resize, minimize, maximize and close.
-- Dock: launcher, terminal and running/minimized windows.
-- Top bar: launcher, theme, brightness overlay, quick settings and session menu.
-- Quick settings: theme, warm night-light tint, reduced motion and nine Material palette variants.
+- Dock: launcher, pinned applications and running/minimized windows. Its width and icon positions animate as applications open and close.
+- Right-click a dock application or launcher tile, then choose **Pin to dock** or **Unpin from dock**. Escape dismisses the menu; Enter activates its action.
+- Launcher: scroll the app grid with a mouse wheel or touchpad; Page Up/Page Down scroll a page, Home/End jump to the beginning/end. The search field stays fixed.
+- Top bar: launcher, clock/calendar, theme, hardware brightness, quick settings and session menu.
+- Click the clock for local time with seconds, full date, timezone and a Monday-first calendar. Use its arrows or Left/Right/Page Up/Page Down to browse months; Today or Home returns to the current month, Escape closes the panel.
+- Quick settings: theme, Night light, reduced motion and nine Material palette variants.
 
-Power-off and reboot actions are restricted to the direct session. In nested mode logout closes the compositor window. Brightness is a compositor dimming overlay, not hardware backlight control.
+Power-off and reboot actions are restricted to the direct session. In nested mode logout closes the compositor window. Brightness controls the backlight associated with the active DRM connector, starting at its actual level, with a 2% floor. Updates use direct sysfs access when permitted, otherwise `busctl` calls [logind’s SetBrightness](https://www.freedesktop.org/software/systemd/man/latest/org.freedesktop.login1.html). Slow permission requests run outside the render loop; failed requests restore the actual slider value and show an error. Night light smoothly adjusts the output gamma ramps with a gentle multiplicative white balance; black stays black and switching it off restores neutral color. The previous LUT is restored when the output is released. Brightness and Night light show Unavailable in nested mode or on outputs without the required hardware control; neither paints a color overlay.
 
 ## Configuration
 
 - `MATERIALAND_NESTED=1`: default to nested mode.
+- `MATERIALAND_THEME=dark`: start with the dark scheme; the default is `light`.
 - `MATERIALAND_DRM_DEVICE=/dev/dri/cardN`: try this card first.
 - `MATERIALAND_SEED=#RRGGBB`: palette seed; overrides wallpaper extraction.
 - `MATERIALAND_WALLPAPER=/path/to/image`: image used to derive the palette seed.
@@ -73,7 +85,13 @@ Power-off and reboot actions are restricted to the direct session. In nested mod
 - `MATERIALAND_FONT_DIR`: first font search directory; repository font assets and system fonts are fallbacks.
 - `MATERIALAND_XKB_LAYOUT=us,ru`, `MATERIALAND_XKB_OPTIONS=grp:alt_shift_toggle`: keyboard configuration.
 
+Dock pins are saved atomically to `$XDG_CONFIG_HOME/materialand/pinned-apps`, or `~/.config/materialand/pinned-apps` when `XDG_CONFIG_HOME` is unset. An empty file means no pinned applications. Unpinning the terminal does not change `Super+Enter`. Running applications are matched to their desktop entries; closing a pinned application leaves its launcher in the dock.
+
 Keyboard settings also fall back to `XKB_DEFAULT_*` and the system keyboard configuration. Multiple layouts get an Alt+Shift group switch unless a `grp:` option is already configured. Super shortcuts use Latin key positions across layouts.
+
+Window decorations follow each client's XDG decoration request: client-side frames receive no additional system titlebar; applications requesting server-side decorations receive Materialand's titlebar and exterior shadow. No opaque backing surface is painted behind client content, including translucent terminals.
+
+Direct sessions advertise the active DRM connector's physical dimensions. Missing dimensions and nested outputs use an unknown size instead of an assumed monitor diagonal. `materialand --check` also reports physical dimensions when the connector provides them.
 
 ## Validation and current scope
 

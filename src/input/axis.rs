@@ -5,6 +5,28 @@ use smithay::{
     input::pointer::AxisFrame,
 };
 pub fn on_pointer_axis<B: InputBackend>(state: &mut State, event: B::PointerAxisEvent) {
+    if state.shell.app_menu.is_some() {
+        return;
+    }
+    if state.shell.launcher_open && !state.pointer.is_grabbed() {
+        let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+        let pos = state
+            .shell
+            .launcher_placement(w, h, state.shell.launcher_progress())
+            .unmap(state.cursor);
+        if shell::launcher_viewport(w, h).contains(pos) {
+            let delta = if matches!(event.source(), AxisSource::Wheel | AxisSource::WheelTilt) {
+                event
+                    .amount_v120(Axis::Vertical)
+                    .map(|v| v * 84.0 / 120.0)
+                    .unwrap_or_else(|| event.amount(Axis::Vertical).unwrap_or(0.0) * 4.0)
+            } else {
+                event.amount(Axis::Vertical).unwrap_or(0.0)
+            };
+            state.shell.scroll_launcher(w, h, delta as f32);
+        }
+        return;
+    }
     if !matches!(
         super::target::target(state, state.cursor),
         super::target::Target::Window(crate::desktop::hit_test::WindowHit::Client { .. })

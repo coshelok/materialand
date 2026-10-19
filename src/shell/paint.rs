@@ -21,7 +21,7 @@ pub(super) fn masked_from(
             if dx * dx + dy * dy <= m.radius * m.radius {
                 return (cached.clone(), loc);
             }
-            let (cropped, (ox, oy)) = surface.masked_circle_cropped(m.cx, m.cy, m.radius);
+            let (cropped, (ox, oy)) = surface.masked_circle_cropped(cx, cy, m.radius);
             (
                 cropped.to_memory_buffer(),
                 Point::from((loc.x + ox as f64, loc.y + oy as f64)),
@@ -83,4 +83,30 @@ pub(super) fn truncate(s: &str, max: usize) -> String {
     let mut out: String = s.chars().take(max - 1).collect();
     out.push('…');
     out
+}
+
+/// Pastel app medallions use complete Material foreground/background pairs.
+/// Fixed container tones keep their soft appearance in both brightness modes.
+pub(super) fn app_colors(theme: &Theme, key: &str) -> (Color, Color) {
+    match config::icon_for_key(key) {
+        "public" | "photo" | "calendar_month" => (theme.tertiary_fixed, theme.on_tertiary_fixed),
+        "terminal" | "code" | "settings" | "monitor" => {
+            (theme.secondary_fixed, theme.on_secondary_fixed)
+        }
+        _ => (theme.primary_fixed, theme.on_primary_fixed),
+    }
+}
+
+/// Fit labels to the available width rather than relying on character counts.
+pub(super) fn fit_text(fonts: &mut Fonts, style: TextStyle, text: &str, width: f32) -> String {
+    if width <= 0.0 {
+        return String::new();
+    }
+    let mut count = text.chars().count();
+    let mut label = text.to_owned();
+    while fonts.text_width_styled(style, &label) > width && count > 0 {
+        count -= 1;
+        label = truncate(text, count);
+    }
+    label
 }

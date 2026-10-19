@@ -195,3 +195,10 @@ impl Backend {
         renderer.dmabuf_formats().iter().copied().collect()
     }
 }
+
+// Restore the output LUT and stop backlight requests before releasing libseat.
+impl Drop for Backend {
+    fn drop(&mut self) {
+        self.drop_gpu();
+    }
+}

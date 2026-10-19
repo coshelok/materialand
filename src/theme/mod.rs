@@ -6,8 +6,8 @@ pub use cache_key::KeyHash;
 mod seed;
 pub use seed::*;
 mod roles;
-/// Seed color for the Material 3 dynamic palette (the Material baseline purple).
-pub const SEED: u32 = 0xff67_50a4;
+/// Muted cornflower seed; dynamic roles retain their Material contrast pairs.
+pub const SEED: u32 = 0xff6b_85b3;
 
 /// The nine Material You colour variants exposed by the palette picker.
 ///

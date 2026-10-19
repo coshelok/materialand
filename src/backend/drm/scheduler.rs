@@ -44,6 +44,22 @@ impl App {
         self.timer = None;
         self.animating = self.ticker.tick(&mut self.state);
         self.dirty |= self.animating;
+        if let Some(gpu) = self.backend.gpu.as_mut() {
+            if let Some(backlight) = &mut gpu.backlight {
+                self.dirty |= backlight.sync(&mut self.state);
+            }
+            if let Some(light) = &mut gpu.night_light {
+                if let Err(error) = light.update(self.state.shell.night_light_progress()) {
+                    tracing::warn!(%error, "night light is unavailable on this output");
+                    gpu.night_light = None;
+                    self.state.shell.night_light_available = false;
+                    if self.state.shell.night_light_on {
+                        self.state.shell.toggle_night_light();
+                    }
+                    self.dirty = true;
+                }
+            }
+        }
         if self.dirty && !self.pending() {
             render(self);
         }

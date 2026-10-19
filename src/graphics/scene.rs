@@ -3,15 +3,10 @@ use super::{chrome, layers::Layers, uploads::push_buffer, windows};
 use crate::{desktop::State, shell::CircleMask};
 use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
 use smithay::{
-    backend::renderer::{
-        element::{solid::SolidColorRenderElement, surface::WaylandSurfaceRenderElement, Id, Kind},
-        gles::GlesRenderer,
-        utils::CommitCounter,
-        Color32F,
-    },
-    utils::{Physical, Rectangle, Size},
+    backend::renderer::{element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
+    utils::{Physical, Size},
 };
-smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=MemoryRenderBufferRenderElement<GlesRenderer>, Wl=WaylandSurfaceRenderElement<GlesRenderer>, Solid=SolidColorRenderElement, }
+smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=MemoryRenderBufferRenderElement<GlesRenderer>, Wl=WaylandSurfaceRenderElement<GlesRenderer>, }
 pub fn build_ui(
     state: &mut State,
     renderer: &mut GlesRenderer,
@@ -64,26 +59,6 @@ pub fn build_ui(
         scene.single(element);
     }
     scene.group(super::cursor::paint(state, renderer, &theme));
-    let full = Rectangle::from_size(size);
-    for color in [
-        Color32F::new(0.0, 0.0, 0.0, (1.0 - state.brightness).clamp(0.0, 0.8)),
-        Color32F::new(
-            1.0,
-            0.52,
-            0.20,
-            0.14 * state.shell.night_light_progress().clamp(0.0, 1.0),
-        ),
-    ] {
-        if color.a() > 0.001 {
-            scene.single(UiElement::Solid(SolidColorRenderElement::new(
-                Id::new(),
-                full,
-                CommitCounter::default(),
-                color,
-                Kind::Unspecified,
-            )));
-        }
-    }
     scene.finish()
 }
 pub use super::presentation::send_frames_all;

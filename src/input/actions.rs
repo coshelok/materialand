@@ -1,8 +1,11 @@
 //! Actions.
 use super::*;
 pub fn open_launcher(state: &mut State, origin: shell::RectF) {
+    state.shell.close_app_menu();
+    state.shell.set_calendar_open(false);
     state.shell.launcher_open = true;
     state.shell.launcher_query.clear();
+    state.shell.reset_launcher_scroll();
     state.shell.brightness_open = false;
     state.shell.set_brightness_open(false);
     state.shell.power_open = false;
@@ -20,8 +23,10 @@ pub fn open_launcher(state: &mut State, origin: shell::RectF) {
 }
 
 pub fn close_launcher(state: &mut State) {
+    state.shell.close_app_menu();
     state.shell.launcher_open = false;
     state.shell.launcher_query.clear();
+    state.shell.reset_launcher_scroll();
     state.shell.set_launcher_open(false);
 }
 
@@ -36,7 +41,42 @@ pub(super) fn launch_first_filtered(state: &mut State) {
 
 pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical>) {
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+    if std::mem::take(&mut state.shell.consume_menu_release) {
+        return;
+    }
+    if state.shell.app_menu.is_some() {
+        let pressed = std::mem::take(&mut state.shell.press_pin);
+        if let Some(menu) = &state.shell.app_menu {
+            if pressed
+                && shell::app_menu_button(shell::app_menu_rect(w, h, menu.point)).contains(pos)
+            {
+                state.shell.activate_pin_menu();
+            }
+        }
+        return;
+    }
+    if let Some(action) = state.shell.calendar.pressed.take() {
+        if state.shell.calendar.open
+            && shell::calendar_hit(w, h, state.shell.calendar_placement(w, h).unmap(pos))
+                == Some(action)
+        {
+            state.shell.calendar.navigate(action);
+        }
+        return;
+    }
     let mut consumed = false;
+    let qs_pos = state
+        .shell
+        .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+        .unmap(pos);
+    let launcher_pos = state
+        .shell
+        .launcher_placement(w, h, state.shell.launcher_progress())
+        .unmap(pos);
+    let power_pos = state
+        .shell
+        .power_placement(w, state.shell.power_progress())
+        .unmap(pos);
 
     if let Some(action) = state.shell.press_top.take() {
         consumed = true;
@@ -50,11 +90,11 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         consumed = true;
         state.shell.press_end(PressKey::Dock(i));
         let items = dock_items(state);
-        if shell::dock_hit(w, h, items.len(), pos) == Some(i) {
+        if state.shell.dock_hit(w, h, items.len(), pos) == Some(i) {
             let serial = state.next_serial();
             match items.get(i).cloned() {
                 Some(DockItem::Launcher) => {
-                    let origin = shell::dock_item_rect(w, h, items.len(), i);
+                    let origin = state.shell.dock_item_rect(w, h, items.len(), i);
                     open_launcher(state, origin);
                 }
                 Some(DockItem::Launch(app)) => {
@@ -81,8 +121,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         let i = shell::quick_action_index(action);
         state.shell.press_end(PressKey::Tile(i));
         if state.shell.quick_settings_open
-            && shell::quick_settings_hit(w, h, pos, state.shell.quick_settings_progress())
-                == Some(action)
+            && shell::quick_settings_hit(w, h, qs_pos, 1.0) == Some(action)
         {
             perform_quick_action(state, action);
         }
@@ -91,7 +130,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
     if let Some(i) = state.shell.press_chip.take() {
         consumed = true;
         state.shell.press_end(PressKey::Chip(i));
-        if state.shell.quick_settings_open && shell::palette_chip_hit(w, h, pos) == Some(i) {
+        if state.shell.quick_settings_open && shell::palette_chip_hit(w, h, qs_pos) == Some(i) {
             state.set_variant(VARIANTS[i]);
         }
     }
@@ -101,7 +140,14 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         state.shell.press_end(PressKey::Launcher(slot));
         if state.shell.launcher_open {
             let filtered = state.shell.filtered_apps();
-            if shell::launcher_hit(w, h, filtered.len(), pos) == LauncherHit::Tile(slot) {
+            if shell::launcher_hit(
+                w,
+                h,
+                filtered.len(),
+                state.shell.launcher_scroll(),
+                launcher_pos,
+            ) == LauncherHit::Tile(slot)
+            {
                 if let Some(&idx) = filtered.get(slot) {
                     let cmd = state.shell.apps[idx].command_in_terminal(&state.shell.terminal);
                     spawn_program(&cmd);
@@ -114,7 +160,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
     if let Some(i) = state.shell.press_power.take() {
         consumed = true;
         state.shell.press_end(PressKey::Power(i));
-        if state.shell.power_open && shell::power_row_at(w, pos) == Some(i) {
+        if state.shell.power_open && shell::power_row_at(w, power_pos) == Some(i) {
             if let Some(action) = shell::POWER_ACTIONS.get(i).copied() {
                 perform_power_action(state, action);
             }
@@ -124,7 +170,14 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
     if !consumed && state.shell.launcher_open {
         // A click on the scrim (or outside the tiles) dismisses the launcher.
         let filtered = state.shell.filtered_apps();
-        if shell::launcher_hit(w, h, filtered.len(), pos) == LauncherHit::Scrim {
+        if shell::launcher_hit(
+            w,
+            h,
+            filtered.len(),
+            state.shell.launcher_scroll(),
+            launcher_pos,
+        ) == LauncherHit::Scrim
+        {
             close_launcher(state);
         }
     }
@@ -132,7 +185,17 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
 
 pub(crate) fn perform_top_action(state: &mut State, action: TopAction) {
     let w = state.display.size.w as f32;
+    if action != TopAction::Clock {
+        state.shell.set_calendar_open(false);
+    }
     match action {
+        TopAction::Clock => {
+            let open = !state.shell.calendar.open;
+            state.shell.set_brightness_open(false);
+            state.shell.set_power_open(false);
+            state.shell.set_quick_settings_open(false);
+            state.shell.set_calendar_open(open);
+        }
         TopAction::Launcher => {
             open_launcher(state, shell::topbar_button_rect(w, TopAction::Launcher));
         }
@@ -199,7 +262,11 @@ pub(super) fn perform_quick_action(state: &mut State, action: QuickAction) {
                 tile.y as f64 + tile.h as f64 / 2.0,
             )));
         }
-        QuickAction::NightLight => state.shell.toggle_night_light(),
+        QuickAction::NightLight => {
+            if state.shell.night_light_available {
+                state.shell.toggle_night_light();
+            }
+        }
         QuickAction::ReduceMotion => {
             let enabled = !state.shell.reduce_motion;
             state.shell.set_reduce_motion(enabled);

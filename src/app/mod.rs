@@ -1,7 +1,7 @@
 //! Application bootstrap; display backends own their event loops and devices.
 mod cli;
 pub mod clients;
-mod clock;
+pub mod clock;
 pub mod runtime;
 pub mod session_bus;
 mod tick;
@@ -12,13 +12,14 @@ pub fn create(formats: Vec<Format>) -> Result<(Display<State>, State)> {
     let mut display = Display::new()?;
     let (spec, source) = ThemeSpec::from_env();
     tracing::info!(source=%source.describe(),"material palette");
-    let state = State::new(
+    let mut state = State::new(
         &mut display,
         Fonts::load()?,
         config::scan_apps(),
         formats,
         spec,
     );
+    state.shell.load_pins();
     Ok((display, state))
 }
 pub fn run() -> Result<()> {

@@ -29,10 +29,16 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
     state.shell.set_hover_dock(if state.shell.launcher_open {
         None
     } else {
-        shell::dock_hit(w, h, dock_item_count(state), location)
+        state.shell.dock_hit(w, h, dock_item_count(state), location)
     });
     state.shell.set_hover_power(if state.shell.power_open {
-        shell::power_row_at(w, location)
+        shell::power_row_at(
+            w,
+            state
+                .shell
+                .power_placement(w, state.shell.power_progress())
+                .unmap(location),
+        )
     } else {
         None
     });
@@ -83,7 +89,13 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             return;
         }
         Interaction::Brightness => {
-            if let Some(value) = shell::brightness_hit(w, location) {
+            if let Some(value) = shell::brightness_hit(
+                w,
+                state
+                    .shell
+                    .brightness_placement(w, state.shell.brightness_progress())
+                    .unmap(location),
+            ) {
                 state.brightness = value;
             }
             return;
@@ -155,6 +167,19 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         pointer.frame(state);
         return;
     }
+    if let Some(menu) = &state.shell.app_menu {
+        let rect = shell::app_menu_rect(
+            state.display.size.w as f32,
+            state.display.size.h as f32,
+            menu.point,
+        );
+        if !rect.contains(state.cursor) {
+            state.shell.close_app_menu();
+            state.shell.consume_menu_release = button == BTN_LEFT;
+            state.swallowed_buttons.insert(button);
+            return;
+        }
+    }
     super::target::dismiss_outside(state, state.cursor);
     let serial = state.next_serial();
     state.last_interactive_press = None;
@@ -218,6 +243,8 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             state.swallowed_buttons.insert(button);
             if button == BTN_LEFT {
                 super::target::press(state, control, state.cursor);
+            } else if button == 0x111 {
+                super::app_menu::open(state, control, state.cursor);
             }
         }
         Target::Desktop => {

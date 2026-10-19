@@ -23,6 +23,9 @@ impl Backend {
 
         // The output must carry the real mode before the DRM compositor starts
         // tracking it: `OutputModeSource` reads the mode of the Output.
+        let info = device.get_connector(connector, false)?;
+        let (name, physical) = connector_identity(&info);
+        state.set_output_identity(name.clone(), physical);
         state.set_output_mode(to_output_mode(mode));
 
         state.advertise_formats(renderer.dmabuf_formats().iter().copied().collect());
@@ -75,7 +78,20 @@ impl Backend {
             .handle
             .insert_source(notifier, |event, _, app: &mut App| on_drm_event(app, event))?;
         self.sources.drm = Some(token);
+        let night_light = color::NightLight::new(manager.device(), crtc);
+        state.shell.night_light_available = night_light.is_some();
+        if night_light.is_none() && state.shell.night_light_on {
+            state.shell.toggle_night_light();
+        }
+        let backlight = backlight::Backlight::new(&path, &name);
+        state.shell.brightness_available = backlight.is_some();
+        state.shell.brightness_error = false;
+        if let Some(value) = backlight.as_ref().and_then(|b| b.current()) {
+            state.brightness = value;
+        }
         self.gpu = Some(Gpu {
+            night_light,
+            backlight,
             path,
             dev_id,
             manager,
@@ -103,10 +119,56 @@ impl Backend {
             }
             let current = Some((gpu.output.connector, gpu.output.crtc, gpu.output.mode));
             if pick_connector(gpu.manager.device()) == current {
-                return;
+                if let Ok(info) = gpu
+                    .manager
+                    .device()
+                    .get_connector(gpu.output.connector, false)
+                {
+                    let (name, physical) = connector_identity(&info);
+                    if state.output_identity_matches(&name, &physical) {
+                        return;
+                    }
+                }
             }
         }
         self.drop_gpu();
         self.resume(state);
+    }
+}
+
+fn connector_identity(info: &connector::Info) -> (String, smithay::output::PhysicalProperties) {
+    let name = info.to_string();
+    let size = physical_size(info.size());
+    (
+        name.clone(),
+        smithay::output::PhysicalProperties {
+            size: size.into(),
+            subpixel: info.subpixel().into(),
+            make: "Unknown".into(),
+            model: name,
+        },
+    )
+}
+
+/// Missing or invalid millimeter sizes stay unknown; never invent a diagonal.
+fn physical_size(size: Option<(u32, u32)>) -> (i32, i32) {
+    match size {
+        Some((w, h)) if w > 0 && h > 0 && w <= i32::MAX as u32 && h <= i32::MAX as u32 => {
+            (w as i32, h as i32)
+        }
+        _ => (0, 0),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn connector_millimeters_are_preserved_without_a_fabricated_fallback() {
+        assert_eq!(physical_size(Some((344, 194))), (344, 194));
+        assert_eq!(physical_size(None), (0, 0));
+        assert_eq!(physical_size(Some((0, 194))), (0, 0));
+        assert_eq!(physical_size(Some((u32::MAX, 194))), (0, 0));
     }
 }

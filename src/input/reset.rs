@@ -44,4 +44,6 @@ pub fn cancel(state: &mut State) {
     state.swallowed_buttons.clear();
     state.last_interactive_press = None;
     state.shell.cancel_presses();
+    state.shell.close_app_menu();
+    state.shell.set_calendar_open(false);
 }

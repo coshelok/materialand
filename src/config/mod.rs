@@ -1,11 +1,8 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-/// Nominal physical size of the output in millimeters.
-pub const OUTPUT_PHYSICAL_MM: (i32, i32) = (370, 240);
-
 /// Default logical size of a new toplevel.
-pub const DEFAULT_WINDOW_SIZE: (i32, i32) = (900, 600);
+pub const DEFAULT_WINDOW_SIZE: (i32, i32) = (900, 540);
 
 /// Cascade offset when placing successive windows.
 pub const CASCADE_STEP: i32 = 36;
@@ -21,20 +18,20 @@ pub const KEY_REPEAT_RATE_HZ: i32 = 25;
 
 // Layout metrics, in logical (dp) units.
 
-pub const TOPBAR_HEIGHT: f32 = 32.0;
-pub const TOPBAR_MARGIN: f32 = 0.0;
+pub const TOPBAR_HEIGHT: f32 = 48.0;
+pub const TOPBAR_MARGIN: f32 = 12.0;
 
 pub const DOCK_HEIGHT: f32 = 80.0;
-pub const DOCK_MARGIN: f32 = 0.0;
+pub const DOCK_MARGIN: f32 = 16.0;
 pub const DOCK_ICON: f32 = 56.0;
 pub const DOCK_GAP: f32 = 12.0;
 
-pub const FRAME_TITLEBAR: f32 = 32.0;
+pub const FRAME_TITLEBAR: f32 = 44.0;
 pub const FRAME_BORDER: f32 = 1.0;
 pub const FRAME_RADIUS: f32 = crate::style::shape::EXTRA_LARGE;
 
-pub const LAUNCHER_WIDTH: f32 = 800.0;
-pub const LAUNCHER_MAX_HEIGHT: f32 = 640.0;
+pub const LAUNCHER_WIDTH: f32 = 760.0;
+pub const LAUNCHER_MAX_HEIGHT: f32 = 600.0;
 pub const LAUNCHER_RADIUS: f32 = crate::style::shape::EXTRA_EXTRA_LARGE;
 pub const LAUNCHER_TILE: f32 = 112.0;
 
@@ -51,3 +48,7 @@ mod exec;
 use exec::split_exec;
 mod terminal;
 pub use terminal::*;
+
+mod app_identity;
+mod pins;
+pub use pins::{pins_path, Pins};

@@ -19,6 +19,7 @@ impl Shell {
             .i32(self.hover_top.map_or(-1, |a| a as i32))
             .i32(self.press_top.map_or(-1, |a| a as i32))
             .bool(self.quick_settings_open)
+            .bool(self.calendar.open)
             .finish();
         let animating = self.press.keys().any(|k| matches!(k, PressKey::Top(_)));
         if !animating {
@@ -27,7 +28,21 @@ impl Shell {
             }
         }
         let mut s = Surface::new(rect.w as u32, rect.h as u32);
+        s.fill_round_rect(
+            0.0,
+            0.0,
+            rect.w,
+            rect.h,
+            rect.h / 2.0,
+            theme.surface_container_low,
+        );
         let cy = rect.h / 2.0;
+        let button = |action| {
+            let mut b = topbar_button_rect(win_w, action);
+            b.x -= rect.x;
+            b.y -= rect.y;
+            b
+        };
 
         // Left side: launcher button, then the clock (classic Android phone
         // style). The launcher occupies the leading full-height square.
@@ -35,17 +50,31 @@ impl Shell {
             &mut s,
             fonts,
             theme,
-            topbar_button_rect(win_w, TopAction::Launcher),
+            button(TopAction::Launcher),
             TopAction::Launcher,
             "apps",
-            20.0,
-            theme.on_surface,
-            None,
+            24.0,
+            theme.on_primary_container,
+            Some(theme.primary_container),
         );
         let clock_style = TextStyle::LABEL_LARGE;
+        let clock = button(TopAction::Clock);
+        let clock_w = fonts.text_width_styled(clock_style, &self.clock);
+        s.fill_round_rect(
+            clock.x,
+            clock.y,
+            clock.w,
+            clock.h,
+            clock.h / 2.0,
+            if self.calendar.open || self.hover_top == Some(TopAction::Clock) {
+                theme.primary_container
+            } else {
+                theme.secondary_container
+            },
+        );
         fonts.draw_text_role(
             &mut s,
-            16.0 + config::TOPBAR_HEIGHT + 4.0,
+            clock.x + (clock.w - clock_w) / 2.0,
             cy - clock_style.line_height / 2.0,
             clock_style,
             &self.clock,
@@ -57,10 +86,10 @@ impl Shell {
             &mut s,
             fonts,
             theme,
-            topbar_button_rect(win_w, TopAction::Power),
+            button(TopAction::Power),
             TopAction::Power,
             "account_circle",
-            18.0,
+            22.0,
             theme.on_surface,
             Some(theme.surface_container_high),
         );
@@ -73,10 +102,10 @@ impl Shell {
             &mut s,
             fonts,
             theme,
-            topbar_button_rect(win_w, TopAction::Theme),
+            button(TopAction::Theme),
             TopAction::Theme,
             theme_icon,
-            18.0,
+            22.0,
             theme.on_surface_variant,
             None,
         );
@@ -84,10 +113,10 @@ impl Shell {
             &mut s,
             fonts,
             theme,
-            topbar_button_rect(win_w, TopAction::Brightness),
+            button(TopAction::Brightness),
             TopAction::Brightness,
             "brightness_medium",
-            18.0,
+            22.0,
             theme.on_surface_variant,
             None,
         );
@@ -98,10 +127,10 @@ impl Shell {
             &mut s,
             fonts,
             theme,
-            topbar_button_rect(win_w, TopAction::QuickSettings),
+            button(TopAction::QuickSettings),
             TopAction::QuickSettings,
             "settings",
-            18.0,
+            22.0,
             if self.quick_settings_open {
                 theme.on_secondary_container
             } else {

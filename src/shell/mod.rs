@@ -22,7 +22,7 @@ const GRID_GAP: f32 = 8.0;
 const GRID_PAD: f32 = 20.0;
 
 /// Horizontal gap between the right-aligned status icons in the top bar.
-const TOPBAR_ICON_GAP: f32 = 24.0;
+const TOPBAR_ICON_GAP: f32 = 8.0;
 
 /// Margin baked into every shadowed buffer so the soft elevation shadow fits.
 pub const SHADOW_PAD: f32 = 16.0;
@@ -30,30 +30,41 @@ pub const SHADOW_PAD: f32 = 16.0;
 const SHADOW_SPREAD: f32 = 12.0;
 
 /// Total height of the quick-settings sheet, including the palette grid.
-const QS_SHEET_HEIGHT: f32 = 374.0;
-const QS_CHIP_H: f32 = 34.0;
+const QS_SHEET_HEIGHT: f32 = 480.0;
+const QS_CHIP_H: f32 = 40.0;
 const QS_CHIP_GAP: f32 = 8.0;
-const QS_CHIPS_Y: f32 = 240.0;
+const QS_CHIPS_Y: f32 = 322.0;
 const QS_CHIP_MARGIN: f32 = 16.0;
 
-/// Dimming range of the brightness control: `1.0` is unmodified output.
-pub const BRIGHTNESS_MIN: f32 = 0.2;
+/// Hardware backlight range. Keep a small usable floor.
+pub const BRIGHTNESS_MIN: f32 = 0.02;
 pub const BRIGHTNESS_MAX: f32 = 1.0;
 
 pub struct Shell {
     pub apps: Vec<AppEntry>,
     pub pinned: Vec<AppEntry>,
+    pins: config::Pins,
+    dock_motion: dock_motion::DockMotion,
     /// Command that opens a terminal (the pinned one, or a fallback).
     pub terminal: Vec<String>,
+    pub terminal_app: AppEntry,
+    pub app_menu: Option<AppMenu>,
+    pub press_pin: bool,
+    pub consume_menu_release: bool,
     pub launcher_open: bool,
     pub launcher_query: String,
     pub brightness_open: bool,
+    pub brightness_available: bool,
+    pub brightness_error: bool,
+    pub night_light_available: bool,
     pub quick_settings_open: bool,
     /// Session menu (top-bar user button) visibility.
     pub power_open: bool,
     pub night_light_on: bool,
     pub reduce_motion: bool,
     pub clock: String,
+    pub calendar: calendar::Calendar,
+    calendar_layer: Option<CachedLayer>,
     spec: ThemeSpec,
     /// Caches for the static chrome. Rebuilding these with tiny-skia on every
     /// frame dominates the frame cost, so each buffer is keyed by its inputs and
@@ -82,15 +93,17 @@ pub struct Shell {
     )>,
 
     // ---- Motion ---------------------------------------------------------
-    /// Launcher open progress in `[0, 1]`.
+    /// Launcher spatial progress, including a small overshoot.
     launcher: Spring,
-    /// Brightness popup progress in `[0, 1]`.
+    launcher_scroll: Spring,
+    launcher_scroll_target: f32,
+    /// Brightness popup spatial progress.
     brightness: Spring,
-    /// Quick-settings sheet progress in `[0, 1]`.
+    /// Quick-settings sheet spatial progress.
     quick_settings: Spring,
-    /// Session-menu progress in `[0, 1]`.
+    /// Session-menu spatial progress.
     power: Spring,
-    /// Warm display tint progress in `[0, 1]`.
+    /// Output white-balance progress in `[0, 1]`.
     night_light: Spring,
     /// Light/dark crossfade progress (used for palette switches).
     theme_mix: Tween,
@@ -128,14 +141,20 @@ pub struct Shell {
     swatches_light: Option<[(Color, Color, Color); 9]>,
 }
 
+mod app_menu;
 mod brightness;
 mod cursor;
 mod decoration;
+mod decoration_frame;
 mod dock;
+mod dock_motion;
 mod feedback;
 mod launcher;
+mod launcher_scroll;
 mod layout;
 mod model;
+mod pinning;
+pub use app_menu::{app_menu_button, app_menu_rect, AppMenu};
 mod motion;
 mod paint;
 mod power;
@@ -153,3 +172,7 @@ pub use types::*;
 
 mod buttons;
 mod launcher_tile;
+mod placement;
+
+mod calendar;
+pub use calendar::{calendar_hit, calendar_rect, CalendarAction};

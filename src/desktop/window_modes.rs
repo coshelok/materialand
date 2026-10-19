@@ -9,7 +9,7 @@ impl State {
         if props.maximized == maximized && (!maximized || !props.fullscreen) {
             return;
         }
-        let area = self.available_area();
+        let area = self.window_available_area(window);
 
         if maximized {
             let current = self
@@ -74,6 +74,8 @@ impl State {
         let output = self.output_rect();
 
         if fullscreen {
+            self.shell.set_calendar_open(false);
+            self.shell.close_app_menu();
             self.shell.brightness_open = false;
             self.shell.set_brightness_open(false);
             self.shell.set_quick_settings_open(false);
@@ -107,7 +109,7 @@ impl State {
             let normal = props.saved.unwrap_or_else(|| {
                 Rectangle::new((0, 0).into(), config::DEFAULT_WINDOW_SIZE.into())
             });
-            let area = self.available_area();
+            let area = self.window_available_area(window);
             {
                 let p = self.props_mut(window);
                 p.fullscreen = false;

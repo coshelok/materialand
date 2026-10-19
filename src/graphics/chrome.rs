@@ -186,5 +186,40 @@ pub(super) fn paint(
         }
     }
 
+    if !fullscreen && (state.shell.calendar.open || state.shell.calendar_progress() > 0.001) {
+        let frame = state
+            .shell
+            .render_calendar(&theme, &mut state.fonts, win_w, win_h, None);
+        push_overlay(&mut elements, renderer, &frame, 1.0);
+        if let Some((target, mask, alpha)) = second {
+            let frame = state
+                .shell
+                .render_calendar(&target, &mut state.fonts, win_w, win_h, mask);
+            push_overlay(&mut elements, renderer, &frame, alpha);
+        }
+    }
+
+    if let Some((buffer, loc)) =
+        state
+            .shell
+            .render_app_menu(&theme, &mut state.fonts, win_w, win_h, None)
+    {
+        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), None);
+        if let Some((target, mask, alpha)) = second {
+            if let Some((buffer, loc)) =
+                state
+                    .shell
+                    .render_app_menu(&target, &mut state.fonts, win_w, win_h, mask)
+            {
+                push_buffer(
+                    &mut elements,
+                    renderer,
+                    &buffer,
+                    (loc.x, loc.y),
+                    Some(alpha),
+                );
+            }
+        }
+    }
     elements
 }

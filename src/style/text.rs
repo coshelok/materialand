@@ -25,6 +25,7 @@ impl TextStyle {
     // scale 1. The compositor currently uses the roles listed below directly.
     /// Top-bar title.
     pub const TITLE_MEDIUM: Self = Self::new(16.0, 24.0, 0.15, FontKind::Medium);
+    pub const HEADLINE_SMALL: Self = Self::new(24.0, 32.0, 0.0, FontKind::Regular);
     /// Window decoration title.
     pub const TITLE_SMALL: Self = Self::new(14.0, 20.0, 0.1, FontKind::Medium);
     /// Top-bar clock.

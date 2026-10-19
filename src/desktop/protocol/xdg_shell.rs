@@ -6,12 +6,13 @@ impl XdgShellHandler for State {
     }
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
-        surface
-            .with_pending_state(|pending| pending.size = Some(config::DEFAULT_WINDOW_SIZE.into()));
+        let size = self.initial_window_size();
+        surface.with_pending_state(|pending| pending.size = Some(size));
         let window = Window::new_wayland_window(surface);
         self.windows
             .meta
             .insert(window.clone(), default_meta(&window));
+        self.windows.order.push(window.clone());
         self.windows.props.insert(window, WindowProps::default());
     }
 
@@ -243,6 +244,7 @@ impl XdgShellHandler for State {
             self.windows.space.unmap_elem(w);
             self.windows.meta.remove(w);
             self.windows.props.remove(w);
+            self.windows.order.retain(|item| item != w);
             self.windows.pending_resize.remove(w);
             if self.windows.focused.as_ref() == Some(w) {
                 focused_died = true;

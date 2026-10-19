@@ -13,18 +13,14 @@ impl Shell {
     ) -> OverlayFrame {
         let p = progress.clamp(0.0, 1.0);
         let card = brightness_popup(win_w);
-        let ease = CubicBezier::EMPHASIZED_DECELERATE.eval(p);
-        let dy = (topbar_rect(win_w).bottom() - card.y) * (1.0 - ease);
-        let scale = 0.94 + 0.06 * ease;
         let pad = SHADOW_PAD;
         let layer_w = (card.w + 2.0 * pad).ceil() as u32;
         let layer_h = (card.h + 2.0 * pad).ceil() as u32;
         let loc_x = card.x as f64 - pad as f64;
         let loc_y = card.y as f64 - pad as f64;
-        let cx = pad + card.w / 2.0;
-        let cy_card = pad + card.h / 2.0;
-        let scale_tx = cx * (1.0 - scale);
-        let scale_ty = cy_card * (1.0 - scale) + dy;
+        let (scale, scale_tx, scale_ty) = self
+            .brightness_placement(win_w, progress)
+            .buffer_transform(pad);
 
         // While the slider is animating its handle the content changes; such
         // frames are rebuilt, settled ones reuse the cached layer.
@@ -96,6 +92,8 @@ impl Shell {
         brightness: f32,
     ) -> u64 {
         KeyHash::new()
+            .bool(self.brightness_available)
+            .bool(self.brightness_error)
             .u32(layer_w)
             .u32(layer_h)
             .u64(theme.cache_key())
@@ -115,26 +113,16 @@ impl Shell {
         brightness: f32,
     ) {
         let pad = SHADOW_PAD;
-        layer.shadow_round_rect(pad, pad, card.w, card.h, shape::LARGE, SHADOW_SPREAD);
+        layer.shadow_round_rect(pad, pad, card.w, card.h, shape::EXTRA_LARGE, SHADOW_SPREAD);
         layer.fill_round_rect(
             0.0 + pad,
             pad,
             card.w,
             card.h,
-            shape::LARGE,
-            theme.surface_container_high,
+            shape::EXTRA_LARGE,
+            theme.surface_container_low,
         );
-        layer.stroke_round_rect(
-            pad + 0.5,
-            pad + 0.5,
-            card.w - 1.0,
-            card.h - 1.0,
-            shape::LARGE,
-            1.0,
-            Theme::with_alpha(theme.outline, 0.22),
-        );
-
-        let cy = pad + card.h / 2.0;
+        let cy = pad + card.h / 2.0 + 12.0;
         fonts.draw_icon_centered(
             layer,
             pad + 28.0,
@@ -144,20 +132,52 @@ impl Shell {
             theme.on_surface,
         );
 
+        let label = if !self.brightness_available {
+            "Brightness unavailable".to_string()
+        } else if self.brightness_error {
+            "Couldn’t change brightness".to_string()
+        } else {
+            format!("Brightness · {}%", (brightness * 100.0).round() as u32)
+        };
+        fonts.draw_text_role(
+            layer,
+            pad + 56.0,
+            pad + 8.0,
+            TextStyle::LABEL_MEDIUM,
+            &label,
+            theme.on_surface_variant,
+        );
+        if !self.brightness_available {
+            return;
+        }
         let track = brightness_track(win_w);
         let tx = track.x - card.x + pad;
         let t = ((brightness - BRIGHTNESS_MIN) / (BRIGHTNESS_MAX - BRIGHTNESS_MIN)).clamp(0.0, 1.0);
         layer.fill_round_rect(
             tx,
-            cy - 3.0,
+            cy - 16.0,
             track.w,
-            6.0,
-            3.0,
-            theme.surface_container_highest,
+            32.0,
+            16.0,
+            theme.secondary_container,
         );
-        layer.fill_round_rect(tx, cy - 3.0, track.w * t, 6.0, 3.0, theme.primary);
+        layer.fill_round_rect(
+            tx,
+            cy - 16.0,
+            (track.w * t).max(12.0),
+            32.0,
+            16.0,
+            theme.primary_container,
+        );
         // M3 slider: the handle grows while grabbed.
-        let handle = 8.0 + 5.0 * self.slider.value().clamp(0.0, 1.0);
-        layer.circle(tx + track.w * t, cy, handle, theme.primary);
+        let handle_h = 38.0 + 6.0 * self.slider.value().clamp(0.0, 1.06);
+        layer.fill_round_rect(
+            tx + track.w * t - 3.0,
+            cy - handle_h / 2.0,
+            6.0,
+            handle_h,
+            3.0,
+            theme.primary,
+        );
     }
 }

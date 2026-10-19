@@ -29,6 +29,7 @@ impl Shell {
     }
 
     pub fn set_brightness_open(&mut self, open: bool) {
+        self.brightness_open = open;
         self.brightness.set_target(if open { 1.0 } else { 0.0 });
         if self.reduce_motion {
             self.brightness.snap(if open { 1.0 } else { 0.0 });
@@ -56,6 +57,7 @@ impl Shell {
     }
 
     pub fn set_power_open(&mut self, open: bool) {
+        self.power_open = open;
         self.power.set_target(if open { 1.0 } else { 0.0 });
         if self.reduce_motion {
             self.power.snap(if open { 1.0 } else { 0.0 });
@@ -101,6 +103,9 @@ impl Shell {
         let switch = &mut self.switches[quick_action_index(QuickAction::ReduceMotion)];
         switch.set_target(if enabled { 1.0 } else { 0.0 });
         if enabled {
+            self.dock_motion.snap();
+            self.calendar.animation.finish();
+            self.launcher_scroll.snap(self.launcher_scroll_target);
             switch.snap(1.0);
             self.launcher
                 .snap(if self.launcher_open { 1.0 } else { 0.0 });
@@ -108,6 +113,7 @@ impl Shell {
                 .snap(if self.brightness_open { 1.0 } else { 0.0 });
             self.quick_settings
                 .snap(if self.quick_settings_open { 1.0 } else { 0.0 });
+            self.power.snap(if self.power_open { 1.0 } else { 0.0 });
             self.night_light
                 .snap(if self.night_light_on { 1.0 } else { 0.0 });
             self.theme_mix.snap(1.0);
@@ -171,7 +177,9 @@ impl Shell {
     }
 
     pub fn tick(&mut self, dt: f32) -> bool {
-        let mut active = false;
+        let mut active = self.dock_motion.tick(dt);
+        active |= self.calendar.animation.step(dt);
+        active |= self.launcher_scroll.step(dt);
         active |= self.launcher.step(dt);
         active |= self.brightness.step(dt);
         active |= self.quick_settings.step(dt);

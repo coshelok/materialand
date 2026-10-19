@@ -95,6 +95,8 @@ pub struct App {
 /// lifetime: it owns the DRM device and will be needed for mode changes),
 /// the renderer and the active output.
 struct Gpu {
+    night_light: Option<color::NightLight>,
+    backlight: Option<backlight::Backlight>,
     path: PathBuf,
     dev_id: u64,
     /// Frames go straight through [`OutputState::drm`]; never read directly.
@@ -167,3 +169,6 @@ pub use probe::probe;
 
 mod frame_state;
 use frame_state::FrameState;
+
+mod backlight;
+mod color;

@@ -24,14 +24,7 @@ impl Shell {
         mask: Option<CircleMask>,
     ) -> OverlayFrame {
         let p = progress.clamp(0.0, 1.0);
-        let ease = CubicBezier::EMPHASIZED_DECELERATE.eval(p);
         let card = launcher_card(win_w, win_h);
-        let origin = self.launcher_origin.unwrap_or(RectF {
-            x: 0.0,
-            y: 0.0,
-            w: config::TOPBAR_HEIGHT,
-            h: config::TOPBAR_HEIGHT,
-        });
         const LAUNCHER_SHADOW: f32 = 18.0;
         let pad = LAUNCHER_SHADOW + 2.0;
         // Top-left of the content layer in screen space.
@@ -61,15 +54,9 @@ impl Shell {
 
         // Container transform: the card morphs from the control that opened it
         // into its final rectangle while it fades in.
-        let lerp = |a: f32, b: f32| a + (b - a) * ease;
-        let anim = RectF {
-            x: lerp(origin.x, card.x),
-            y: lerp(origin.y, card.y),
-            w: lerp(origin.w, card.w),
-            h: lerp(origin.h, card.h),
-        };
-        let sx = (anim.w / card.w).clamp(0.01, 1.0);
-        let sy = (anim.h / card.h).clamp(0.01, 1.0);
+        let anim = self.launcher_placement(win_w, win_h, progress).target;
+        let sx = (anim.w / card.w).clamp(0.01, 1.06);
+        let sy = (anim.h / card.h).clamp(0.01, 1.06);
 
         if let Some(mask) = mask {
             // Radial reveal: the circular clip is applied on the CPU, so the
@@ -85,10 +72,10 @@ impl Shell {
                 );
             }
             let mut s = Surface::new(win_w as u32, win_h as u32);
-            s.clear(Theme::with_alpha(theme.scrim, 0.45 * ease));
+            s.clear(Theme::with_alpha(theme.scrim, 0.30 * p));
             let transform = SkTransform::from_scale(sx, sy)
                 .post_translate(anim.x - pad * sx, anim.y - pad * sy);
-            s.blit(&content, transform, ease.clamp(0.0, 1.0), None);
+            s.blit(&content, transform, p, None);
             let (buffer, loc) = masked_from(
                 &s,
                 Some(mask),
@@ -108,7 +95,7 @@ impl Shell {
                     loc: Point::from((0.0, 0.0)),
                     size: Some(Size::from((win_w.round() as i32, win_h.round() as i32))),
                 },
-                0.45 * ease,
+                0.30 * p,
             ));
         }
         {
@@ -124,7 +111,7 @@ impl Shell {
                         (layer_h * sy).round() as i32,
                     ))),
                 },
-                ease.clamp(0.0, 1.0),
+                p,
             ));
         }
         for (press, (px, py)) in self.launcher_press_surfaces(fonts, theme, win_w, win_h) {
@@ -138,11 +125,11 @@ impl Shell {
                     buffer: press.to_memory_buffer(),
                     loc: Point::from(loc),
                     size: Some(Size::from((
-                        (config::LAUNCHER_TILE * sx).round() as i32,
-                        (config::LAUNCHER_TILE * sy).round() as i32,
+                        (press.width() as f32 * sx).round() as i32,
+                        (press.pixmap.height() as f32 * sy).round() as i32,
                     ))),
                 },
-                ease.clamp(0.0, 1.0),
+                p,
             ));
         }
         OverlayFrame { pieces }
@@ -152,7 +139,8 @@ impl Shell {
             .i32(win_w.round() as i32)
             .i32(win_h.round() as i32)
             .u64(theme.cache_key())
-            .str(&self.launcher_query);
+            .str(&self.launcher_query)
+            .f32(self.launcher_scroll());
         let query = self.launcher_query.to_lowercase();
         for app in &self.apps {
             if query.is_empty() || app.name.to_lowercase().contains(&query) {
@@ -222,7 +210,7 @@ impl Shell {
             sp.w,
             sp.h,
             sp.h / 2.0,
-            theme.surface_container_highest,
+            theme.surface_container_high,
         );
         fonts.draw_icon_centered(
             layer,
@@ -245,22 +233,69 @@ impl Shell {
             search_style,
             query,
             if self.launcher_query.is_empty() {
-                Theme::with_alpha(theme.on_surface_variant, 0.6)
+                theme.on_surface_variant
             } else {
                 theme.on_surface
             },
         );
 
+        fonts.draw_text_role(
+            layer,
+            spx + 12.0,
+            spy + sp.h + 14.0,
+            TextStyle::LABEL_LARGE,
+            if self.launcher_query.is_empty() {
+                "All apps"
+            } else {
+                "Search results"
+            },
+            theme.on_surface_variant,
+        );
         let cols = launcher_columns(card.w);
-        let origin_g = launcher_grid_origin(win_w, win_h);
+        let viewport = launcher_viewport(win_w, win_h);
+        let mut origin_g = launcher_grid_origin(win_w, win_h);
+        origin_g.1 -= self.launcher_scroll();
         let filtered = self.filtered_apps();
+        let mut grid = Surface::new(viewport.w.ceil() as u32, viewport.h.ceil() as u32);
         for (slot, &idx) in filtered.iter().enumerate() {
             let (tx, ty) = launcher_tile_pos(origin_g, slot, cols);
-            if ty + config::LAUNCHER_TILE > card.bottom() - 16.0 {
+            if ty >= viewport.bottom() {
                 break;
             }
-            let app = &self.apps[idx];
-            self.draw_launcher_tile(layer, fonts, theme, app, tx - ox, ty - oy, 1.0);
+            if ty + config::LAUNCHER_TILE <= viewport.y {
+                continue;
+            }
+            self.draw_launcher_tile(
+                &mut grid,
+                fonts,
+                theme,
+                &self.apps[idx],
+                tx - viewport.x,
+                ty - viewport.y,
+                1.0,
+            );
+        }
+        layer.blit(
+            &grid,
+            SkTransform::from_translate(viewport.x - ox, viewport.y - oy),
+            1.0,
+            None,
+        );
+        let max = launcher_scroll_max(win_w, win_h, filtered.len());
+        if max > 0.0 {
+            let thumb = (viewport.h * viewport.h / (viewport.h + max))
+                .max(24.0)
+                .min(viewport.h);
+            let y =
+                viewport.y + (viewport.h - thumb) * (self.launcher_scroll() / max).clamp(0.0, 1.0);
+            layer.fill_round_rect(
+                card.right() - ox - 11.0,
+                y - oy,
+                4.0,
+                thumb,
+                2.0,
+                Theme::with_alpha(theme.on_surface_variant, 0.35),
+            );
         }
 
         if filtered.is_empty() {
@@ -287,7 +322,9 @@ impl Shell {
         let mut out = Vec::new();
         let card = launcher_card(win_w, win_h);
         let cols = launcher_columns(card.w);
-        let origin = launcher_grid_origin(win_w, win_h);
+        let mut origin = launcher_grid_origin(win_w, win_h);
+        origin.1 -= self.launcher_scroll();
+        let viewport = launcher_viewport(win_w, win_h);
         let filtered = self.filtered_apps();
         for (slot, &idx) in filtered.iter().enumerate() {
             let key = PressKey::Launcher(slot);
@@ -299,8 +336,11 @@ impl Shell {
                 continue;
             }
             let (tx, ty) = launcher_tile_pos(origin, slot, cols);
-            if ty + config::LAUNCHER_TILE > card.bottom() - 16.0 {
+            if ty >= viewport.bottom() {
                 break;
+            }
+            if ty + config::LAUNCHER_TILE <= viewport.y {
+                continue;
             }
             let mut s = Surface::new(config::LAUNCHER_TILE as u32, config::LAUNCHER_TILE as u32);
             // Erase the resting tile underneath before drawing the squeezed one.
@@ -315,7 +355,16 @@ impl Shell {
                 shape::LARGE,
             );
             self.draw_ripple(&mut s, key, &clip, theme.on_surface);
-            out.push((s, (tx, ty)));
+            let left = (viewport.x - tx).max(0.0).ceil();
+            let top = (viewport.y - ty).max(0.0).ceil();
+            let right = (viewport.right() - tx).min(config::LAUNCHER_TILE).floor();
+            let bottom = (viewport.bottom() - ty).min(config::LAUNCHER_TILE).floor();
+            if right <= left || bottom <= top {
+                continue;
+            }
+            let mut cropped = Surface::new((right - left) as u32, (bottom - top) as u32);
+            cropped.blit(&s, SkTransform::from_translate(-left, -top), 1.0, None);
+            out.push((cropped, (tx + left, ty + top)));
         }
         out
     }

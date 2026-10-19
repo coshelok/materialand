@@ -12,19 +12,13 @@ impl Shell {
     ) -> OverlayFrame {
         let p = progress.clamp(0.0, 1.0);
         let card = power_menu_rect(win_w);
-        let ease = CubicBezier::EMPHASIZED_DECELERATE.eval(p);
-        let dy = (topbar_rect(win_w).bottom() - card.y) * (1.0 - ease);
-        let scale = 0.94 + 0.06 * ease;
         let pad = SHADOW_PAD;
         let layer_w = (card.w + 2.0 * pad).ceil() as u32;
         let layer_h = (card.h + 2.0 * pad).ceil() as u32;
         let loc_x = card.x as f64 - pad as f64;
         let loc_y = card.y as f64 - pad as f64;
-        // Grow out of the top-right corner, where the button sits.
-        let anchor_x = pad + card.w;
-        let anchor_y = pad;
-        let scale_tx = anchor_x * (1.0 - scale);
-        let scale_ty = anchor_y * (1.0 - scale) + dy;
+        let (scale, scale_tx, scale_ty) =
+            self.power_placement(win_w, progress).buffer_transform(pad);
 
         // Only hover and press visuals animate; settled frames are cached.
         let stable = !self.press.keys().any(|k| matches!(k, PressKey::Power(_)));
@@ -98,25 +92,15 @@ impl Shell {
         win_w: f32,
     ) {
         let pad = SHADOW_PAD;
-        layer.shadow_round_rect(pad, pad, card.w, card.h, shape::LARGE, SHADOW_SPREAD);
+        layer.shadow_round_rect(pad, pad, card.w, card.h, shape::EXTRA_LARGE, SHADOW_SPREAD);
         layer.fill_round_rect(
             pad,
             pad,
             card.w,
             card.h,
-            shape::LARGE,
-            theme.surface_container_high,
+            shape::EXTRA_LARGE,
+            theme.surface_container_low,
         );
-        layer.stroke_round_rect(
-            pad + 0.5,
-            pad + 0.5,
-            card.w - 1.0,
-            card.h - 1.0,
-            shape::LARGE,
-            1.0,
-            Theme::with_alpha(theme.outline, 0.22),
-        );
-
         for (i, action) in POWER_ACTIONS.iter().enumerate() {
             let row = power_row_rect(win_w, i);
             let rx = row.x - card.x + pad;
@@ -124,7 +108,7 @@ impl Shell {
             let key = PressKey::Power(i);
             // The press spring drives the state layer, so a release fades the
             // highlight out over the same frames as the squeeze.
-            let hold = ((1.0 - self.press_scale(key)) / 0.06).clamp(0.0, 1.0);
+            let hold = ((1.0 - self.press_scale(key)) / 0.10).clamp(0.0, 1.0);
             let hovered = self.hover_power == Some(i);
             if hovered || hold > 0.001 {
                 layer.fill_round_rect(

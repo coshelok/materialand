@@ -42,6 +42,12 @@ pub fn probe() -> Result<(), Box<dyn std::error::Error>> {
                         info.state()
                     );
                     let mode = pick_mode(&info);
+                    if let Some((w, h)) = info.size().filter(|(w, h)| *w > 0 && *h > 0) {
+                        println!(
+                            "    physical size: {w}x{h} mm ({:.1} inches)",
+                            f64::from(w).hypot(f64::from(h)) / 25.4
+                        );
+                    }
                     match mode {
                         Some(mode) => {
                             let (w, h) = mode.size();

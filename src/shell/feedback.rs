@@ -10,6 +10,7 @@ impl Shell {
         self.press_chip = None;
         self.press_launch = None;
         self.press_power = None;
+        self.calendar.pressed = None;
     }
 
     pub fn press_begin(
@@ -56,8 +57,10 @@ impl Shell {
         self.hover_top = action;
     }
 
-    pub fn set_hover_dock(&mut self, index: Option<usize>) {
+    pub fn set_hover_dock(&mut self, index: Option<usize>) -> bool {
+        let changed = self.hover_dock != index;
         self.hover_dock = index;
+        changed
     }
 
     pub fn set_hover_power(&mut self, index: Option<usize>) {

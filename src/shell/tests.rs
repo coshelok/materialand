@@ -91,7 +91,7 @@ fn topbar_hit_buttons() {
     assert_eq!(topbar_hit(w, pt(860.0, 30.0)), Some(TopAction::Brightness));
     assert_eq!(topbar_hit(w, pt(500.0, 30.0)), None);
     assert_eq!(topbar_hit(w, pt(300.0, 5.0)), None);
-    assert_eq!(topbar_hit(w, pt(30.0, 40.0)), None, "below the bar");
+    assert_eq!(topbar_hit(w, pt(30.0, 64.0)), None, "below the bar");
 }
 
 #[test]
@@ -182,15 +182,21 @@ fn dock_item_rect_matches_hit() {
 #[test]
 fn launcher_hit_regions() {
     let (w, h) = (1000.0, 700.0);
-    assert_eq!(launcher_hit(w, h, 30, pt(10.0, 10.0)), LauncherHit::Scrim);
-    assert_eq!(launcher_hit(w, h, 30, pt(500.0, 90.0)), LauncherHit::Input);
     assert_eq!(
-        launcher_hit(w, h, 1, pt(200.0, 190.0)),
+        launcher_hit(w, h, 30, 0.0, pt(10.0, 10.0)),
+        LauncherHit::Scrim
+    );
+    assert_eq!(
+        launcher_hit(w, h, 30, 0.0, pt(500.0, 90.0)),
+        LauncherHit::Input
+    );
+    assert_eq!(
+        launcher_hit(w, h, 1, 0.0, pt(200.0, 190.0)),
         LauncherHit::Tile(0)
     );
     assert_eq!(
-        launcher_hit(w, h, 30, pt(200.0, 590.0)),
-        LauncherHit::Inside
+        launcher_hit(w, h, 30, 0.0, pt(200.0, 590.0)),
+        LauncherHit::Tile(18)
     );
 }
 
@@ -204,7 +210,7 @@ fn decor_hit_regions() {
     assert!(matches!(decor_hit(&l, pt(497.0, 350.0)), DecorHit::Resize(e) if e.right));
     assert!(matches!(decor_hit(&l, pt(300.0, 496.0)), DecorHit::Resize(e) if e.bottom));
     assert!(
-        matches!(decor_hit(&l, pt(300.0, 170.0)), DecorHit::Resize(e) if e.top),
+        matches!(decor_hit(&l, pt(300.0, (l.frame.y + 2.0) as f64)), DecorHit::Resize(e) if e.top),
         "the top edge must be resizable, not only movable"
     );
     assert_eq!(decor_hit(&l, pt(300.0, 350.0)), DecorHit::None);
@@ -337,4 +343,204 @@ fn launcher_frame_scales_and_scrims_on_the_gpu_path() {
         "the card layer carries a size override"
     );
     assert!((frame.pieces[1].1 - 1.0).abs() < 1e-3, "fully open");
+}
+
+#[test]
+fn floating_dock_fits_small_outputs_and_large_window_lists() {
+    for w in [320.0, 800.0, 1920.0] {
+        for count in [1, 4, 20] {
+            let dock = dock_rect(w, 800.0, count);
+            assert!(dock.x >= 0.0 && dock.right() <= w);
+            assert!(
+                dock.bottom() < 800.0,
+                "the dock floats above the bottom edge"
+            );
+            let mut right = dock.x;
+            for i in 0..count {
+                let icon = dock_item_rect(w, 800.0, count, i);
+                assert!(icon.x >= right && icon.right() <= dock.right());
+                right = icon.right();
+            }
+        }
+    }
+}
+
+#[test]
+fn reduced_motion_finishes_all_open_panels() {
+    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    shell.launcher_open = true;
+    shell.set_launcher_open(true);
+    shell.set_power_open(true);
+    shell.set_brightness_open(true);
+    shell.set_quick_settings_open(true);
+    shell.tick(0.05);
+    shell.set_reduce_motion(true);
+    assert_eq!(shell.power_progress(), 1.0);
+    assert_eq!(shell.launcher_progress(), 1.0);
+    assert_eq!(shell.brightness_progress(), 1.0);
+    assert_eq!(shell.quick_settings_progress(), 1.0);
+    assert!(!shell.tick(1.0 / 60.0));
+}
+
+#[test]
+fn theme_reveal_uses_local_coordinates_for_floating_chrome() {
+    let mut surface = Surface::new(100, 80);
+    surface.clear(Color::WHITE);
+    let cached = surface.to_memory_buffer();
+    let (mut buffer, loc) = masked_from(
+        &surface,
+        Some(CircleMask {
+            cx: 550.0,
+            cy: 340.0,
+            radius: 10.0,
+        }),
+        &cached,
+        (500.0, 300.0).into(),
+    );
+    assert_eq!(loc, (540.0, 330.0).into());
+    buffer
+        .render()
+        .draw(|pixels| {
+            assert_eq!(pixels.len(), 20 * 20 * 4);
+            assert_eq!(pixels[(10 * 20 + 10) * 4 + 3], 255);
+            Ok::<_, ()>(Vec::new())
+        })
+        .unwrap();
+}
+
+#[test]
+fn dock_grows_shrinks_and_retargets_without_jumping() {
+    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let entry = |name: &str| {
+        DockItem::Launch(AppEntry {
+            name: name.into(),
+            exec: name.into(),
+            icon: name.into(),
+            terminal: false,
+            desktop_file: Some(format!("/applications/{name}.desktop").into()),
+        })
+    };
+    let small = vec![DockItem::Launcher, entry("a")];
+    let large = vec![DockItem::Launcher, entry("a"), entry("b"), entry("c")];
+    shell.sync_dock(1000.0, &small);
+    let start = shell.dock_rect(1000.0, 800.0, small.len()).w;
+    shell.sync_dock(1000.0, &large);
+    assert_eq!(shell.dock_rect(1000.0, 800.0, large.len()).w, start);
+    shell.tick(1.0 / 60.0);
+    let growing = shell.dock_rect(1000.0, 800.0, large.len()).w;
+    assert!(growing > start);
+    let icon = shell.dock_item_rect(1000.0, 800.0, large.len(), 1);
+    assert_eq!(
+        shell.dock_hit(
+            1000.0,
+            800.0,
+            large.len(),
+            pt(
+                (icon.x + icon.w / 2.0) as f64,
+                (icon.y + icon.h / 2.0) as f64
+            )
+        ),
+        Some(1)
+    );
+    shell.sync_dock(1000.0, &small);
+    assert_eq!(
+        shell.dock_rect(1000.0, 800.0, small.len()).w,
+        growing,
+        "retargeting preserves the current pose"
+    );
+    for _ in 0..180 {
+        shell.tick(1.0 / 60.0);
+    }
+    assert!((shell.dock_rect(1000.0, 800.0, small.len()).w - start).abs() < 0.01);
+    shell.sync_dock(1000.0, &large);
+    shell.set_reduce_motion(true);
+    assert_eq!(
+        shell.dock_rect(1000.0, 800.0, large.len()).w,
+        dock_rect(1000.0, 800.0, large.len()).w
+    );
+    assert!(!shell.dock_animating());
+}
+
+#[test]
+fn launcher_scroll_reaches_last_app_and_does_not_scroll_the_search_field() {
+    let apps = (0..100).map(|i| app(&format!("App {i:03}"))).collect();
+    let mut shell = Shell::new(apps, ThemeSpec::DEFAULT);
+    shell.set_reduce_motion(true);
+    let (w, h) = (1000.0, 700.0);
+    let mut fonts = Fonts::load().unwrap();
+    let theme = ThemeSpec::DEFAULT.light();
+    shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
+    let before = shell.launcher_layer.as_ref().unwrap().surface.duplicate();
+    shell.scroll_launcher(w, h, 100000.0);
+    let max = launcher_scroll_max(w, h, shell.apps.len());
+    assert!(max > 0.0);
+    assert_eq!(shell.launcher_scroll(), max);
+    let card = launcher_card(w, h);
+    let mut origin = launcher_grid_origin(w, h);
+    origin.1 -= max;
+    let (x, y) = launcher_tile_pos(origin, 99, launcher_columns(card.w));
+    assert_eq!(
+        launcher_hit(w, h, 100, max, pt((x + 56.0) as f64, (y + 56.0) as f64)),
+        LauncherHit::Tile(99)
+    );
+    let search = search_rect(w, h);
+    assert_eq!(
+        launcher_hit(
+            w,
+            h,
+            100,
+            max,
+            pt((search.x + 30.0) as f64, (search.y + 30.0) as f64)
+        ),
+        LauncherHit::Input
+    );
+    shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
+    let after = &shell.launcher_layer.as_ref().unwrap().surface;
+    // Header raster rows are identical even after scrolling to the very end.
+    let header_rows = (launcher_viewport(w, h).y - card.y + 20.0).floor() as usize;
+    let bytes = header_rows * before.width() as usize * 4;
+    assert_eq!(
+        &before.pixmap.data()[..bytes],
+        &after.pixmap.data()[..bytes]
+    );
+    shell.launcher_push('9');
+    assert_eq!(
+        shell.launcher_scroll(),
+        0.0,
+        "a new query starts at the top"
+    );
+}
+
+#[test]
+fn feedback_for_a_partially_visible_tile_is_clipped_to_the_grid() {
+    let mut shell = Shell::new(
+        (0..60).map(|i| app(&format!("App {i}"))).collect(),
+        ThemeSpec::DEFAULT,
+    );
+    shell.set_reduce_motion(true);
+    let (w, h) = (1000.0, 700.0);
+    shell.scroll_launcher(w, h, 84.0);
+    shell.press_begin(PressKey::Launcher(0), (56.0, 36.0), 64.0, 0.9);
+    let mut fonts = Fonts::load().unwrap();
+    let pieces = shell.launcher_press_surfaces(&mut fonts, &ThemeSpec::DEFAULT.light(), w, h);
+    assert_eq!(pieces.len(), 1);
+    let viewport = launcher_viewport(w, h);
+    for (surface, (x, y)) in pieces {
+        assert!(x >= viewport.x && y >= viewport.y);
+        assert!(x + surface.width() as f32 <= viewport.right());
+        assert!(y + surface.pixmap.height() as f32 <= viewport.bottom());
+        assert!(surface.pixmap.height() < config::LAUNCHER_TILE as u32);
+    }
+}
+
+#[test]
+fn manual_unpinning_including_the_last_pin_keeps_terminal_shortcuts() {
+    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let terminal = shell.terminal.clone();
+    let initial = shell.pinned[0].clone();
+    shell.toggle_pin(initial.clone()).unwrap();
+    assert!(shell.pinned.is_empty());
+    assert_eq!(shell.terminal, terminal);
+    shell.toggle_pin(initial).unwrap();
+    assert_eq!(shell.pinned.len(), 1);
 }

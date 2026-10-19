@@ -39,6 +39,15 @@ pub(super) fn on_key(
         };
     }
 
+    if state.shell.app_menu.is_some() {
+        state.swallowed_keys.insert(code);
+        if sym == Keysym::Return || sym == Keysym::KP_Enter {
+            state.shell.activate_pin_menu();
+        } else if sym == Keysym::Escape {
+            state.shell.close_app_menu();
+        }
+        return FilterResult::Intercept(());
+    }
     if state.shell.launcher_open {
         state.swallowed_keys.insert(code);
         if sym == Keysym::Escape {
@@ -47,6 +56,22 @@ pub(super) fn on_key(
         }
         if sym == Keysym::Return || sym == Keysym::KP_Enter {
             launch_first_filtered(state);
+            return FilterResult::Intercept(());
+        }
+        if matches!(
+            sym,
+            Keysym::Page_Up | Keysym::Page_Down | Keysym::Home | Keysym::End
+        ) {
+            let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+            let max = shell::launcher_scroll_max(w, h, state.shell.filtered_apps().len());
+            let page = shell::launcher_viewport(w, h).h * 0.85;
+            let delta = match sym {
+                Keysym::Home => -max,
+                Keysym::End => max,
+                Keysym::Page_Up => -page,
+                _ => page,
+            };
+            state.shell.scroll_launcher(w, h, delta);
             return FilterResult::Intercept(());
         }
         if sym == Keysym::BackSpace {
@@ -63,6 +88,22 @@ pub(super) fn on_key(
         return FilterResult::Intercept(());
     }
 
+    if state.shell.calendar.open {
+        state.swallowed_keys.insert(code);
+        match sym {
+            Keysym::Escape => state.shell.set_calendar_open(false),
+            Keysym::Left | Keysym::Page_Up => state
+                .shell
+                .calendar
+                .navigate(shell::CalendarAction::Previous),
+            Keysym::Right | Keysym::Page_Down => {
+                state.shell.calendar.navigate(shell::CalendarAction::Next)
+            }
+            Keysym::Home => state.shell.calendar.navigate(shell::CalendarAction::Today),
+            _ => {}
+        }
+        return FilterResult::Intercept(());
+    }
     if state.shell.quick_settings_open && sym == Keysym::Escape {
         state.swallowed_keys.insert(code);
         state.shell.set_quick_settings_open(false);

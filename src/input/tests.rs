@@ -80,3 +80,51 @@ fn spawn_ignores_empty_command() {
     // No program name: must be a no-op rather than a panic/index error.
     spawn_program(&[]);
 }
+
+#[test]
+fn animated_clock_navigation_uses_drawn_geometry_and_matching_release() {
+    use crate::{graphics::text::Fonts, theme::ThemeSpec};
+    use smithay::reexports::wayland_server::Display;
+    let mut display = Display::new().unwrap();
+    let mut state = State::new(
+        &mut display,
+        Fonts::load().unwrap(),
+        vec![],
+        vec![],
+        ThemeSpec::DEFAULT,
+    );
+    state.shell.set_calendar_open(true);
+    state.shell.calendar.year = 2026;
+    state.shell.calendar.month = 12;
+    let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+    let placement = state.shell.calendar_placement(w, h);
+    let source = placement.source;
+    let position = Point::from((
+        f64::from(placement.target.x + (source.w - 36.0) * placement.target.w / source.w),
+        f64::from(placement.target.y + 168.0 * placement.target.h / source.h),
+    ));
+    assert!(matches!(
+        target::target(&state, position),
+        target::Target::Shell(target::Control::Calendar(shell::CalendarAction::Next))
+    ));
+    target::press(
+        &mut state,
+        target::Control::Calendar(shell::CalendarAction::Next),
+        position,
+    );
+    actions::finish_compositor_press(&mut state, position);
+    assert_eq!(
+        (state.shell.calendar.year, state.shell.calendar.month),
+        (2027, 1)
+    );
+    target::press(
+        &mut state,
+        target::Control::Calendar(shell::CalendarAction::Next),
+        position,
+    );
+    actions::finish_compositor_press(&mut state, (900.0, 650.0).into());
+    assert_eq!(
+        (state.shell.calendar.year, state.shell.calendar.month),
+        (2027, 1)
+    );
+}

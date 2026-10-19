@@ -1,111 +1,130 @@
-//! The top-bar clock.
-//!
-//! Moved out of `main.rs` because both the nested and the KMS backends drive
-//! it through the shared [`crate::crate::app::Ticker`].
-
-use std::time::Instant;
-
-/// Spawning `date` once per second used to cost a process per tick. Instead the
-/// host's UTC offset is fetched once at start-up (and refreshed hourly, which
-/// also picks up DST changes), and "HH:MM" is derived from `SystemTime` in
-/// between — no process spawns on the hot path.
-pub struct Clock {
-    offset_secs: i64,
-    last_sync: Instant,
-    /// Set when the host would not report its UTC offset: falls back to
-    /// spawning `date`, throttled to one call per minute.
-    fallback_text: Option<String>,
+//! Local civil time from libc, including date, zone and DST on every tick.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LocalTime {
+    pub year: i32,
+    pub month: u32,
+    pub day: u32,
+    /// Monday = 0.
+    pub weekday: usize,
+    pub hour: u32,
+    pub minute: u32,
+    pub second: u32,
+    pub zone: String,
 }
-
-impl Clock {
-    pub fn new() -> Self {
-        let mut clock = Self {
-            offset_secs: 0,
-            last_sync: Instant::now(),
-            fallback_text: None,
-        };
-        clock.sync();
-        clock
-    }
-
-    fn sync(&mut self) {
-        self.last_sync = Instant::now();
-        match utc_offset_secs() {
-            Some(offset) => {
-                self.offset_secs = offset;
-                self.fallback_text = None;
-            }
-            None => {
-                if self.fallback_text.is_none() {
-                    self.fallback_text = Some(current_clock());
-                }
+impl LocalTime {
+    pub fn now() -> Self {
+        // localtime_r owns no shared tm storage. strftime reads the returned
+        // tm immediately; the zone string is copied, never retained by us.
+        unsafe {
+            let timestamp = libc::time(std::ptr::null_mut());
+            let mut local: libc::tm = std::mem::zeroed();
+            if !libc::localtime_r(&timestamp, &mut local).is_null() {
+                let mut zone = [0i8; 64];
+                libc::strftime(
+                    zone.as_mut_ptr(),
+                    zone.len(),
+                    c"%Z · UTC%z".as_ptr(),
+                    &local,
+                );
+                return Self {
+                    year: local.tm_year + 1900,
+                    month: (local.tm_mon + 1) as u32,
+                    day: local.tm_mday as u32,
+                    weekday: ((local.tm_wday + 6) % 7) as usize,
+                    hour: local.tm_hour as u32,
+                    minute: local.tm_min as u32,
+                    second: local.tm_sec as u32,
+                    zone: std::ffi::CStr::from_ptr(zone.as_ptr())
+                        .to_string_lossy()
+                        .into_owned(),
+                };
             }
         }
-    }
-
-    pub fn text(&mut self) -> String {
-        if let Some(text) = &self.fallback_text {
-            if self.last_sync.elapsed().as_secs() >= 60 {
-                self.last_sync = Instant::now();
-                let fresh = current_clock();
-                self.fallback_text = Some(fresh.clone());
-                return fresh;
-            }
-            return text.clone();
-        }
-        if self.last_sync.elapsed().as_secs() >= 3600 {
-            self.sync();
-            if let Some(text) = &self.fallback_text {
-                return text.clone();
-            }
-        }
-        let secs = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
-        let day = (secs + self.offset_secs).rem_euclid(86_400);
-        format!("{:02}:{:02}", day / 3600, (day % 3600) / 60)
-    }
-}
-
-/// Ask `date` for the local UTC offset, e.g. `+0300`.
-fn utc_offset_secs() -> Option<i64> {
-    let out = std::process::Command::new("date")
-        .arg("+%z")
-        .output()
-        .ok()?;
-    if !out.status.success() {
-        return None;
-    }
-    parse_utc_offset(&String::from_utf8_lossy(&out.stdout))
-}
-
-fn parse_utc_offset(raw: &str) -> Option<i64> {
-    let raw = raw.trim();
-    let (sign, rest) = if let Some(r) = raw.strip_prefix('+') {
-        (1, r)
-    } else if let Some(r) = raw.strip_prefix('-') {
-        (-1, r)
-    } else {
-        (1, raw)
-    };
-    let digits: String = rest.chars().filter(|c| c.is_ascii_digit()).collect();
-    if digits.len() < 4 {
-        return None;
-    }
-    let hours: i64 = digits[0..2].parse().ok()?;
-    let minutes: i64 = digits[2..4].parse().ok()?;
-    Some(sign * (hours * 3600 + minutes * 60))
-}
-
-fn current_clock() -> String {
-    if let Ok(out) = std::process::Command::new("date").arg("+%H:%M").output() {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            if !s.is_empty() {
-                return s;
-            }
+        Self {
+            year: 1970,
+            month: 1,
+            day: 1,
+            weekday: 3,
+            hour: 0,
+            minute: 0,
+            second: 0,
+            zone: "Time unavailable".into(),
         }
     }
-    "00:00".to_string()
+    pub fn text(&self) -> String {
+        format!("{:02}:{:02}", self.hour, self.minute)
+    }
+    pub fn seconds_text(&self) -> String {
+        format!("{:02}:{:02}:{:02}", self.hour, self.minute, self.second)
+    }
+    pub fn date_text(&self) -> String {
+        const WEEKDAYS: [&str; 7] = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ];
+        format!(
+            "{}, {} {} {}",
+            WEEKDAYS[self.weekday],
+            self.day,
+            MONTHS[(self.month - 1) as usize],
+            self.year
+        )
+    }
+}
+pub const MONTHS: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+
+pub fn days_in_month(year: i32, month: u32) -> u32 {
+    match month {
+        2 => {
+            if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+                29
+            } else {
+                28
+            }
+        }
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
+}
+/// Gregorian weekday without timezone conversion or a noon/DST ambiguity.
+pub fn first_weekday(year: i32, month: u32) -> usize {
+    let y = year - i32::from(month < 3);
+    let offsets = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+    (y + y.div_euclid(4) - y.div_euclid(100)
+        + y.div_euclid(400)
+        + offsets[(month - 1) as usize]
+        + 1
+        + 6)
+    .rem_euclid(7) as usize
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn gregorian_calendar_handles_leap_centuries_and_monday_first() {
+        assert_eq!(days_in_month(2000, 2), 29);
+        assert_eq!(days_in_month(2100, 2), 28);
+        assert_eq!(days_in_month(2024, 2), 29);
+        assert_eq!(first_weekday(2026, 10), 3);
+        assert_eq!(first_weekday(2024, 1), 0);
+        assert_eq!(first_weekday(2026, 2), 6);
+    }
 }

@@ -32,6 +32,7 @@ pub(crate) use process::*;
 #[cfg(test)]
 mod tests;
 
+mod app_menu;
 mod axis;
 mod target;
 pub(crate) use axis::on_pointer_axis;

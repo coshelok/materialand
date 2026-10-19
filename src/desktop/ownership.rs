@@ -2,6 +2,7 @@
 use super::*;
 #[derive(Default)]
 pub struct WindowManager {
+    pub order: Vec<Window>,
     pub space: smithay::desktop::Space<Window>,
     pub props: HashMap<Window, WindowProps>,
     pub meta: HashMap<Window, WindowMeta>,

@@ -6,7 +6,7 @@ impl Shell {
         self.window_out.remove(window);
         self.window_in.entry(window.clone()).or_insert_with(|| {
             // Starts hidden at 0.0 and animates to the rest pose.
-            let mut spring = Spring::spatial(0.0);
+            let mut spring = Spring::effects(0.0);
             spring.set_target(1.0);
             spring
         });
@@ -25,7 +25,7 @@ impl Shell {
             return false;
         }
         self.window_in.remove(window);
-        let mut spring = Spring::spatial(0.0);
+        let mut spring = Spring::effects(0.0);
         spring.set_target(1.0);
         self.window_out.insert(window.clone(), spring);
         false

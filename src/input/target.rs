@@ -8,6 +8,8 @@ pub(super) enum Target {
 }
 #[derive(Clone, Copy)]
 pub(super) enum Control {
+    PinMenu,
+    Calendar(shell::CalendarAction),
     Top(TopAction),
     Dock(usize),
     Quick(QuickAction),
@@ -19,17 +21,51 @@ pub(super) enum Control {
 }
 pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+    if let Some(menu) = &state.shell.app_menu {
+        let rect = shell::app_menu_rect(w, h, menu.point);
+        return Target::Shell(if shell::app_menu_button(rect).contains(pos) {
+            Control::PinMenu
+        } else {
+            Control::Block
+        });
+    }
     let fullscreen = state.has_fullscreen_window();
-    if !fullscreen && state.shell.power_open && shell::power_menu_rect(w).contains(pos) {
+    if !fullscreen && state.shell.calendar.open {
+        let local = state.shell.calendar_placement(w, h).unmap(pos);
+        if shell::calendar_rect(w, h).contains(local) {
+            return Target::Shell(
+                shell::calendar_hit(w, h, local)
+                    .map(Control::Calendar)
+                    .unwrap_or(Control::Block),
+            );
+        }
+    }
+    let power_pos = state
+        .shell
+        .power_placement(w, state.shell.power_progress())
+        .unmap(pos);
+    let brightness_pos = state
+        .shell
+        .brightness_placement(w, state.shell.brightness_progress())
+        .unmap(pos);
+    let qs_pos = state
+        .shell
+        .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+        .unmap(pos);
+    if !fullscreen && state.shell.power_open && shell::power_menu_rect(w).contains(power_pos) {
         return Target::Shell(
-            shell::power_row_at(w, pos)
+            shell::power_row_at(w, power_pos)
                 .map(Control::Power)
                 .unwrap_or(Control::Block),
         );
     }
-    if !fullscreen && state.shell.brightness_open && shell::brightness_popup(w).contains(pos) {
+    if !fullscreen
+        && state.shell.brightness_open
+        && shell::brightness_popup(w).contains(brightness_pos)
+    {
         return Target::Shell(
-            shell::brightness_hit(w, pos)
+            shell::brightness_hit(w, brightness_pos)
+                .filter(|_| state.shell.brightness_available)
                 .map(Control::Brightness)
                 .unwrap_or(Control::Block),
         );
@@ -39,16 +75,20 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
             w,
             h,
             state.shell.filtered_apps().len(),
-            pos,
+            state.shell.launcher_scroll(),
+            state
+                .shell
+                .launcher_placement(w, h, state.shell.launcher_progress())
+                .unmap(pos),
         )));
     }
     if !fullscreen
         && state.shell.quick_settings_open
-        && shell::quick_settings_rect(w, h).contains(pos)
+        && shell::quick_settings_rect(w, h).contains(qs_pos)
     {
-        let control = shell::quick_settings_hit(w, h, pos, state.shell.quick_settings_progress())
+        let control = shell::quick_settings_hit(w, h, qs_pos, 1.0)
             .map(Control::Quick)
-            .or_else(|| shell::palette_chip_hit(w, h, pos).map(Control::Chip))
+            .or_else(|| shell::palette_chip_hit(w, h, qs_pos).map(Control::Chip))
             .unwrap_or(Control::Block);
         return Target::Shell(control);
     }
@@ -60,9 +100,15 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
                     .unwrap_or(Control::Block),
             );
         }
-        if shell::dock_rect(w, h, dock_item_count(state)).contains(pos) {
+        if state
+            .shell
+            .dock_rect(w, h, dock_item_count(state))
+            .contains(pos)
+        {
             return Target::Shell(
-                shell::dock_hit(w, h, dock_item_count(state), pos)
+                state
+                    .shell
+                    .dock_hit(w, h, dock_item_count(state), pos)
                     .map(Control::Dock)
                     .unwrap_or(Control::Block),
             );
@@ -76,20 +122,38 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
 pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     let top = shell::topbar_hit(w, pos);
+    if state.shell.calendar.open
+        && !shell::calendar_rect(w, h).contains(state.shell.calendar_placement(w, h).unmap(pos))
+        && top != Some(TopAction::Clock)
+    {
+        state.shell.set_calendar_open(false);
+    }
+    let power_pos = state
+        .shell
+        .power_placement(w, state.shell.power_progress())
+        .unmap(pos);
+    let brightness_pos = state
+        .shell
+        .brightness_placement(w, state.shell.brightness_progress())
+        .unmap(pos);
+    let qs_pos = state
+        .shell
+        .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+        .unmap(pos);
     if state.shell.power_open
-        && !shell::power_menu_rect(w).contains(pos)
+        && !shell::power_menu_rect(w).contains(power_pos)
         && top != Some(TopAction::Power)
     {
         state.shell.set_power_open(false);
     }
     if state.shell.brightness_open
-        && !shell::brightness_popup(w).contains(pos)
+        && !shell::brightness_popup(w).contains(brightness_pos)
         && top != Some(TopAction::Brightness)
     {
         state.shell.set_brightness_open(false);
     }
     if state.shell.quick_settings_open
-        && !shell::quick_settings_rect(w, h).contains(pos)
+        && !shell::quick_settings_rect(w, h).contains(qs_pos)
         && top != Some(TopAction::QuickSettings)
     {
         state.shell.set_quick_settings_open(false);
@@ -98,6 +162,14 @@ pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
 pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical>) {
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     let (key, rect) = match control {
+        Control::Calendar(action) => {
+            state.shell.calendar.pressed = Some(action);
+            return;
+        }
+        Control::PinMenu => {
+            state.shell.press_pin = true;
+            return;
+        }
         Control::Top(action) => {
             state.shell.press_top = Some(action);
             (PressKey::Top(action), shell::topbar_button_rect(w, action))
@@ -106,7 +178,7 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
             state.shell.press_dock = Some(i);
             (
                 PressKey::Dock(i),
-                shell::dock_item_rect(w, h, dock_item_count(state), i),
+                state.shell.dock_item_rect(w, h, dock_item_count(state), i),
             )
         }
         Control::Quick(action) => {
@@ -136,6 +208,9 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
             (PressKey::Launcher(i), r)
         }
         Control::Brightness(value) => {
+            if !state.shell.brightness_available {
+                return;
+            }
             state.brightness = value;
             state.interaction = Interaction::Brightness;
             state.shell.set_slider_active(true);
@@ -145,10 +220,13 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
     };
     let center = match control {
         Control::Launcher(_) => (rect.w / 2.0, rect.h / 2.0),
-        Control::Top(_) => (rect.x + rect.w / 2.0, rect.y + rect.h / 2.0),
+        Control::Top(_) => (
+            rect.x - shell::topbar_rect(w).x + rect.w / 2.0,
+            rect.y - shell::topbar_rect(w).y + rect.h / 2.0,
+        ),
         Control::Dock(_) => (
-            rect.x + rect.w / 2.0,
-            rect.y - shell::dock_rect(w, h, dock_item_count(state)).y + rect.h / 2.0,
+            rect.x - state.shell.dock_rect(w, h, dock_item_count(state)).x + rect.w / 2.0,
+            rect.y - state.shell.dock_rect(w, h, dock_item_count(state)).y + rect.h / 2.0,
         ),
         Control::Power(_) => (
             rect.x - shell::power_menu_rect(w).x + shell::SHADOW_PAD + rect.w / 2.0,
@@ -162,5 +240,5 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
     let _ = pos;
     state
         .shell
-        .press_begin(key, center, rect.w.max(rect.h) * 0.7, 0.94);
+        .press_begin(key, center, rect.w.max(rect.h) * 0.7, 0.90);
 }

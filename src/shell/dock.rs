@@ -13,7 +13,7 @@ impl Shell {
         focused: Option<&Window>,
         mask: Option<CircleMask>,
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
-        let rect = dock_rect(win_w, win_h, items.len());
+        let rect = self.dock_rect(win_w, win_h, items.len());
         let loc = Point::from((rect.x as f64, rect.y as f64));
         let mut key = KeyHash::new()
             .i32(win_w.round() as i32)
@@ -24,38 +24,39 @@ impl Shell {
             match item {
                 DockItem::Launcher => key = key.u32(1),
                 DockItem::Launch(app) => key = key.u32(2).str(&app.icon),
-                DockItem::Focus { window, key: k } => {
+                DockItem::Focus { window, key: k, .. } => {
                     key = key.u32(3).str(k).bool(focused == Some(window));
                 }
             }
         }
         let cache_key = key.finish();
-        let animating = self.press.keys().any(|k| matches!(k, PressKey::Dock(_)));
+        let animating =
+            self.dock_animating() || self.press.keys().any(|k| matches!(k, PressKey::Dock(_)));
         if !animating {
             if let Some(piece) = self.dock_cache.iter().find(|p| p.key == cache_key) {
                 return masked_from(&piece.surface, mask, &piece.buffer, loc);
             }
         }
         let mut s = Surface::new(rect.w as u32, rect.h as u32);
-        // Taskbar background: slightly elevated surface.
-        s.fill_round_rect(0.0, 0.0, rect.w, rect.h, 0.0, theme.surface_container_high);
-        s.stroke_round_rect(
+        // A floating Android-style taskbar, with generous outer rounding.
+        s.fill_round_rect(
             0.0,
-            0.5,
+            0.0,
             rect.w,
-            1.0,
-            0.0,
-            1.0,
-            Theme::with_alpha(theme.outline, 0.15),
+            rect.h,
+            rect.h / 2.0,
+            theme.surface_container,
         );
-
-        // Launchers and window icons share one centred row of dock icons.
-        let mut x = dock_row_start(rect.w, items.len());
 
         for (i, item) in items.iter().enumerate() {
             let cy = rect.h / 2.0;
-            let icon_size = config::DOCK_ICON;
-            let cx = x + icon_size / 2.0;
+            let item_rect = self.dock_item_rect(win_w, win_h, items.len(), i);
+            let icon_size = item_rect.w;
+            if icon_size < 0.5 {
+                continue;
+            }
+            let unit = icon_size / config::DOCK_ICON;
+            let cx = item_rect.x - rect.x + icon_size / 2.0;
             let key = PressKey::Dock(i);
             let scale = self.press_scale(key);
 
@@ -67,17 +68,21 @@ impl Shell {
                         cx,
                         cy,
                         "apps",
-                        28.0 * scale,
+                        28.0 * scale * unit,
                         theme.on_primary_container,
                     );
                 }
                 DockItem::Launch(app) => {
                     let icon = config::icon_for_key(&app.icon);
-                    fonts.draw_icon_centered(&mut s, cx, cy, icon, 30.0 * scale, theme.on_surface);
+                    let (fill, on) = app_colors(theme, &app.icon);
+                    s.circle(cx, cy, icon_size / 2.0 * scale, fill);
+                    fonts.draw_icon_centered(&mut s, cx, cy, icon, 28.0 * scale * unit, on);
                 }
-                DockItem::Focus { window, key: k } => {
+                DockItem::Focus { window, key: k, .. } => {
                     let icon = config::icon_for_key(k);
                     let active = focused == Some(window);
+                    let (fill, on) = app_colors(theme, k);
+                    s.circle(cx, cy, icon_size / 2.0 * scale, fill);
                     if active {
                         let w = icon_size * scale;
                         let h = icon_size * scale;
@@ -86,8 +91,8 @@ impl Shell {
                             cy - h / 2.0,
                             w,
                             h,
-                            shape::MEDIUM,
-                            theme.secondary_container,
+                            shape::LARGE,
+                            theme.primary_container,
                         );
                     }
                     fonts.draw_icon_centered(
@@ -95,15 +100,22 @@ impl Shell {
                         cx,
                         cy,
                         icon,
-                        30.0 * scale,
+                        28.0 * scale * unit,
                         if active {
-                            theme.on_secondary_container
+                            theme.on_primary_container
                         } else {
-                            theme.on_surface
+                            on
                         },
                     );
                     // Indicator dot for running apps.
-                    s.circle(cx, rect.h - 6.0, 2.0, theme.primary);
+                    s.fill_round_rect(
+                        cx - if active { 7.0 } else { 2.0 },
+                        rect.h - 8.0,
+                        if active { 14.0 } else { 4.0 },
+                        3.0,
+                        1.5,
+                        theme.primary,
+                    );
                 }
             }
 
@@ -127,8 +139,6 @@ impl Shell {
             if let Some(clip) = cb.finish() {
                 self.draw_ripple(&mut s, key, &clip, theme.on_surface);
             }
-
-            x += icon_size + config::DOCK_GAP;
         }
 
         let buffer = s.to_memory_buffer();

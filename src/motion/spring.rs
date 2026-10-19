@@ -19,18 +19,20 @@ impl Spring {
         }
     }
 
-    // ---- Official Material 3 Expressive motion-physics tokens -------------
-    //
-    // Spatial springs drive position and size; they may slightly overshoot and
-    // "bounce". Effects springs drive color, alpha and other non-spatial
-    // properties; they are critically damped and never overshoot. The full
-    // token table — spatial fast/default/slow at stiffness 1400/700/300 with
-    // ζ = 0.9, effects fast/default/slow at 3800/1600/800 with ζ = 1.0 — is
-    // built through `at`; the shell uses the spatial default directly.
-
-    /// Spatial default: the standard position/size spring (stiffness 700).
+    /// Expressive shell geometry: a gentle, visible overshoot and soft landing.
+    /// Tuned for desktop panel sizes; not an exact Android platform token.
     pub fn spatial(value: f32) -> Self {
-        Self::at(value, 700.0, 0.9)
+        Self::at(value, 420.0, 0.68)
+    }
+
+    /// Short press/squeeze feedback returns faster than a large panel.
+    pub fn responsive(value: f32) -> Self {
+        Self::at(value, 850.0, 0.58)
+    }
+
+    /// Alpha and color effects should settle without bouncing.
+    pub fn effects(value: f32) -> Self {
+        Self::at(value, 1000.0, 1.0)
     }
 
     pub fn value(&self) -> f32 {
@@ -52,6 +54,11 @@ impl Spring {
         self.value = value;
         self.target = value;
         self.velocity = 0.0;
+    }
+
+    /// Finish at the configured target, discarding velocity.
+    pub fn finish(&mut self) {
+        self.snap(self.target);
     }
 
     /// Advance the simulation by `dt` seconds using fixed sub-steps for

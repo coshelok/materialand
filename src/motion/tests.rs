@@ -94,3 +94,20 @@ fn tween_is_monotonic_for_decelerate() {
         last = v;
     }
 }
+
+#[test]
+fn expressive_motion_bounces_while_effects_stay_bounded() {
+    let mut spatial = Spring::spatial(0.0);
+    let mut effects = Spring::effects(0.0);
+    spatial.set_target(1.0);
+    effects.set_target(1.0);
+    let mut peak = 0.0_f32;
+    for _ in 0..120 {
+        spatial.step(1.0 / 120.0);
+        effects.step(1.0 / 120.0);
+        peak = peak.max(spatial.value());
+        assert!((0.0..=1.0).contains(&effects.value()));
+    }
+    assert!(peak > 1.025 && peak < 1.06, "controlled overshoot: {peak}");
+    assert!(spatial.settled() && effects.settled());
+}

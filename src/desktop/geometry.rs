@@ -64,6 +64,20 @@ impl State {
         Rectangle::new((0, top).into(), (self.display.size.w, h).into())
     }
 
+    /// Leave room for our title bar outside the client's maximized geometry.
+    pub fn window_available_area(&self, window: &Window) -> Rectangle<i32, Logical> {
+        let mut area = self.available_area();
+        if self.window_server_decor(window) {
+            let title = config::FRAME_TITLEBAR as i32;
+            let border = config::FRAME_BORDER as i32;
+            area.loc.x += border;
+            area.loc.y += title;
+            area.size.w = (area.size.w - 2 * border).max(1);
+            area.size.h = (area.size.h - title - border).max(1);
+        }
+        area
+    }
+
     pub fn output_rect(&self) -> Rectangle<i32, Logical> {
         Rectangle::new(
             (0, 0).into(),
@@ -71,14 +85,26 @@ impl State {
         )
     }
 
+    pub fn initial_window_size(&self) -> Size<i32, Logical> {
+        let area = self.available_area();
+        let (w, h) = config::DEFAULT_WINDOW_SIZE;
+        (
+            w.min((area.size.w - 120).max(1)),
+            h.min((area.size.h - config::FRAME_TITLEBAR as i32 - 24).max(1)),
+        )
+            .into()
+    }
+
     pub fn next_location(&mut self) -> Point<i32, Logical> {
         let n = self.windows.cascade.rem_euclid(6);
         self.windows.cascade = self.windows.cascade.wrapping_add(1);
         let step = config::CASCADE_STEP;
         let base_x = config::TOPBAR_MARGIN as i32 + 48;
-        let base_y = config::TOPBAR_HEIGHT as i32 + config::TOPBAR_MARGIN as i32 + 8;
+        let base_y =
+            (config::TOPBAR_HEIGHT + 2.0 * config::TOPBAR_MARGIN + config::FRAME_TITLEBAR + 8.0)
+                as i32;
         let (sw, sh) = (self.display.size.w, self.display.size.h);
-        let (ww, wh) = config::DEFAULT_WINDOW_SIZE;
+        let Size { w: ww, h: wh, .. } = self.initial_window_size();
         let dock = config::DOCK_HEIGHT as i32 + config::DOCK_MARGIN as i32;
         let max_x = (sw - ww - 24).max(base_x);
         let max_y = (sh - wh - dock - 24).max(base_y);

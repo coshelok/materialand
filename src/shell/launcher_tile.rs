@@ -13,19 +13,20 @@ impl Shell {
         scale: f32,
     ) {
         let icon_name = config::icon_for_key(&app.icon);
+        let (fill, on) = app_colors(theme, &app.icon);
         s.circle(
             x + config::LAUNCHER_TILE / 2.0,
             y + 36.0,
-            32.0 * scale,
-            theme.surface_container_highest,
+            34.0 * scale,
+            fill,
         );
         fonts.draw_icon_centered(
             s,
             x + config::LAUNCHER_TILE / 2.0,
             y + 36.0,
             icon_name,
-            36.0 * scale,
-            theme.on_surface,
+            30.0 * scale,
+            on,
         );
         let label = truncate(&app.name, 14);
         let label_style = TextStyle::BODY_MEDIUM;

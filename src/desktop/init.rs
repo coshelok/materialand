@@ -27,7 +27,9 @@ impl State {
         let output = Output::new(
             "materialand-0".to_string(),
             PhysicalProperties {
-                size: config::OUTPUT_PHYSICAL_MM.into(),
+                // A nested window has no physical diagonal. Direct mode
+                // replaces these properties with the active DRM connector.
+                size: (0, 0).into(),
                 subpixel: Subpixel::Unknown,
                 make: "Materialand".into(),
                 model: "Nested".into(),
@@ -99,6 +101,13 @@ impl State {
         ViewporterState::new::<Self>(&dh);
         let activation_state = XdgActivationState::new::<Self>(&dh);
 
+        let theme = if std::env::var("MATERIALAND_THEME").is_ok_and(|v| v == "dark") {
+            spec.dark()
+        } else {
+            spec.light()
+        };
+        let mut shell = Shell::new(apps, spec);
+        shell.set_theme_switch(theme.is_dark);
         State {
             forwarded_buttons: HashSet::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
@@ -127,9 +136,10 @@ impl State {
             display_handle: dh.clone(),
             session_mode: false,
             _output_global,
-            shell: Shell::new(apps, spec),
+            retired_output_globals: Vec::new(),
+            shell,
             fonts,
-            theme: spec.dark(),
+            theme,
             theme_spec: spec,
             running: true,
             start_time: Instant::now(),

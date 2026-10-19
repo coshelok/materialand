@@ -31,7 +31,7 @@ pub fn parse(args: impl IntoIterator<Item = String>, nested_env: bool) -> Result
     Ok(result)
 }
 pub fn help() {
-    println!("materialand {} — Material 3 Wayland compositor\n\nUsage: materialand [--nested | --check | --help]\n\n  --nested  run in a window on the current desktop\n  --check   inspect DRM connectors without modesetting\n  --help    show this help\n\nWithout options: DRM/KMS session for SDDM or a local TTY.\nConfiguration: MATERIALAND_SEED, MATERIALAND_WALLPAPER, MATERIALAND_VARIANT,\nMATERIALAND_FONT_DIR, MATERIALAND_DRM_DEVICE, MATERIALAND_XKB_LAYOUT,\nMATERIALAND_XKB_OPTIONS.",env!("CARGO_PKG_VERSION"));
+    println!("materialand {} — Material 3 Wayland compositor\n\nUsage: materialand [--nested | --check | --help]\n\n  --nested  run in a window on the current desktop\n  --check   inspect DRM connectors without modesetting\n  --help    show this help\n\nWithout options: DRM/KMS session for SDDM or a local TTY.\nConfiguration: MATERIALAND_THEME (light/dark), MATERIALAND_SEED, MATERIALAND_WALLPAPER, MATERIALAND_VARIANT,\nMATERIALAND_FONT_DIR, MATERIALAND_DRM_DEVICE, MATERIALAND_XKB_LAYOUT,\nMATERIALAND_XKB_OPTIONS.",env!("CARGO_PKG_VERSION"));
 }
 #[cfg(test)]
 mod tests {

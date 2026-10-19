@@ -1,5 +1,5 @@
 //! Shared animation/clock tick.
-use super::clock::Clock;
+use super::clock::LocalTime;
 use crate::desktop::State;
 use std::time::Instant;
 const MAX_TICK: f32 = 0.1;
@@ -7,17 +7,18 @@ const MAX_TICK: f32 = 0.1;
 /// Drives the parts of the shell that depend on wall-clock time: the top-bar
 /// clock and the animation springs. Shared by the nested and the KMS loops.
 pub struct Ticker {
-    clock: Clock,
     last_clock: Instant,
     last_frame: Instant,
 }
 
 impl Ticker {
     pub fn new(state: &mut State) -> Self {
-        let mut clock = Clock::new();
-        state.shell.clock = clock.text();
+        state.shell.sync_dock(
+            state.display.size.w as f32,
+            &crate::input::dock_items(state),
+        );
+        state.shell.update_time(LocalTime::now());
         Self {
-            clock,
             last_clock: Instant::now(),
             last_frame: Instant::now(),
         }
@@ -27,18 +28,18 @@ impl Ticker {
     /// Returns `true` while something is still animating, i.e. the caller
     /// should keep scheduling frames.
     pub fn tick(&mut self, state: &mut State) -> bool {
-        let mut dirty = false;
+        let items = crate::input::dock_items(state);
+        let mut dirty = state.shell.sync_dock(state.display.size.w as f32, &items);
+        state
+            .shell
+            .clamp_launcher_scroll(state.display.size.w as f32, state.display.size.h as f32);
 
         // Update the clock once per second, but only mark the frame dirty when
         // the displayed minute actually changes: an idle compositor must not
         // repaint once per second just to redraw the same "HH:MM".
         if self.last_clock.elapsed().as_secs() >= 1 {
             self.last_clock = Instant::now();
-            let text = self.clock.text();
-            if text != state.shell.clock {
-                state.shell.clock = text;
-                dirty = true;
-            }
+            dirty |= state.shell.update_time(LocalTime::now());
         }
 
         // Advance shell animations; keep redrawing while any is in flight.
@@ -51,6 +52,20 @@ impl Ticker {
         if state.shell.tick(dt) {
             dirty = true;
         }
+        let hover = if !state.shell.launcher_open
+            && state.shell.app_menu.is_none()
+            && !state.has_fullscreen_window()
+        {
+            state.shell.dock_hit(
+                state.display.size.w as f32,
+                state.display.size.h as f32,
+                items.len(),
+                state.cursor,
+            )
+        } else {
+            None
+        };
+        dirty |= state.shell.set_hover_dock(hover);
         // Windows whose close animation finished get their `send_close` now.
         state.finish_closing();
 

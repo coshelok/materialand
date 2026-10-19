@@ -24,6 +24,7 @@ impl RectF {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TopAction {
+    Clock,
     Launcher,
     Brightness,
     Theme,
@@ -88,7 +89,12 @@ pub fn quick_action_index(action: QuickAction) -> usize {
 pub enum DockItem {
     Launcher,
     Launch(AppEntry),
-    Focus { window: Window, key: String },
+    Focus {
+        window: Window,
+        key: String,
+        app: Option<AppEntry>,
+        pinned: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -177,7 +183,7 @@ impl PressAnim {
     pub(super) fn new() -> Self {
         Self {
             pressed: false,
-            scale: Spring::spatial(1.0),
+            scale: Spring::responsive(1.0),
             ripple: None,
         }
     }
