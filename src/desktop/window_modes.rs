@@ -12,12 +12,9 @@ impl State {
         let area = self.window_available_area(window);
 
         if maximized {
-            let current = self
-                .windows
-                .space
-                .element_geometry(window)
-                .unwrap_or_else(|| window.geometry());
-            let normal = props.saved.unwrap_or(current);
+            let normal = props
+                .saved
+                .unwrap_or_else(|| self.normal_restore_geometry(window));
             {
                 let p = self.props_mut(window);
                 p.maximized = true;
@@ -33,9 +30,7 @@ impl State {
                 });
                 t.send_configure();
             }
-            self.windows
-                .space
-                .map_element(window.clone(), area.loc, false);
+            self.place_mapped_window(window, area.loc);
         } else {
             if props.fullscreen {
                 return;
@@ -57,10 +52,9 @@ impl State {
                 });
                 t.send_configure();
             }
-            self.windows
-                .space
-                .map_element(window.clone(), restore.loc, false);
+            self.place_mapped_window(window, restore.loc);
         }
+        self.reconcile_window_placement(window);
         self.windows.space.refresh();
     }
 
@@ -81,12 +75,9 @@ impl State {
             self.shell.set_quick_settings_open(false);
             self.shell.launcher_open = false;
             self.shell.set_launcher_open(false);
-            let current = self
-                .windows
-                .space
-                .element_geometry(window)
-                .unwrap_or_else(|| window.geometry());
-            let normal = props.saved.unwrap_or(current);
+            let normal = props
+                .saved
+                .unwrap_or_else(|| self.normal_restore_geometry(window));
             {
                 let p = self.props_mut(window);
                 p.restore_maximized = props.maximized || props.restore_maximized;
@@ -102,9 +93,7 @@ impl State {
                 });
                 t.send_configure();
             }
-            self.windows
-                .space
-                .map_element(window.clone(), output.loc, false);
+            self.place_mapped_window(window, output.loc);
         } else if props.restore_maximized {
             let normal = props.saved.unwrap_or_else(|| {
                 Rectangle::new((0, 0).into(), config::DEFAULT_WINDOW_SIZE.into())
@@ -125,9 +114,7 @@ impl State {
                 });
                 t.send_configure();
             }
-            self.windows
-                .space
-                .map_element(window.clone(), area.loc, false);
+            self.place_mapped_window(window, area.loc);
         } else {
             let restore = props.saved.unwrap_or_else(|| {
                 Rectangle::new((0, 0).into(), config::DEFAULT_WINDOW_SIZE.into())
@@ -147,10 +134,9 @@ impl State {
                 });
                 t.send_configure();
             }
-            self.windows
-                .space
-                .map_element(window.clone(), restore.loc, false);
+            self.place_mapped_window(window, restore.loc);
         }
+        self.reconcile_window_placement(window);
         self.windows.space.refresh();
     }
 
@@ -191,6 +177,7 @@ impl State {
         }
 
         if minimized {
+            self.shell.cancel_window_open(window);
             self.windows.space.unmap_elem(window);
             if self.windows.focused.as_ref() == Some(window) {
                 // Keep `focused` intact until `focus_window` deactivates the old
@@ -201,10 +188,13 @@ impl State {
             }
         } else {
             self.windows.space.map_element(window.clone(), loc, false);
+            let app_id = self.window_meta(window).app_id;
+            self.shell.on_window_mapped(window, &app_id);
             let serial = self.next_serial();
             self.windows.space.raise_element(window, false);
             self.focus_window(Some(window.clone()), serial);
         }
+        self.reconcile_window_placement(window);
         self.windows.space.refresh();
     }
 

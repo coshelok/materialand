@@ -1,10 +1,8 @@
 //! Persistent launcher identities. Writes are atomic and never change commands.
+use super::storage::{atomic_write, config_path};
 use std::{
-    fs::{self, OpenOptions},
-    io::{self, Write},
-    os::unix::fs::OpenOptionsExt,
+    fs, io,
     path::{Path, PathBuf},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 #[derive(Default)]
@@ -64,39 +62,15 @@ impl Pins {
 }
 
 pub fn pins_path() -> Option<PathBuf> {
-    std::env::var_os("XDG_CONFIG_HOME")
-        .filter(|p| Path::new(p).is_absolute())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".config")))
-        .map(|p| p.join("materialand/pinned-apps"))
+    config_path("pinned-apps")
 }
 fn save(path: &Path, ids: &[String]) -> io::Result<()> {
-    let parent = path
-        .parent()
-        .ok_or_else(|| io::Error::other("missing config directory"))?;
-    fs::create_dir_all(parent)?;
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos();
-    let temporary = parent.join(format!(".pinned-apps-{}-{nonce}", std::process::id()));
-    let result = (|| {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o600)
-            .open(&temporary)?;
-        writeln!(file, "# Materialand pinned application identities")?;
-        for id in ids {
-            writeln!(file, "{}", encode(id))?;
-        }
-        file.sync_all()?;
-        fs::rename(&temporary, path)
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(temporary);
+    let mut contents = String::from("# Materialand pinned application identities\n");
+    for id in ids {
+        contents.push_str(&encode(id));
+        contents.push('\n');
     }
-    result
+    atomic_write(path, &contents)
 }
 fn encode(id: &str) -> String {
     id.replace('\\', "\\\\")

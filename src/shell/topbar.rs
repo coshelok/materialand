@@ -44,15 +44,14 @@ impl Shell {
             b
         };
 
-        // Left side: launcher button, then the clock (classic Android phone
-        // style). The launcher occupies the leading full-height square.
+        // Leading Home button and clock; All apps lives on the home screen and dock.
         self.draw_icon_button(
             &mut s,
             fonts,
             theme,
-            button(TopAction::Launcher),
-            TopAction::Launcher,
-            "apps",
+            button(TopAction::Home),
+            TopAction::Home,
+            "home",
             24.0,
             theme.on_primary_container,
             Some(theme.primary_container),

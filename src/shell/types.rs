@@ -24,6 +24,7 @@ impl RectF {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TopAction {
+    Home,
     Clock,
     Launcher,
     Brightness,
@@ -118,6 +119,7 @@ pub enum DecorHit {
 /// Identity of an interactive chrome control, used for press/ripple motion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum PressKey {
+    Home(usize),
     Top(TopAction),
     Dock(usize),
     Tile(usize),

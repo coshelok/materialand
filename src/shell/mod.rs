@@ -42,6 +42,7 @@ pub const BRIGHTNESS_MAX: f32 = 1.0;
 
 pub struct Shell {
     pub apps: Vec<AppEntry>,
+    pub home: home::Home,
     pub pinned: Vec<AppEntry>,
     pins: config::Pins,
     dock_motion: dock_motion::DockMotion,
@@ -115,7 +116,8 @@ pub struct Shell {
     /// Brightness slider handle growth, `0` idle .. `1` grabbed.
     slider: Spring,
     /// Window entrance springs, `0` (hidden) .. `1` (rest).
-    window_in: HashMap<Window, Spring>,
+    window_in: HashMap<Window, window_motion::Entrance>,
+    launch_origins: window_motion::LaunchOrigins,
     /// Window exit springs, `0` (rest) .. `1` (gone).
     window_out: HashMap<Window, Spring>,
     /// Per-control press/ripple animation state.
@@ -154,7 +156,7 @@ mod launcher_scroll;
 mod layout;
 mod model;
 mod pinning;
-pub use app_menu::{app_menu_button, app_menu_rect, AppMenu};
+pub use app_menu::{app_menu_button, app_menu_home_button, app_menu_rect, AppMenu};
 mod motion;
 mod paint;
 mod power;
@@ -164,6 +166,7 @@ mod wallpaper;
 mod window_motion;
 pub use layout::*;
 use paint::*;
+pub use window_motion::WindowPose;
 #[cfg(test)]
 mod tests;
 
@@ -176,3 +179,6 @@ mod placement;
 
 mod calendar;
 pub use calendar::{calendar_hit, calendar_rect, CalendarAction};
+
+mod home;
+pub use home::HomeHit;

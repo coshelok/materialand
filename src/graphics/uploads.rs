@@ -18,7 +18,17 @@ pub(super) fn push_buffer(
     loc: (f64, f64),
     alpha: Option<f32>,
 ) {
-    if let Ok(el) = MemoryRenderBufferRenderElement::from_buffer(
+    if let Some(el) = buffer_element(renderer, buffer, loc, alpha) {
+        elements.push(UiElement::Memory(el));
+    }
+}
+pub(super) fn buffer_element(
+    renderer: &mut GlesRenderer,
+    buffer: &MemoryRenderBuffer,
+    loc: (f64, f64),
+    alpha: Option<f32>,
+) -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
+    MemoryRenderBufferRenderElement::from_buffer(
         renderer,
         Point::from(loc),
         buffer,
@@ -26,9 +36,8 @@ pub(super) fn push_buffer(
         None,
         None,
         Kind::Unspecified,
-    ) {
-        elements.push(UiElement::Memory(el));
-    }
+    )
+    .ok()
 }
 
 /// Push one overlay layer, letting the GPU scale it when the layer carries a

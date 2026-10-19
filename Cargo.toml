@@ -1,6 +1,6 @@
 [package]
 name = "materialand"
-version = "0.2.0"
+version = "0.2.5"
 edition = "2021"
 description = "A modular Material 3 Wayland compositor for DRM/KMS and nested sessions"
 license = "MIT"

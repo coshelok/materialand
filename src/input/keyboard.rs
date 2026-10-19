@@ -39,10 +39,29 @@ pub(super) fn on_key(
         };
     }
 
+    let raw = handle.raw_latin_sym_or_raw_current_sym().unwrap_or(sym);
+    if mods.logo && raw == Keysym::h {
+        state.swallowed_keys.insert(code);
+        show_home(state);
+        return FilterResult::Intercept(());
+    }
     if state.shell.app_menu.is_some() {
         state.swallowed_keys.insert(code);
         if sym == Keysym::Return || sym == Keysym::KP_Enter {
-            state.shell.activate_pin_menu();
+            if state
+                .shell
+                .app_menu
+                .as_ref()
+                .is_some_and(|m| m.selected == 1)
+            {
+                state.shell.activate_home_menu();
+            } else {
+                state.shell.activate_pin_menu();
+            }
+        } else if sym == Keysym::Up || sym == Keysym::Down {
+            if let Some(menu) = &mut state.shell.app_menu {
+                menu.selected = usize::from(sym == Keysym::Down);
+            }
         } else if sym == Keysym::Escape {
             state.shell.close_app_menu();
         }
@@ -133,6 +152,7 @@ pub(super) fn on_key(
     if let Some(action) = chord.and_then(|key| config::binding_for(mods.logo, key)) {
         state.swallowed_keys.insert(code);
         match action {
+            config::BindingAction::Home => show_home(state),
             config::BindingAction::Terminal => {
                 let terminal = state.shell.terminal.clone();
                 spawn_program(&terminal);

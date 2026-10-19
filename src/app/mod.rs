@@ -19,7 +19,9 @@ pub fn create(formats: Vec<Format>) -> Result<(Display<State>, State)> {
         formats,
         spec,
     );
+    state.load_appearance();
     state.shell.load_pins();
+    state.shell.load_home();
     Ok((display, state))
 }
 pub fn run() -> Result<()> {
@@ -47,7 +49,6 @@ pub fn run() -> Result<()> {
             let listener = runtime::socket()?;
             let _bus = session_bus::SessionBus::start();
             let ticker = Ticker::new(&mut state);
-            crate::input::spawn_program(&state.shell.terminal);
             backend::drm::run(event_loop, display, state, listener, ticker, backend)
         }
         cli::Mode::Help => unreachable!(),

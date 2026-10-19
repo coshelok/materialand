@@ -9,31 +9,22 @@ pub fn calendar_rect(w: f32, h: f32) -> RectF {
         h: 456.0_f32.min((h - bar.bottom() - 20.0).max(1.0)),
     }
 }
-pub(super) fn nav_rect(card: RectF, action: CalendarAction) -> RectF {
+pub(super) fn nav_rect(card: RectF, action: CalendarAction) -> Option<RectF> {
     let (x, w) = match action {
         CalendarAction::Previous => (card.w - 104.0, 40.0),
         CalendarAction::Next => (card.w - 56.0, 40.0),
-        CalendarAction::Today => (20.0, 88.0),
+        CalendarAction::Today => return None,
     };
-    RectF {
+    Some(RectF {
         x: card.x + x,
-        y: card.y
-            + if action == CalendarAction::Today {
-                card.h - 52.0
-            } else {
-                150.0
-            },
+        y: card.y + 150.0,
         w,
         h: 36.0,
-    }
+    })
 }
 pub fn calendar_hit(w: f32, h: f32, pos: Point<f64, Logical>) -> Option<CalendarAction> {
     let card = calendar_rect(w, h);
-    [
-        CalendarAction::Previous,
-        CalendarAction::Today,
-        CalendarAction::Next,
-    ]
-    .into_iter()
-    .find(|a| nav_rect(card, *a).contains(pos))
+    [CalendarAction::Previous, CalendarAction::Next]
+        .into_iter()
+        .find(|a| nav_rect(card, *a).is_some_and(|r| r.contains(pos)))
 }

@@ -28,7 +28,6 @@ pub fn run() -> Result<()> {
     resize(&mut state, size);
     let mut tracker = OutputDamageTracker::new(size, 1.0, Transform::Flipped180);
     let mut ticker = app::Ticker::new(&mut state);
-    input::spawn_program(&state.shell.terminal);
     let budget = Duration::from_micros(16_667);
     let mut dirty = true;
     while state.running {
@@ -87,6 +86,7 @@ pub fn run() -> Result<()> {
             if rendered.is_ok() {
                 display.flush_clients()?;
                 backend.submit(None)?;
+                state.shell.window_frame_presented();
                 scene::send_frames_all(&state);
                 display.flush_clients()?;
                 dirty = false;

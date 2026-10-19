@@ -23,7 +23,7 @@ pub fn topbar_button_rect(win_w: f32, action: TopAction) -> RectF {
         };
     }
     let x = match action {
-        TopAction::Launcher => rect.x + 8.0,
+        TopAction::Home | TopAction::Launcher => rect.x + 8.0,
         TopAction::Clock => unreachable!(),
         TopAction::Power => rect.right() - 8.0 - btn,
         TopAction::Theme => rect.right() - 8.0 - 2.0 * btn - TOPBAR_ICON_GAP,
@@ -44,7 +44,7 @@ pub fn topbar_hit(win_w: f32, pos: Point<f64, Logical>) -> Option<TopAction> {
         return None;
     }
     [
-        TopAction::Launcher,
+        TopAction::Home,
         TopAction::Clock,
         TopAction::QuickSettings,
         TopAction::Brightness,

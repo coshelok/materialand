@@ -1,6 +1,7 @@
 //! A seat pause releases transient input state before dropping its devices.
 use super::*;
 pub fn cancel(state: &mut State) {
+    state.launcher_swipe = Default::default();
     let time = smithay::utils::Clock::<smithay::utils::Monotonic>::new()
         .now()
         .as_millis();

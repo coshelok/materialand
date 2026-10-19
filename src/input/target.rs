@@ -9,6 +9,8 @@ pub(super) enum Target {
 #[derive(Clone, Copy)]
 pub(super) enum Control {
     PinMenu,
+    HomeMenu,
+    Home(shell::HomeHit),
     Calendar(shell::CalendarAction),
     Top(TopAction),
     Dock(usize),
@@ -25,6 +27,8 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
         let rect = shell::app_menu_rect(w, h, menu.point);
         return Target::Shell(if shell::app_menu_button(rect).contains(pos) {
             Control::PinMenu
+        } else if shell::app_menu_home_button(rect).contains(pos) {
+            Control::HomeMenu
         } else {
             Control::Block
         });
@@ -114,10 +118,15 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
             );
         }
     }
-    state
-        .window_under(pos)
-        .map(Target::Window)
-        .unwrap_or(Target::Desktop)
+    if let Some(window) = state.window_under(pos) {
+        return Target::Window(window);
+    }
+    if !fullscreen {
+        if let Some(hit) = state.shell.home_hit(w, h, pos) {
+            return Target::Shell(Control::Home(hit));
+        }
+    }
+    Target::Desktop
 }
 pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
@@ -162,12 +171,30 @@ pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
 pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical>) {
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     let (key, rect) = match control {
+        Control::HomeMenu => {
+            if let Some(menu) = &mut state.shell.app_menu {
+                menu.press_home = true;
+                menu.selected = 1;
+            }
+            return;
+        }
+        Control::Home(hit) => {
+            state.shell.home.pressed = Some(hit);
+            if let shell::HomeHit::App(i) = hit {
+                (PressKey::Home(i), state.shell.home_tile_rect(w, h, i))
+            } else {
+                return;
+            }
+        }
         Control::Calendar(action) => {
             state.shell.calendar.pressed = Some(action);
             return;
         }
         Control::PinMenu => {
             state.shell.press_pin = true;
+            if let Some(menu) = &mut state.shell.app_menu {
+                menu.selected = 0;
+            }
             return;
         }
         Control::Top(action) => {
@@ -219,7 +246,7 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
         _ => return,
     };
     let center = match control {
-        Control::Launcher(_) => (rect.w / 2.0, rect.h / 2.0),
+        Control::Home(_) | Control::Launcher(_) => (rect.w / 2.0, rect.h / 2.0),
         Control::Top(_) => (
             rect.x - shell::topbar_rect(w).x + rect.w / 2.0,
             rect.y - shell::topbar_rect(w).y + rect.h / 2.0,

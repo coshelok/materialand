@@ -7,7 +7,11 @@ impl XdgShellHandler for State {
 
     fn new_toplevel(&mut self, surface: ToplevelSurface) {
         let size = self.initial_window_size();
-        surface.with_pending_state(|pending| pending.size = Some(size));
+        let bounds = self.available_area().size;
+        surface.with_pending_state(|pending| {
+            pending.size = Some(size);
+            pending.bounds = Some(bounds);
+        });
         let window = Window::new_wayland_window(surface);
         self.windows
             .meta

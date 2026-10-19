@@ -1,5 +1,8 @@
 //! Device events change backend lifetimes; they do not own window policy.
 use super::*;
+use smithay::backend::input::{
+    Device, GestureBeginEvent, GestureEndEvent, GestureSwipeUpdateEvent,
+};
 pub(super) fn on_session_event(app: &mut App, event: SessionEvent) {
     match event {
         SessionEvent::PauseSession => {
@@ -67,6 +70,7 @@ fn on_vblank(app: &mut App, crtc: crtc::Handle) {
     if let Err(error) = gpu.output.drm.frame_submitted() {
         tracing::warn!(?error, "DRM presentation acknowledgement failed");
     }
+    app.state.shell.window_frame_presented();
     ui::send_frames_all(&app.state);
     let _ = app.display.flush_clients();
     app.animating = app.ticker.tick(&mut app.state);
@@ -80,6 +84,20 @@ pub(super) fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBacke
         return;
     }
     match event {
+        InputEvent::GestureSwipeBegin { event } => {
+            input::swipe_begin(&mut app.state, event.device().id(), event.fingers())
+        }
+        InputEvent::GestureSwipeUpdate { event } => {
+            app.state
+                .launcher_swipe
+                .update(&event.device().id(), event.delta_x(), event.delta_y())
+        }
+        InputEvent::GestureSwipeEnd { event } => {
+            input::swipe_end(&mut app.state, &event.device().id(), event.cancelled())
+        }
+        InputEvent::DeviceRemoved { .. } => {
+            app.state.launcher_swipe = Default::default();
+        }
         InputEvent::Keyboard { event } => input::on_keyboard(&mut app.state, &event),
         InputEvent::PointerMotion { event } => input::on_pointer_motion_relative(
             &mut app.state,

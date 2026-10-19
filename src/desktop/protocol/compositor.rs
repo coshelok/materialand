@@ -46,11 +46,13 @@ impl CompositorHandler for State {
                         self.windows
                             .space
                             .map_element(window.clone(), location, false);
-                        self.shell.on_window_mapped(&window);
+                        let app_id = self.window_meta(&window).app_id;
+                        self.shell.on_window_mapped(&window, &app_id);
                         let serial = self.next_serial();
                         self.focus_window(Some(window.clone()), serial);
                     }
                     self.commit_resize(&window);
+                    self.reconcile_window_placement(&window);
                 }
             } else {
                 self.windows.space.unmap_elem(&window);

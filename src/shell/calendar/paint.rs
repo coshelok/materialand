@@ -93,12 +93,13 @@ impl Shell {
                 &month,
                 theme.on_surface,
             );
-            for action in [
-                CalendarAction::Previous,
-                CalendarAction::Today,
-                CalendarAction::Next,
+            for (action, icon) in [
+                (CalendarAction::Previous, "chevron_left"),
+                (CalendarAction::Next, "chevron_right"),
             ] {
-                let r = nav_rect(card, action);
+                let Some(r) = nav_rect(card, action) else {
+                    continue;
+                };
                 let (rx, ry) = (r.x - card.x + pad, r.y - card.y + pad);
                 let color = if self.calendar.pressed == Some(action) {
                     theme.primary_container
@@ -106,30 +107,16 @@ impl Shell {
                     theme.secondary_container
                 };
                 s.fill_round_rect(rx, ry, r.w, r.h, r.h / 2.0, color);
-                if action == CalendarAction::Today {
-                    fonts.draw_text_role(
-                        &mut s,
-                        rx + 20.0,
-                        ry + 8.0,
-                        TextStyle::LABEL_LARGE,
-                        "Today",
-                        theme.on_surface,
-                    );
-                } else {
-                    fonts.draw_icon_centered(
-                        &mut s,
-                        rx + r.w / 2.0,
-                        ry + r.h / 2.0,
-                        if action == CalendarAction::Previous {
-                            "chevron_left"
-                        } else {
-                            "chevron_right"
-                        },
-                        22.0,
-                        theme.on_surface,
-                    );
-                }
+                fonts.draw_icon_centered(
+                    &mut s,
+                    rx + r.w / 2.0,
+                    ry + r.h / 2.0,
+                    icon,
+                    22.0,
+                    theme.on_surface,
+                );
             }
+
             let cell = (card.w - 40.0) / 7.0;
             let row_h = ((card.h - 256.0) / 6.0).clamp(10.0, 32.0);
             for (i, label) in ["M", "T", "W", "T", "F", "S", "S"].iter().enumerate() {

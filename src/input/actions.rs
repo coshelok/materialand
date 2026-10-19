@@ -33,8 +33,9 @@ pub fn close_launcher(state: &mut State) {
 pub(super) fn launch_first_filtered(state: &mut State) {
     let filtered = state.shell.filtered_apps();
     if let Some(&idx) = filtered.first() {
-        let cmd = state.shell.apps[idx].command_in_terminal(&state.shell.terminal);
-        spawn_program(&cmd);
+        let app = state.shell.apps[idx].clone();
+        let origin = launcher_launch_origin(state, 0);
+        launch_or_focus(state, &app, origin);
     }
     close_launcher(state);
 }
@@ -46,11 +47,20 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
     }
     if state.shell.app_menu.is_some() {
         let pressed = std::mem::take(&mut state.shell.press_pin);
+        let home_pressed = state
+            .shell
+            .app_menu
+            .as_mut()
+            .is_some_and(|m| std::mem::take(&mut m.press_home));
         if let Some(menu) = &state.shell.app_menu {
             if pressed
                 && shell::app_menu_button(shell::app_menu_rect(w, h, menu.point)).contains(pos)
             {
                 state.shell.activate_pin_menu();
+            } else if home_pressed
+                && shell::app_menu_home_button(shell::app_menu_rect(w, h, menu.point)).contains(pos)
+            {
+                state.shell.activate_home_menu();
             }
         }
         return;
@@ -61,6 +71,31 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
                 == Some(action)
         {
             state.shell.calendar.navigate(action);
+        }
+        return;
+    }
+    if let Some(hit) = state.shell.home.pressed.take() {
+        if let shell::HomeHit::App(i) = hit {
+            state.shell.press_end(PressKey::Home(i));
+        }
+        if matches!(super::target::target(state,pos), super::target::Target::Shell(super::target::Control::Home(released)) if released == hit)
+        {
+            match hit {
+                shell::HomeHit::App(i) => {
+                    if let Some(app) = state.shell.home.apps.get(i).cloned() {
+                        let tile = state.shell.home_tile_rect(w, h, i);
+                        let icon = shell::RectF {
+                            x: tile.x + 22.0,
+                            y: tile.y + 2.0,
+                            w: 68.0,
+                            h: 68.0,
+                        };
+                        launch_or_focus(state, &app, Some(icon));
+                    }
+                }
+                shell::HomeHit::Previous => state.shell.turn_home_page(w, h, -1),
+                shell::HomeHit::Next => state.shell.turn_home_page(w, h, 1),
+            }
         }
         return;
     }
@@ -98,12 +133,14 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
                     open_launcher(state, origin);
                 }
                 Some(DockItem::Launch(app)) => {
-                    let cmd = app.command_in_terminal(&state.shell.terminal);
-                    spawn_program(&cmd);
+                    let icon = state.shell.dock_item_rect(w, h, items.len(), i);
+                    launch_or_focus(state, &app, Some(icon));
                 }
                 Some(DockItem::Focus { window, .. }) => {
                     if state.window_props(&window).minimized {
+                        let icon = state.shell.dock_item_rect(w, h, items.len(), i);
                         state.restore_window(&window, serial);
+                        state.shell.set_window_launch_origin(&window, icon);
                     } else {
                         // Raise without activating: `focus_window` owns
                         // activation and is the one that sends the configure.
@@ -149,8 +186,9 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
             ) == LauncherHit::Tile(slot)
             {
                 if let Some(&idx) = filtered.get(slot) {
-                    let cmd = state.shell.apps[idx].command_in_terminal(&state.shell.terminal);
-                    spawn_program(&cmd);
+                    let app = state.shell.apps[idx].clone();
+                    let origin = launcher_launch_origin(state, slot);
+                    launch_or_focus(state, &app, origin);
                 }
                 close_launcher(state);
             }
@@ -189,6 +227,7 @@ pub(crate) fn perform_top_action(state: &mut State, action: TopAction) {
         state.shell.set_calendar_open(false);
     }
     match action {
+        TopAction::Home => show_home(state),
         TopAction::Clock => {
             let open = !state.shell.calendar.open;
             state.shell.set_brightness_open(false);

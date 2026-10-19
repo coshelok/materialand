@@ -54,30 +54,38 @@ impl State {
         self.windows
             .space
             .elements()
-            .any(|window| self.window_props(window).fullscreen)
+            .rev()
+            .find(|window| self.window_has_content(window))
+            .is_some_and(|window| self.window_props(window).fullscreen)
     }
 
     pub fn available_area(&self) -> Rectangle<i32, Logical> {
         let top = (config::TOPBAR_HEIGHT + 2.0 * config::TOPBAR_MARGIN) as i32;
         let bottom = (config::DOCK_HEIGHT + config::DOCK_MARGIN) as i32 + 8;
-        let h = (self.display.size.h - top - bottom).max(200);
+        let h = (self.display.size.h - top - bottom).max(1);
         Rectangle::new((0, top).into(), (self.display.size.w, h).into())
     }
 
     /// Leave room for our title bar outside the client's maximized geometry.
     pub fn window_available_area(&self, window: &Window) -> Rectangle<i32, Logical> {
-        let mut area = self.available_area();
-        if self.window_server_decor(window) {
-            let title = config::FRAME_TITLEBAR as i32;
-            let border = config::FRAME_BORDER as i32;
-            area.loc.x += border;
-            area.loc.y += title;
-            area.size.w = (area.size.w - 2 * border).max(1);
-            area.size.h = (area.size.h - title - border).max(1);
-        }
-        area
+        super::placement::content_area(self.available_area(), self.window_server_decor(window))
     }
 
+    pub fn window_frame_rect(&self, window: &Window) -> Option<crate::shell::RectF> {
+        let geometry = self.windows.space.element_geometry(window)?;
+        Some(
+            if !self.window_props(window).fullscreen && self.window_server_decor(window) {
+                crate::shell::decor_layout(geometry).frame
+            } else {
+                crate::shell::RectF {
+                    x: geometry.loc.x as f32,
+                    y: geometry.loc.y as f32,
+                    w: geometry.size.w as f32,
+                    h: geometry.size.h as f32,
+                }
+            },
+        )
+    }
     pub fn output_rect(&self) -> Rectangle<i32, Logical> {
         Rectangle::new(
             (0, 0).into(),

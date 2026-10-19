@@ -81,10 +81,7 @@ impl State {
                     self.windows.space.map_element(window, area.loc, false);
                 }
             } else if let Some(location) = self.windows.space.element_location(&window) {
-                let constrained = Point::from((
-                    location.x.clamp(0, (self.display.size.w - 64).max(0)),
-                    location.y.clamp(40, (self.display.size.h - 48).max(40)),
-                ));
+                let constrained = self.reachable_window_location(&window, location);
                 self.windows.space.map_element(window, constrained, false);
             }
         }

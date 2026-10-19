@@ -9,6 +9,7 @@ impl Shell {
 
         Shell {
             apps,
+            home: home::Home::new(),
             pinned: vec![terminal_app.clone()],
             terminal_app,
             pins,
@@ -66,6 +67,7 @@ impl Shell {
             ],
             slider: Spring::spatial(0.0),
             window_in: HashMap::new(),
+            launch_origins: Default::default(),
             window_out: HashMap::new(),
             press: HashMap::new(),
             hover_top: None,

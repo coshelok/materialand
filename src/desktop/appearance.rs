@@ -2,6 +2,42 @@
 use super::*;
 
 impl State {
+    /// Load before the first frame, so saved choices never flash the default theme.
+    pub fn load_appearance(&mut self) {
+        self.restore_appearance(config::AppearanceStore::at(config::appearance_path()));
+    }
+
+    pub(super) fn restore_appearance(&mut self, store: config::AppearanceStore) {
+        match store.load(self.current_appearance()) {
+            Ok(appearance) => {
+                self.theme_spec.variant = appearance.variant;
+                self.theme = if appearance.dark {
+                    self.theme_spec.dark()
+                } else {
+                    self.theme_spec.light()
+                };
+                self.shell.set_theme_switch(appearance.dark);
+            }
+            Err(error) => {
+                tracing::warn!(%error, "could not load appearance; using startup defaults")
+            }
+        }
+        self.appearance_store = store;
+    }
+
+    fn current_appearance(&self) -> config::Appearance {
+        config::Appearance {
+            dark: self.theme.is_dark,
+            variant: self.theme_spec.variant,
+        }
+    }
+
+    fn save_appearance(&self) {
+        if let Err(error) = self.appearance_store.save(self.current_appearance()) {
+            tracing::warn!(%error, "could not save appearance");
+        }
+    }
+
     pub fn toggle_theme(&mut self, origin: Point<f64, Logical>) {
         // Continue from the palette currently on screen when toggled mid-animation.
         let old = self.shell.effective_theme(&self.theme);
@@ -13,6 +49,7 @@ impl State {
         };
         self.shell.set_theme_switch(dark);
         self.shell.begin_reveal(old, origin);
+        self.save_appearance();
         self.prewarm_theme();
     }
 
@@ -28,6 +65,7 @@ impl State {
             self.theme_spec.light()
         };
         self.shell.begin_theme_change(old);
+        self.save_appearance();
         self.prewarm_theme();
     }
 

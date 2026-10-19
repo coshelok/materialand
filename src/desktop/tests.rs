@@ -61,6 +61,56 @@ fn set_variant_keeps_brightness_and_changes_palette() {
 }
 
 #[test]
+fn appearance_controls_save_immediately_and_restore_before_rendering() {
+    let dir = std::env::temp_dir().join(format!(
+        "materialand-desktop-appearance-{}",
+        std::process::id()
+    ));
+    let path = dir.join("appearance");
+    let _ = std::fs::remove_dir_all(&dir);
+    let (_display, mut state) = fresh();
+    state.restore_appearance(config::AppearanceStore::at(Some(path.clone())));
+    if !state.theme.is_dark {
+        state.toggle_theme((500.0, 16.0).into());
+    } else {
+        state.toggle_theme((500.0, 16.0).into());
+        state.toggle_theme((500.0, 16.0).into());
+    }
+    state.set_variant(ColorVariant::Vibrant);
+    let chosen = config::Appearance {
+        dark: true,
+        variant: ColorVariant::Vibrant,
+    };
+    let defaults = config::Appearance {
+        dark: false,
+        variant: ColorVariant::Neutral,
+    };
+    assert_eq!(
+        config::AppearanceStore::at(Some(path.clone()))
+            .load(defaults)
+            .unwrap(),
+        chosen
+    );
+
+    // Read while the first session is still alive: shutdown is not needed to save.
+    let (_display, mut restarted) = fresh();
+    restarted.restore_appearance(config::AppearanceStore::at(Some(path.clone())));
+    assert!(restarted.theme.is_dark);
+    assert_eq!(restarted.theme_spec.variant, ColorVariant::Vibrant);
+    assert_eq!(restarted.theme, restarted.theme_spec.dark());
+    assert!(restarted.shell.reveal_frame().is_none());
+    assert!(restarted.shell.theme_fade().is_none());
+
+    restarted.toggle_theme((500.0, 16.0).into());
+    restarted.set_variant(ColorVariant::TonalSpot);
+    let (_display, mut third) = fresh();
+    third.restore_appearance(config::AppearanceStore::at(Some(path)));
+    assert!(!third.theme.is_dark);
+    assert_eq!(third.theme_spec.variant, ColorVariant::TonalSpot);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn clicking_the_dock_launcher_keeps_the_launcher_open() {
     let (_display, mut s) = fresh();
     let (w, h) = (s.display.size.w as f32, s.display.size.h as f32);
@@ -285,5 +335,66 @@ fn pin_menu_action_toggles_and_dismissal_never_launches_the_underlying_tile() {
     assert!(
         state.shell.launcher_open,
         "dismissing the context menu only consumes that click"
+    );
+}
+
+#[test]
+fn home_menu_adds_and_removes_a_shortcut_without_touching_the_dock() {
+    let (_display, mut state) = fresh();
+    let app = state.shell.pinned[0].clone();
+    let point = (400.0, 400.0).into();
+    let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+    state.shell.open_app_menu(app.clone(), point);
+    state.shell.app_menu.as_mut().unwrap().press_home = true;
+    let button = crate::shell::app_menu_home_button(crate::shell::app_menu_rect(w, h, point));
+    crate::input::finish_compositor_press(
+        &mut state,
+        (f64::from(button.x + 30.0), f64::from(button.y + 24.0)).into(),
+    );
+    assert!(state.shell.is_on_home(&app) && state.shell.is_pinned(&app));
+    assert!(state.shell.app_menu.is_none());
+    state.shell.open_app_menu(app.clone(), point);
+    state.shell.activate_home_menu();
+    assert!(!state.shell.is_on_home(&app) && state.shell.is_pinned(&app));
+}
+
+#[test]
+fn returning_home_closes_panels_and_ends_compositor_grabs() {
+    let (_display, mut state) = fresh();
+    state.shell.launcher_open = true;
+    state.shell.set_launcher_open(true);
+    state.shell.set_brightness_open(true);
+    state.shell.set_quick_settings_open(true);
+    state.shell.set_calendar_open(true);
+    state.shell.set_power_open(true);
+    state.shell.home.pressed = Some(crate::shell::HomeHit::Next);
+    state.interaction = Interaction::Brightness;
+    crate::input::show_home(&mut state);
+    assert!(matches!(state.interaction, Interaction::None));
+    assert!(!state.shell.launcher_open && !state.shell.calendar.open && !state.shell.power_open);
+    assert!(!state.shell.brightness_open && !state.shell.quick_settings_open);
+    assert!(state.shell.home.pressed.is_none());
+}
+
+#[test]
+fn three_finger_swipes_open_and_close_the_launcher_without_stale_toggles() {
+    let (_display, mut state) = fresh();
+    state.shell.set_reduce_motion(true);
+    crate::input::swipe_begin(&mut state, "pad".into(), 3);
+    state.launcher_swipe.update("pad", 0.0, -100.0);
+    crate::input::swipe_end(&mut state, "pad", false);
+    assert!(state.shell.launcher_open);
+    crate::input::swipe_begin(&mut state, "pad".into(), 3);
+    state.launcher_swipe.update("pad", 0.0, 100.0);
+    crate::input::swipe_end(&mut state, "pad", false);
+    assert!(!state.shell.launcher_open);
+    crate::input::swipe_begin(&mut state, "pad".into(), 3);
+    state.launcher_swipe.update("pad", 0.0, -100.0);
+    state.shell.launcher_open = true;
+    state.shell.set_launcher_open(true);
+    crate::input::swipe_end(&mut state, "pad", false);
+    assert!(
+        state.shell.launcher_open,
+        "a concurrent keyboard action is not undone by an old gesture"
     );
 }

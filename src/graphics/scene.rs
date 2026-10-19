@@ -1,12 +1,15 @@
 //! Renderer-independent scene assembly. The returned list is front-to-back.
 use super::{chrome, layers::Layers, uploads::push_buffer, windows};
 use crate::{desktop::State, shell::CircleMask};
-use smithay::backend::renderer::element::memory::MemoryRenderBufferRenderElement;
+use smithay::backend::renderer::element::{
+    memory::MemoryRenderBufferRenderElement,
+    utils::{RelocateRenderElement, RescaleRenderElement},
+};
 use smithay::{
     backend::renderer::{element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
     utils::{Physical, Size},
 };
-smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=MemoryRenderBufferRenderElement<GlesRenderer>, Wl=WaylandSurfaceRenderElement<GlesRenderer>, }
+smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=MemoryRenderBufferRenderElement<GlesRenderer>, Wl=WaylandSurfaceRenderElement<GlesRenderer>, Window=RelocateRenderElement<RescaleRenderElement<windows::WindowElement>>, }
 pub fn build_ui(
     state: &mut State,
     renderer: &mut GlesRenderer,
@@ -54,8 +57,24 @@ pub fn build_ui(
     for element in background {
         scene.single(element);
     }
-    windows::paint(state, renderer, &mut scene, theme, second);
-    for element in chrome::paint(state, renderer, size, theme, second) {
+    let (buffer, loc) =
+        state
+            .shell
+            .render_home(&theme, &mut state.fonts, size.w as f32, size.h as f32, None);
+    let mut home = Vec::new();
+    push_buffer(&mut home, renderer, &buffer, (loc.x, loc.y), None);
+    if let Some((next, mask, alpha)) = second {
+        let (buffer, loc) =
+            state
+                .shell
+                .render_home(&next, &mut state.fonts, size.w as f32, size.h as f32, mask);
+        push_buffer(&mut home, renderer, &buffer, (loc.x, loc.y), Some(alpha));
+    }
+    for element in home {
+        scene.single(element);
+    }
+    let opening_windows = windows::paint(state, renderer, &mut scene, theme, second);
+    for element in chrome::paint(state, renderer, size, theme, second, opening_windows) {
         scene.single(element);
     }
     scene.group(super::cursor::paint(state, renderer, &theme));

@@ -104,6 +104,7 @@ impl Shell {
         switch.set_target(if enabled { 1.0 } else { 0.0 });
         if enabled {
             self.dock_motion.snap();
+            self.home.snap();
             self.calendar.animation.finish();
             self.launcher_scroll.snap(self.launcher_scroll_target);
             switch.snap(1.0);
@@ -124,6 +125,7 @@ impl Shell {
                 s.snap(s.value());
             }
             self.window_in.clear();
+            self.launch_origins = Default::default();
             for s in self.window_out.values_mut() {
                 s.snap(1.0);
             }
@@ -178,6 +180,7 @@ impl Shell {
 
     pub fn tick(&mut self, dt: f32) -> bool {
         let mut active = self.dock_motion.tick(dt);
+        active |= self.home.tick(dt);
         active |= self.calendar.animation.step(dt);
         active |= self.launcher_scroll.step(dt);
         active |= self.launcher.step(dt);

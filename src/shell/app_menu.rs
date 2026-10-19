@@ -1,14 +1,16 @@
-//! One context action is shared by launcher tiles and dock applications.
+//! Shared dock/home shortcut actions for launcher, dock and home tiles.
 use super::*;
 #[derive(Clone)]
 pub struct AppMenu {
     pub app: AppEntry,
     pub point: Point<f64, Logical>,
     pub error: bool,
+    pub press_home: bool,
+    pub selected: usize,
 }
 pub fn app_menu_rect(w: f32, h: f32, point: Point<f64, Logical>) -> RectF {
     let width = 260.0_f32.min((w - 24.0).max(1.0));
-    let height = 104.0_f32.min((h - 24.0).max(1.0));
+    let height = 160.0_f32.min((h - 24.0).max(1.0));
     RectF {
         x: (point.x as f32 - width / 2.0).clamp(12.0, (w - width - 12.0).max(12.0)),
         y: (point.y as f32 - height - 12.0).clamp(12.0, (h - height - 12.0).max(12.0)),
@@ -24,6 +26,12 @@ pub fn app_menu_button(card: RectF) -> RectF {
         h: 48.0,
     }
 }
+pub fn app_menu_home_button(card: RectF) -> RectF {
+    RectF {
+        y: card.y + 100.0,
+        ..app_menu_button(card)
+    }
+}
 impl Shell {
     pub fn open_app_menu(&mut self, app: AppEntry, point: Point<f64, Logical>) {
         self.cancel_presses();
@@ -32,6 +40,8 @@ impl Shell {
             app,
             point,
             error: false,
+            press_home: false,
+            selected: 0,
         });
         self.press_pin = false;
     }
@@ -49,6 +59,21 @@ impl Shell {
             Ok(()) => self.close_app_menu(),
             Err(error) => {
                 tracing::warn!(%error, "could not save dock pins");
+                if let Some(menu) = &mut self.app_menu {
+                    menu.error = true;
+                }
+            }
+        }
+    }
+    pub fn activate_home_menu(&mut self) {
+        let Some(menu) = &self.app_menu else {
+            return;
+        };
+        let app = menu.app.clone();
+        match self.toggle_home_app(app) {
+            Ok(()) => self.close_app_menu(),
+            Err(error) => {
+                tracing::warn!(%error, "could not save home shortcuts");
                 if let Some(menu) = &mut self.app_menu {
                     menu.error = true;
                 }
@@ -89,7 +114,7 @@ impl Shell {
             fonts,
             TextStyle::TITLE_SMALL,
             if menu.error {
-                "Could not save dock changes"
+                "Could not save changes"
             } else {
                 &menu.app.name
             },
@@ -103,36 +128,59 @@ impl Shell {
             &title,
             theme.on_surface_variant,
         );
-        let button = app_menu_button(rect);
-        surface.fill_round_rect(
-            SHADOW_PAD + 8.0,
-            SHADOW_PAD + 44.0,
-            button.w,
-            button.h,
-            shape::MEDIUM,
-            theme.secondary_container,
-        );
-        let pinned = self.is_pinned(&menu.app);
-        fonts.draw_icon_centered(
-            &mut surface,
-            SHADOW_PAD + 30.0,
-            SHADOW_PAD + 68.0,
-            if pinned { "remove" } else { "add" },
-            22.0,
-            theme.on_secondary_container,
-        );
-        fonts.draw_text_role(
-            &mut surface,
-            SHADOW_PAD + 52.0,
-            SHADOW_PAD + 58.0,
-            TextStyle::LABEL_LARGE,
-            if pinned {
-                "Unpin from dock"
+        for row in 0..2 {
+            let button = if row == 0 {
+                app_menu_button(rect)
             } else {
-                "Pin to dock"
-            },
-            theme.on_secondary_container,
-        );
+                app_menu_home_button(rect)
+            };
+            let y = button.y - rect.y + SHADOW_PAD;
+            surface.fill_round_rect(
+                SHADOW_PAD + 8.0,
+                y,
+                button.w,
+                button.h,
+                shape::MEDIUM,
+                if menu.selected == row {
+                    theme.secondary_container
+                } else {
+                    theme.surface_container
+                },
+            );
+            let enabled = if row == 0 {
+                self.is_pinned(&menu.app)
+            } else {
+                self.is_on_home(&menu.app)
+            };
+            fonts.draw_icon_centered(
+                &mut surface,
+                SHADOW_PAD + 30.0,
+                y + 24.0,
+                if row == 1 {
+                    "home"
+                } else if enabled {
+                    "remove"
+                } else {
+                    "add"
+                },
+                22.0,
+                theme.on_secondary_container,
+            );
+            let label = match (row, enabled) {
+                (0, true) => "Unpin from dock",
+                (0, false) => "Pin to dock",
+                (_, true) => "Remove from home",
+                (_, false) => "Add to home screen",
+            };
+            fonts.draw_text_role(
+                &mut surface,
+                SHADOW_PAD + 52.0,
+                y + 14.0,
+                TextStyle::LABEL_LARGE,
+                label,
+                theme.on_secondary_container,
+            );
+        }
         let buffer = surface.to_memory_buffer();
         Some(masked_from(
             &surface,

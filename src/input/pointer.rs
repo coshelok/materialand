@@ -50,10 +50,11 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             start_location,
         } => {
             let delta = (location - start_pointer).to_i32_round();
-            state
-                .windows
-                .space
-                .map_element(window, start_location + delta, false);
+            state.windows.space.map_element(
+                window.clone(),
+                state.reachable_window_location(&window, start_location + delta),
+                false,
+            );
             state.windows.space.refresh();
             return;
         }
@@ -213,6 +214,12 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 },
             );
             pointer.frame(state);
+        }
+        Target::Window(WindowHit::Opening(window)) => {
+            // Consume this click while finishing the transform; it must not
+            // activate a control at the window's not-yet-visible final position.
+            state.swallowed_buttons.insert(button);
+            state.shell.cancel_window_open(&window);
         }
         Target::Window(WindowHit::Decoration { window, geometry }) => {
             state.swallowed_buttons.insert(button);

@@ -29,9 +29,9 @@ Resize requests configure a size while retaining the committed window placement.
 
 ## Scene and outputs
 
-`Layers` accepts groups in back-to-front order. Each group is already front-to-back. Final assembly reverses groups, never the surface elements inside an individual window. Decorations are a separate group behind client content. Popup/subsurface order therefore survives composition of overlapping windows.
+`Layers` accepts groups in back-to-front order. Each group is already front-to-back. Final assembly reverses groups, never the surface elements inside an individual window. Decorations sit behind the complete client surface tree within the same window group. Popup/subsurface order therefore survives composition of overlapping windows.
 
-Client surfaces remain at their actual protocol geometry throughout open/close animation; opacity changes do not change client coordinates. Shell-only container transforms remain part of widget painting. Client cursor surfaces retain their own buffer scale and hotspot; named cursors have a raster fallback.
+Window entrances uniformly transform the entire surface/decorations group on the GPU while clients retain their native protocol size. The origin is the launch icon when a matching launch is pending, otherwise the window center. Entrance time starts after its first frame is presented. A focused launching window is composited above the outgoing launcher; panels and menus stay in front. Clicks on the moving frame finish the entrance and are consumed so controls at invisible final coordinates cannot activate. Once settled, surface coordinates and normal input delivery apply directly. Client cursor surfaces retain their own buffer scale and hotspot; named cursors have a raster fallback.
 
 The output model describes an upright, scale-1 logical desktop. Winit's framebuffer orientation is handled by its own damage tracker, independently of protocol output metadata. DRM gets the connector's physical mode and millihertz refresh. `set_output_mode` updates output metadata, desktop size, pointer bounds and maximized/fullscreen placement together.
 
@@ -44,6 +44,8 @@ The DRM backend owns the seat, libinput/udev sources, pending GPU initialization
 `FrameState` permits one submitted frame. Rendering synchronizes its fence, queues once, and waits for vblank before acknowledging scanout and releasing client frame callbacks. A no-damage frame may release callbacks for content already presented. Scheduling coalesces redraw requests and derives its animation budget from the output refresh; idle wakeups maintain the clock.
 
 The listening socket, output and GPU are separate resources. Dropping/reopening a GPU preserves Wayland clients and desktop state. A private session bus has the compositor process lifetime and isolates normal D-Bus activation from a parent desktop.
+
+Light/dark mode and palette choices are loaded before the first frame and saved together on every change. Environment settings supply initial defaults; saved choices take priority. Appearance, dock pins and home shortcuts share atomic file replacement under the XDG configuration directory.
 
 ## Boundaries retained from the original implementation
 

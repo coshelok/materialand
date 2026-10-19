@@ -3,6 +3,7 @@ use super::target::Control;
 use super::*;
 pub(super) fn open(state: &mut State, control: Control, point: Point<f64, Logical>) {
     let app = match control {
+        Control::Home(shell::HomeHit::App(i)) => state.shell.home.apps.get(i).cloned(),
         Control::Dock(i) => dock_items(state)
             .get(i)
             .and_then(DockItem::application)

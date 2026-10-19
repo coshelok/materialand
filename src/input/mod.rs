@@ -39,3 +39,9 @@ pub(crate) use axis::on_pointer_axis;
 
 mod reset;
 pub(crate) use reset::cancel;
+mod home;
+pub(crate) use home::show_home;
+use home::{launch_or_focus, launcher_launch_origin};
+
+mod gestures;
+pub(crate) use gestures::{swipe_begin, swipe_end, LauncherSwipe};

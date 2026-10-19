@@ -28,6 +28,9 @@ impl Ticker {
     /// Returns `true` while something is still animating, i.e. the caller
     /// should keep scheduling frames.
     pub fn tick(&mut self, state: &mut State) -> bool {
+        state
+            .shell
+            .clamp_home_page(state.display.size.w as f32, state.display.size.h as f32);
         let items = crate::input::dock_items(state);
         let mut dirty = state.shell.sync_dock(state.display.size.w as f32, &items);
         state

@@ -11,6 +11,7 @@ pub enum BindingKey {
 /// The action a shell chord performs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BindingAction {
+    Home,
     Launcher,
     Terminal,
     ToggleTheme,
@@ -29,6 +30,11 @@ pub struct KeyBinding {
 /// The compositor's chords, checked in order. Keeping them in one table makes
 /// the set testable and the README list easy to audit.
 pub const KEY_BINDINGS: &[KeyBinding] = &[
+    KeyBinding {
+        logo: true,
+        key: BindingKey::Char('h'),
+        action: BindingAction::Home,
+    },
     KeyBinding {
         logo: true,
         key: BindingKey::Char('p'),

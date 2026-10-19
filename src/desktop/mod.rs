@@ -157,12 +157,14 @@ pub struct State {
     pub theme: Theme,
     /// Palette seed + Material You variant the current `theme` was built from.
     pub theme_spec: ThemeSpec,
+    appearance_store: config::AppearanceStore,
 
     pub running: bool,
     pub start_time: Instant,
 
     pub cursor: Point<f64, Logical>,
     pub interaction: Interaction,
+    pub(crate) launcher_swipe: crate::input::LauncherSwipe,
     /// Hardware backlight fraction, independent of the rendered scene.
     pub brightness: f32,
     /// Latest pointer-button serial that was actually delivered to a client.
@@ -219,3 +221,5 @@ pub mod hit_test;
 mod buffers;
 
 mod coordinates;
+
+mod placement;

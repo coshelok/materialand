@@ -29,6 +29,9 @@ pub(super) fn render(app: &mut App) {
         // The same content is already presented. A client requesting a frame
         // without damage must still be allowed to advance its animation.
         app.dirty = false;
+        // An occluded or unchanged scene is already presented. Accept it for
+        // entrance timing too, or a hidden entrance would request frames forever.
+        app.state.shell.window_frame_presented();
         ui::send_frames_all(&app.state);
         let _ = app.display.flush_clients();
         return;
@@ -49,6 +52,7 @@ pub(super) fn render(app: &mut App) {
         }
         Err(FrameError::EmptyFrame) => {
             app.dirty = false;
+            app.state.shell.window_frame_presented();
             ui::send_frames_all(&app.state);
             let _ = app.display.flush_clients();
         }

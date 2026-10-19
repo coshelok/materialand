@@ -16,6 +16,7 @@ pub(super) fn paint(
     size: Size<i32, Physical>,
     theme: Theme,
     second: Option<(Theme, Option<CircleMask>, f32)>,
+    opening_windows: Vec<Vec<UiElement>>,
 ) -> Vec<UiElement> {
     let mut elements = Vec::new();
     let (win_w, win_h) = (size.w as f32, size.h as f32);
@@ -140,6 +141,12 @@ pub(super) fn paint(
             );
             push_overlay(&mut elements, renderer, &frame, alpha);
         }
+    }
+
+    // A launching app grows above the outgoing launcher, which otherwise
+    // obscures almost its entire entrance. Panels and menus remain in front.
+    for group in opening_windows {
+        elements.extend(group.into_iter().rev());
     }
 
     // Brightness popup, drawn above every other surface.

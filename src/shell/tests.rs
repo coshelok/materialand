@@ -85,7 +85,7 @@ fn session_menu_sits_below_the_user_button() {
 #[test]
 fn topbar_hit_buttons() {
     let w = 1000.0;
-    assert_eq!(topbar_hit(w, pt(30.0, 30.0)), Some(TopAction::Launcher));
+    assert_eq!(topbar_hit(w, pt(30.0, 30.0)), Some(TopAction::Home));
     assert_eq!(topbar_hit(w, pt(960.0, 30.0)), Some(TopAction::Power));
     assert_eq!(topbar_hit(w, pt(910.0, 30.0)), Some(TopAction::Theme));
     assert_eq!(topbar_hit(w, pt(860.0, 30.0)), Some(TopAction::Brightness));

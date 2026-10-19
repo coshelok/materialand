@@ -2,6 +2,7 @@
 use super::*;
 use smithay::desktop::WindowSurfaceType;
 pub enum WindowHit {
+    Opening(Window),
     Client {
         window: Window,
         surface: WlSurface,
@@ -16,6 +17,17 @@ impl State {
     pub fn window_under(&self, point: Point<f64, Logical>) -> Option<WindowHit> {
         for window in self.windows.space.elements().rev() {
             if !self.window_has_content(window) || self.shell.is_closing(window) {
+                continue;
+            }
+            if self.shell.is_opening(window) {
+                if self.window_frame_rect(window).is_some_and(|frame| {
+                    self.shell
+                        .window_presentation(window, frame)
+                        .target
+                        .contains(point)
+                }) {
+                    return Some(WindowHit::Opening(window.clone()));
+                }
                 continue;
             }
             let coordinates = self.surface_space(window);

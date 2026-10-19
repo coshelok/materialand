@@ -8,6 +8,16 @@ pub struct CardPlacement {
 }
 
 impl CardPlacement {
+    pub fn map_rect(self, rect: RectF) -> RectF {
+        let sx = self.target.w / self.source.w.max(1.0);
+        let sy = self.target.h / self.source.h.max(1.0);
+        RectF {
+            x: self.target.x + (rect.x - self.source.x) * sx,
+            y: self.target.y + (rect.y - self.source.y) * sy,
+            w: rect.w * sx,
+            h: rect.h * sy,
+        }
+    }
     pub fn unmap(self, point: Point<f64, Logical>) -> Point<f64, Logical> {
         Point::from((
             f64::from(self.source.x)
