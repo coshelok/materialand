@@ -11,3 +11,5 @@ mod windows;
 mod cursor;
 
 mod window_transform;
+
+mod reveal;

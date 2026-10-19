@@ -1,6 +1,7 @@
 use super::*;
 use crate::theme::VARIANTS;
 use std::{
+    fs,
     os::unix::fs::PermissionsExt,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -18,7 +19,7 @@ impl Fixture {
         )))
     }
     fn store(&self) -> AppearanceStore {
-        AppearanceStore::at(Some(self.0.join("appearance")))
+        AppearanceStore::at(Some(self.0.join("config.toml")))
     }
 }
 impl Drop for Fixture {
@@ -30,6 +31,7 @@ impl Drop for Fixture {
 const DEFAULTS: Appearance = Appearance {
     dark: false,
     variant: ColorVariant::TonalSpot,
+    reduce_motion: false,
 };
 
 #[test]
@@ -38,10 +40,15 @@ fn every_mode_and_palette_survives_restart_and_replaces_previous_choices() {
     assert_eq!(fixture.store().load(DEFAULTS).unwrap(), DEFAULTS);
     for dark in [true, false] {
         for variant in VARIANTS {
-            let chosen = Appearance { dark, variant };
+            let chosen = Appearance {
+                dark,
+                variant,
+                reduce_motion: dark,
+            };
             fixture.store().save(chosen).unwrap();
             let different_startup_defaults = Appearance {
                 dark: !dark,
+                reduce_motion: !dark,
                 variant: if variant == ColorVariant::Vibrant {
                     ColorVariant::Neutral
                 } else {
@@ -54,7 +61,7 @@ fn every_mode_and_palette_survives_restart_and_replaces_previous_choices() {
             );
         }
     }
-    let path = fixture.0.join("appearance");
+    let path = fixture.0.join("config.toml");
     assert_eq!(
         fs::metadata(path).unwrap().permissions().mode() & 0o777,
         0o600
@@ -67,36 +74,29 @@ fn every_mode_and_palette_survives_restart_and_replaces_previous_choices() {
 }
 
 #[test]
-fn incomplete_or_invalid_preferences_keep_valid_fields_and_startup_defaults() {
+fn partial_preferences_keep_defaults_and_invalid_input_is_not_overwritten() {
     let fixture = Fixture::new();
     fs::create_dir_all(&fixture.0).unwrap();
-    let path = fixture.0.join("appearance");
-    fs::write(
-        &path,
-        "# theme=dark\ninvalid line\nvariant = fruit_salad\nunknown=value\ntheme=invalid\n",
-    )
-    .unwrap();
+    let path = fixture.0.join("config.toml");
+    fs::write(&path, "[appearance]\nvariant = \"fruit_salad\"\n").unwrap();
     assert_eq!(
         fixture.store().load(DEFAULTS).unwrap(),
         Appearance {
-            dark: false,
             variant: ColorVariant::FruitSalad,
-        }
-    );
-    fs::write(path, "theme=dark\nvariant=unknown\n").unwrap();
-    assert_eq!(
-        fixture.store().load(DEFAULTS).unwrap(),
-        Appearance {
-            dark: true,
             ..DEFAULTS
         }
     );
+    let invalid = "[appearance]\ntheme = \"invalid\"\n";
+    fs::write(&path, invalid).unwrap();
+    assert!(fixture.store().load(DEFAULTS).is_err());
+    assert!(fixture.store().save(DEFAULTS).is_err());
+    assert_eq!(fs::read_to_string(path).unwrap(), invalid);
 }
 
 #[test]
 fn failed_replacement_preserves_destination_and_cleans_temporary_file() {
     let fixture = Fixture::new();
-    let destination = fixture.0.join("appearance");
+    let destination = fixture.0.join("config.toml");
     fs::create_dir_all(&destination).unwrap();
     fs::write(destination.join("keep"), "existing data").unwrap();
     assert!(fixture.store().save(DEFAULTS).is_err());

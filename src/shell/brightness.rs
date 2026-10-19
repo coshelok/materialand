@@ -13,7 +13,7 @@ impl Shell {
     ) -> OverlayFrame {
         let p = progress.clamp(0.0, 1.0);
         let card = brightness_popup(win_w);
-        let pad = SHADOW_PAD;
+        let pad = crate::config::design().shadow.padding;
         let layer_w = (card.w + 2.0 * pad).ceil() as u32;
         let layer_h = (card.h + 2.0 * pad).ceil() as u32;
         let loc_x = card.x as f64 - pad as f64;
@@ -26,9 +26,7 @@ impl Shell {
         // frames are rebuilt, settled ones reuse the cached layer.
         let stable = self.slider.settled();
         let key = self.brightness_layer_key(layer_w, layer_h, theme, brightness);
-        let cached_ok = mask.is_none()
-            && stable
-            && self.brightness_layer.as_ref().is_some_and(|l| l.key == key);
+        let cached_ok = mask.is_none() && stable && self.brightness_layer.select(key);
         let fresh = if cached_ok {
             None
         } else {
@@ -36,7 +34,7 @@ impl Shell {
             self.paint_brightness(&mut layer, fonts, theme, &card, win_w, brightness);
             let buffer = layer.to_memory_buffer();
             if mask.is_none() && stable {
-                self.brightness_layer = Some(CachedLayer {
+                self.brightness_layer.store(CachedLayer {
                     key,
                     surface: layer,
                     buffer,
@@ -112,23 +110,32 @@ impl Shell {
         win_w: f32,
         brightness: f32,
     ) {
-        let pad = SHADOW_PAD;
-        layer.shadow_round_rect(pad, pad, card.w, card.h, shape::EXTRA_LARGE, SHADOW_SPREAD);
+        let design = crate::config::design();
+        let pad = design.shadow.padding;
+        layer.shadow_round_rect(
+            pad,
+            pad,
+            card.w,
+            card.h,
+            design.shape.extra_large,
+            design.shadow.spread,
+            theme.shadow,
+        );
         layer.fill_round_rect(
             0.0 + pad,
             pad,
             card.w,
             card.h,
-            shape::EXTRA_LARGE,
+            design.shape.extra_large,
             theme.surface_container_low,
         );
-        let cy = pad + card.h / 2.0 + 12.0;
+        let cy = pad + card.h / 2.0 + design.brightness.center_y_offset;
         fonts.draw_icon_centered(
             layer,
-            pad + 28.0,
+            pad + design.brightness.icon_x,
             cy,
             "brightness_6",
-            22.0,
+            design.brightness.icon_size,
             theme.on_surface,
         );
 
@@ -141,9 +148,9 @@ impl Shell {
         };
         fonts.draw_text_role(
             layer,
-            pad + 56.0,
-            pad + 8.0,
-            TextStyle::LABEL_MEDIUM,
+            pad + design.brightness.track_left,
+            pad + design.brightness.label_y,
+            TextStyle::label_medium(),
             &label,
             theme.on_surface_variant,
         );
@@ -155,28 +162,33 @@ impl Shell {
         let t = ((brightness - BRIGHTNESS_MIN) / (BRIGHTNESS_MAX - BRIGHTNESS_MIN)).clamp(0.0, 1.0);
         layer.fill_round_rect(
             tx,
-            cy - 16.0,
+            cy - design.brightness.track_height / 2.0,
             track.w,
-            32.0,
-            16.0,
+            design.brightness.track_height,
+            design.brightness.track_height / 2.0,
             theme.secondary_container,
         );
         layer.fill_round_rect(
             tx,
-            cy - 16.0,
-            (track.w * t).max(12.0),
-            32.0,
-            16.0,
+            cy - design.brightness.track_height / 2.0,
+            (track.w * t).max(design.brightness.minimum_fill),
+            design.brightness.track_height,
+            design.brightness.track_height / 2.0,
             theme.primary_container,
         );
         // M3 slider: the handle grows while grabbed.
-        let handle_h = 38.0 + 6.0 * self.slider.value().clamp(0.0, 1.06);
+        let handle_h = design.brightness.handle_height
+            + design.brightness.handle_growth
+                * self
+                    .slider
+                    .value()
+                    .clamp(0.0, design.motion.overshoot_limit);
         layer.fill_round_rect(
-            tx + track.w * t - 3.0,
+            tx + track.w * t - design.brightness.handle_width / 2.0,
             cy - handle_h / 2.0,
-            6.0,
+            design.brightness.handle_width,
             handle_h,
-            3.0,
+            design.brightness.handle_width / 2.0,
             theme.primary,
         );
     }

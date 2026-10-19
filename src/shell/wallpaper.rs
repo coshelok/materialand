@@ -9,6 +9,7 @@ impl Shell {
         h: u32,
         mask: Option<CircleMask>,
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
+        let design = crate::config::design();
         // Round the requested size up to a coarse grid. The compositor may
         // report tiny size jitter (e.g. 940x1010 <-> 931x1006) while otherwise
         // idle; regenerating the (expensive) wallpaper for a few pixels of
@@ -31,7 +32,11 @@ impl Shell {
         let base = Theme::mix(
             theme.background,
             theme.primary_container,
-            if theme.is_dark { 0.18 } else { 0.32 },
+            if theme.is_dark {
+                design.wallpaper.primary_mix_dark
+            } else {
+                design.wallpaper.primary_mix_light
+            },
         );
         s.vertical_gradient(
             0.0,
@@ -39,28 +44,33 @@ impl Shell {
             w as f32,
             h as f32,
             base,
-            Theme::mix(theme.background, theme.tertiary_container, 0.22),
+            Theme::mix(
+                theme.background,
+                theme.tertiary_container,
+                design.wallpaper.tertiary_mix,
+            ),
         );
         // Broad, soft organic forms echo Android's tonal wallpapers. The same
         // dynamic color roles keep custom wallpaper seeds and variants useful.
         let (wf, hf) = (w as f32, h as f32);
         let mut petal = PathBuilder::new();
-        petal.move_to(-0.1 * wf, 0.85 * hf);
+        let p = design.wallpaper.petal;
+        petal.move_to(p[0] * wf, p[1] * hf);
         petal.cubic_to(
-            0.18 * wf,
-            0.98 * hf,
-            0.22 * wf,
-            0.05 * hf,
-            0.60 * wf,
-            0.28 * hf,
+            p[2] * wf,
+            p[3] * hf,
+            p[4] * wf,
+            p[5] * hf,
+            p[6] * wf,
+            p[7] * hf,
         );
         petal.cubic_to(
-            0.92 * wf,
-            0.47 * hf,
-            0.67 * wf,
-            1.12 * hf,
-            0.35 * wf,
-            1.18 * hf,
+            p[8] * wf,
+            p[9] * hf,
+            p[10] * wf,
+            p[11] * hf,
+            p[12] * wf,
+            p[13] * hf,
         );
         petal.close();
         s.fill_path(
@@ -68,23 +78,25 @@ impl Shell {
             Theme::mix(
                 base,
                 theme.secondary_container,
-                if theme.is_dark { 0.36 } else { 0.65 },
+                if theme.is_dark {
+                    design.wallpaper.petal_mix_dark
+                } else {
+                    design.wallpaper.petal_mix_light
+                },
             ),
         );
-        s.radial_glow(
-            wf * 0.14,
-            hf * 0.20,
-            hf * 0.85,
-            Theme::with_alpha(theme.tertiary_container, 0.35),
-            Theme::with_alpha(theme.tertiary_container, 0.0),
-        );
-        s.radial_glow(
-            wf * 0.85,
-            hf * 0.78,
-            hf * 0.75,
-            Theme::with_alpha(theme.primary_container, 0.45),
-            Theme::with_alpha(theme.primary_container, 0.0),
-        );
+        for (g, color) in [
+            (design.wallpaper.glow_one, theme.tertiary_container),
+            (design.wallpaper.glow_two, theme.primary_container),
+        ] {
+            s.radial_glow(
+                wf * g[0],
+                hf * g[1],
+                hf * g[2],
+                Theme::with_alpha(color, g[3]),
+                Theme::with_alpha(color, 0.0),
+            );
+        }
         let buffer = s.to_memory_buffer();
         self.wallpapers.insert(
             0,

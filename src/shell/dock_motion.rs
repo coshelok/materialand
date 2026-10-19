@@ -109,17 +109,19 @@ impl Shell {
         changed
     }
     pub fn dock_rect(&self, w: f32, h: f32, count: usize) -> RectF {
+        let design = crate::config::design();
         let mut rect = dock_rect(w, h, count);
         if let Some(width) = &self.dock_motion.width {
             rect.w = width.value().clamp(
-                2.0 * DOCK_PAD,
-                (w - 2.0 * config::DOCK_MARGIN).max(2.0 * DOCK_PAD),
+                2.0 * design.dock.padding,
+                (w - 2.0 * design.dock.margin).max(2.0 * design.dock.padding),
             );
             rect.x = (w - rect.w) / 2.0;
         }
         rect
     }
     pub fn dock_item_rect(&self, w: f32, h: f32, count: usize, index: usize) -> RectF {
+        let design = crate::config::design();
         let slot = self
             .dock_motion
             .order
@@ -129,7 +131,7 @@ impl Shell {
             let size = (slot.size.value() * slot.appear.value().clamp(0.0, 1.0)).max(0.0);
             RectF {
                 x: w / 2.0 + slot.x.value() - size / 2.0,
-                y: h - config::DOCK_MARGIN - config::DOCK_HEIGHT / 2.0 - size / 2.0,
+                y: h - design.dock.margin - design.dock.height / 2.0 - size / 2.0,
                 w: size,
                 h: size,
             }

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn schemes_are_opaque_and_tagged() {
-    for t in [ThemeSpec::DEFAULT.dark(), ThemeSpec::DEFAULT.light()] {
+    for t in [ThemeSpec::default().dark(), ThemeSpec::default().light()] {
         assert_eq!(t.background.alpha(), 1.0);
         assert_eq!(t.on_surface.alpha(), 1.0);
         assert_eq!(t.primary.alpha(), 1.0);
@@ -10,13 +10,13 @@ fn schemes_are_opaque_and_tagged() {
         assert_eq!(t.primary_fixed.alpha(), 1.0);
         assert_eq!(t.tertiary_fixed_dim.alpha(), 1.0);
     }
-    assert!(ThemeSpec::DEFAULT.dark().is_dark);
-    assert!(!ThemeSpec::DEFAULT.light().is_dark);
+    assert!(ThemeSpec::default().dark().is_dark);
+    assert!(!ThemeSpec::default().light().is_dark);
 }
 
 #[test]
 fn with_alpha_keeps_rgb_changes_alpha() {
-    let t = ThemeSpec::DEFAULT.dark();
+    let t = ThemeSpec::default().dark();
     let c = Theme::with_alpha(t.primary, 0.5);
     assert_eq!(c.red(), t.primary.red());
     assert_eq!(c.green(), t.primary.green());
@@ -26,7 +26,7 @@ fn with_alpha_keeps_rgb_changes_alpha() {
 
 #[test]
 fn elevation_levels_clamp() {
-    let t = ThemeSpec::DEFAULT.dark();
+    let t = ThemeSpec::default().dark();
     assert_eq!(t.surface_for_elevation(0), t.surface);
     assert_eq!(t.surface_for_elevation(4), t.surface_container_highest);
     assert_eq!(t.surface_for_elevation(9), t.surface_for_elevation(5));
@@ -34,8 +34,8 @@ fn elevation_levels_clamp() {
 
 #[test]
 fn seed_is_deterministic_and_changes_palette() {
-    let a = ThemeSpec::DEFAULT.dark();
-    let b = ThemeSpec::DEFAULT.dark();
+    let a = ThemeSpec::default().dark();
+    let b = ThemeSpec::default().dark();
     assert_eq!(a, b, "same seed must reproduce the same scheme");
     let other = Theme::from_spec(
         ThemeSpec {
@@ -49,15 +49,15 @@ fn seed_is_deterministic_and_changes_palette() {
 
 #[test]
 fn mix_endpoints_are_exact() {
-    let t = ThemeSpec::DEFAULT.dark();
+    let t = ThemeSpec::default().dark();
     assert_eq!(Theme::mix(t.primary, t.secondary, 0.0), t.primary);
     assert_eq!(Theme::mix(t.primary, t.secondary, 1.0), t.secondary);
 }
 
 #[test]
 fn cache_key_changes_when_palette_changes() {
-    let dark = ThemeSpec::DEFAULT.dark();
-    let light = ThemeSpec::DEFAULT.light();
+    let dark = ThemeSpec::default().dark();
+    let light = ThemeSpec::default().light();
     assert_ne!(dark.cache_key(), light.cache_key());
     assert_eq!(dark.cache_key(), dark.cache_key());
 }
@@ -68,7 +68,7 @@ fn all_nine_variants_build_distinct_schemes() {
     for variant in VARIANTS {
         let t = Theme::from_spec(
             ThemeSpec {
-                seed: SEED,
+                seed: ThemeSpec::default().seed,
                 variant,
             },
             true,
@@ -125,7 +125,7 @@ fn wallpaper_extraction_fails_softly() {
 
 #[test]
 fn fixed_roles_differ_between_light_and_dark() {
-    let (light, dark) = (ThemeSpec::DEFAULT.light(), ThemeSpec::DEFAULT.dark());
+    let (light, dark) = (ThemeSpec::default().light(), ThemeSpec::default().dark());
     // Fixed roles are *fixed*: the same tonal value in both schemes.
     assert_eq!(light.primary_fixed, dark.primary_fixed);
     assert_eq!(light.on_primary_fixed, dark.on_primary_fixed);

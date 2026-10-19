@@ -11,7 +11,7 @@ pub struct Home {
     page: usize,
     position: Spring,
     reveal: Spring,
-    cache: Option<CachedLayer>,
+    cache: LayerCache,
     pub pressed: Option<HomeHit>,
 }
 impl Home {
@@ -22,7 +22,7 @@ impl Home {
             page: 0,
             position: Spring::spatial(0.0),
             reveal: Spring::spatial(1.0),
-            cache: None,
+            cache: LayerCache::default(),
             pressed: None,
         }
     }

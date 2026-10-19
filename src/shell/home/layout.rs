@@ -16,41 +16,47 @@ pub struct HomeLayout {
     pub next: RectF,
 }
 pub fn home_layout(w: f32, h: f32) -> HomeLayout {
-    let top = config::TOPBAR_HEIGHT + 2.0 * config::TOPBAR_MARGIN + 12.0;
-    let bottom = (h - config::DOCK_HEIGHT - config::DOCK_MARGIN - 16.0).max(top + 1.0);
-    let width = (w - 48.0).clamp(1.0, 1120.0);
+    let design = crate::config::design();
+    let top = design.topbar.height + 2.0 * design.topbar.margin + design.home.top_gap;
+    let bottom =
+        (h - design.dock.height - design.dock.margin - design.home.bottom_gap).max(top + 1.0);
+    let width = (w - 2.0 * design.home.margin_x).clamp(1.0, design.home.max_width);
     let area = RectF {
         x: (w - width) / 2.0,
         y: top,
         w: width,
         h: (bottom - top).max(1.0),
     };
-    let hero = if area.h > 430.0 { 172.0 } else { 96.0 };
+    let hero = if area.h > design.home.compact_threshold {
+        design.home.hero_height
+    } else {
+        design.home.compact_hero_height
+    };
     let grid = RectF {
         x: area.x,
         y: area.y + hero,
         w: area.w,
-        h: (area.h - hero - 52.0).max(1.0),
+        h: (area.h - hero - design.home.footer_height).max(1.0),
     };
-    let columns = (grid.w / 132.0).floor().max(1.0) as usize;
-    let rows = (grid.h / 116.0).floor().max(1.0) as usize;
-    let y = area.bottom() - 40.0;
+    let columns = (grid.w / design.home.cell_width).floor().max(1.0) as usize;
+    let rows = (grid.h / design.home.cell_height).floor().max(1.0) as usize;
+    let y = area.bottom() - design.home.nav_bottom;
     HomeLayout {
         area,
         grid,
         columns,
         per_page: columns * rows,
         previous: RectF {
-            x: w / 2.0 - 96.0,
+            x: w / 2.0 - design.home.nav_offset,
             y,
-            w: 40.0,
-            h: 36.0,
+            w: design.home.nav_width,
+            h: design.home.nav_height,
         },
         next: RectF {
-            x: w / 2.0 + 56.0,
+            x: w / 2.0 + design.home.nav_offset - design.home.nav_width,
             y,
-            w: 40.0,
-            h: 36.0,
+            w: design.home.nav_width,
+            h: design.home.nav_height,
         },
     }
 }
@@ -63,6 +69,7 @@ impl Shell {
             .max(1)
     }
     pub fn home_tile_rect(&self, w: f32, h: f32, index: usize) -> RectF {
+        let design = crate::config::design();
         let layout = home_layout(w, h);
         let slot = index % layout.per_page;
         let page = index / layout.per_page;
@@ -70,11 +77,15 @@ impl Shell {
         RectF {
             x: layout.grid.x
                 + (slot % layout.columns) as f32 * cell
-                + (cell - config::LAUNCHER_TILE) / 2.0
-                + (page as f32 - self.home.position.value()) * (layout.grid.w + 32.0),
-            y: layout.grid.y + (slot / layout.columns) as f32 * 116.0 + 8.0 + self.home_offset(),
-            w: config::LAUNCHER_TILE,
-            h: 104.0,
+                + (cell - design.launcher.tile_size) / 2.0
+                + (page as f32 - self.home.position.value())
+                    * (layout.grid.w + design.home.page_gap),
+            y: layout.grid.y
+                + (slot / layout.columns) as f32 * design.home.cell_height
+                + design.home.tile_offset_y
+                + self.home_offset(),
+            w: design.launcher.tile_size,
+            h: design.home.tile_height,
         }
     }
     pub fn home_hit(&self, w: f32, h: f32, point: Point<f64, Logical>) -> Option<HomeHit> {

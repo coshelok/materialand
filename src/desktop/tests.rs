@@ -8,7 +8,7 @@ fn fresh() -> (Display<State>, State) {
         Fonts::load().expect("test system font"),
         vec![],
         vec![],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     (display, state)
 }
@@ -16,8 +16,12 @@ fn fresh() -> (Display<State>, State) {
 #[test]
 fn cascade_stays_within_output() {
     let (_display, mut s) = fresh();
-    let (ww, wh) = config::DEFAULT_WINDOW_SIZE;
-    let dock = config::DOCK_HEIGHT as i32 + config::DOCK_MARGIN as i32;
+    let (ww, wh) = (
+        crate::config::design().window.width as i32,
+        crate::config::design().window.height as i32,
+    );
+    let dock =
+        crate::config::design().dock.height as i32 + crate::config::design().dock.margin as i32;
     for _ in 0..30 {
         let p = s.next_location();
         assert!(p.x >= 0 && p.y >= 0);
@@ -66,7 +70,7 @@ fn appearance_controls_save_immediately_and_restore_before_rendering() {
         "materialand-desktop-appearance-{}",
         std::process::id()
     ));
-    let path = dir.join("appearance");
+    let path = dir.join("config.toml");
     let _ = std::fs::remove_dir_all(&dir);
     let (_display, mut state) = fresh();
     state.restore_appearance(config::AppearanceStore::at(Some(path.clone())));
@@ -80,10 +84,12 @@ fn appearance_controls_save_immediately_and_restore_before_rendering() {
     let chosen = config::Appearance {
         dark: true,
         variant: ColorVariant::Vibrant,
+        reduce_motion: false,
     };
     let defaults = config::Appearance {
         dark: false,
         variant: ColorVariant::Neutral,
+        reduce_motion: false,
     };
     assert_eq!(
         config::AppearanceStore::at(Some(path.clone()))
@@ -242,13 +248,17 @@ fn animated_quick_setting_click_follows_the_rendered_tile() {
     let size = layer.size.unwrap();
     let card = crate::shell::quick_settings_rect(w, h);
     let tile = crate::shell::quick_setting_tile_rect(w, h, 0);
-    let x = tile.x - card.x + crate::shell::SHADOW_PAD + tile.w / 2.0;
-    let y = tile.y - card.y + crate::shell::SHADOW_PAD + tile.h / 2.0;
+    let x = tile.x - card.x + crate::config::design().shadow.padding + tile.w / 2.0;
+    let y = tile.y - card.y + crate::config::design().shadow.padding + tile.h / 2.0;
     let point = Point::from((
         layer.loc.x
-            + f64::from(x * size.w as f32 / (card.w + 2.0 * crate::shell::SHADOW_PAD).ceil()),
+            + f64::from(
+                x * size.w as f32 / (card.w + 2.0 * crate::config::design().shadow.padding).ceil(),
+            ),
         layer.loc.y
-            + f64::from(y * size.h as f32 / (card.h + 2.0 * crate::shell::SHADOW_PAD).ceil()),
+            + f64::from(
+                y * size.h as f32 / (card.h + 2.0 * crate::config::design().shadow.padding).ceil(),
+            ),
     ));
     let initial = state.theme.is_dark;
     state.shell.press_tile = Some(crate::shell::QuickAction::Theme);

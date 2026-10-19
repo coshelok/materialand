@@ -1,0 +1,428 @@
+# Materialand configuration. Edit values, then restart the session to apply them.
+# Quick settings apply theme, palette and reduced motion immediately and save them here.
+# Dimensions and coordinates are logical pixels unless noted; durations are seconds.
+# Opacity and color mixes use 0..1; scale 1 means full size. Colors use #RRGGBB.
+# Spring stiffness sets speed; damping ratios below 1 produce a bouncy response.
+# Partial files are supported: omitted values inherit startup environment/built-in defaults.
+# Validate edits without opening a session: materialand --check-config.
+
+schema_version = 1  # Configuration format version; keep 1.
+
+# Theme and Material palette. Quick settings save theme, variant and reduce_motion here.
+[appearance]
+theme = "light"  # Initial mode: "light" or "dark".
+variant = "Tonal spot"  # Palette: "Tonal spot", "Vibrant", "Expressive", "Content", "Fidelity", "Rainbow", "Fruit salad", "Neutral", "Monochrome".
+seed = "#6b85b3"  # Palette seed as #RRGGBB; use "" to extract colors from wallpaper.
+wallpaper = ""  # Image path for palette extraction when seed is empty; does not display the image.
+reduce_motion = false  # true snaps animations to their final state; false enables motion.
+
+# Shared corner radii in logical pixels; individual components select a size.
+[shape]
+medium = 16.0  # Medium corner radius.
+large = 24.0  # Large corner radius.
+extra_large = 32.0  # Extra-large corner radius for panels.
+extra_extra_large = 40.0  # Largest corner radius, including the launcher search field.
+
+# Interaction overlay opacity: 0 = transparent, 1 = opaque.
+[state]
+hover = 0.08  # Hover highlight opacity.
+pressed = 0.1  # Pressed highlight opacity.
+ripple = 0.12  # Touch/click ripple opacity.
+
+# Spring stiffness: higher = faster. Damping ratio: lower = bouncier, 1 = no oscillation.
+[motion]
+spatial_stiffness = 420.0  # Spring stiffness for panels, dock resizing and home-page changes.
+spatial_damping = 0.68  # Damping ratio for spatial motion.
+responsive_stiffness = 850.0  # Spring stiffness for press feedback.
+responsive_damping = 0.58  # Damping ratio for responsive motion.
+effects_stiffness = 1000.0  # Spring stiffness for opacity/effect transitions.
+effects_damping = 1.0  # Effect damping ratio; keep >= 1 to avoid opacity overshoot.
+window_stiffness = 220.0  # Spring stiffness for app-opening animations.
+window_damping = 0.9  # Damping ratio for app-opening animations.
+ripple_duration = 0.35  # Click ripple duration in seconds.
+reveal_duration = 0.45  # Circular theme reveal duration in seconds.
+theme_duration = 0.5  # Theme color transition duration in seconds.
+overshoot_limit = 1.06  # Maximum panel/control progress; 1.06 allows 6% overshoot.
+panel_initial_scale = 0.86  # Initial brightness/power panel scale relative to final size.
+settings_initial_scale = 0.82  # Initial quick-settings panel scale relative to final size.
+window_initial_scale = 0.86  # Initial window scale when no launch icon is available.
+window_initial_alpha = 0.06  # Initial opacity of a newly opening window, 0..1.
+window_alpha_gain = 1.8  # Opacity increase per unit of opening progress; final opacity is capped at 1.
+window_close_shrink = 0.06  # Fraction of window size lost while minimizing/closing.
+home_offset = 18.0  # Home content's initial vertical reveal offset in pixels.
+calendar_offset = 14.0  # Calendar's initial vertical reveal offset in pixels.
+press_scale = 0.9  # Scale at full press; 0.9 shrinks a control to 90%.
+ripple_radius_ratio = 0.7  # Ripple radius relative to the larger control dimension.
+
+# Cubic Bezier curves: [x1, y1, x2, y2]; x values must be in 0..1.
+[easing]
+standard_decelerate = [0.0, 0.0, 0.0, 1.0]  # Curve used for the expanding click ripple.
+emphasized_decelerate = [0.05, 0.7, 0.1, 1.0]  # Curve used for theme color transitions and circular reveals.
+
+# Initial window placement and compositor-provided titlebars; dimensions are logical pixels.
+[window]
+width = 900.0  # Preferred initial client content width, limited by available screen space.
+height = 540.0  # Preferred initial client content height, limited by available screen space.
+cascade_step = 36.0  # Horizontal and vertical offset between newly placed windows.
+titlebar_height = 44.0  # Height of the compositor titlebar above client content.
+border = 1.0  # Compositor frame thickness around client content.
+button_radius = 15.0  # Radius used to position titlebar buttons at the right edge.
+button_hit_radius = 16.0  # Clickable radius of minimize, maximize and close controls.
+button_gap = 36.0  # Distance between titlebar control centers.
+button_margin = 8.0  # Gap between the right edge and the close button's positioning radius.
+resize_band = 6.0  # Width of the resize hit area inside the frame edges.
+focused_tint = 0.55  # Active titlebar's blend toward the secondary container color, 0..1.
+inactive_tint = 0.1  # Inactive titlebar's blend toward the secondary container color, 0..1.
+workspace_bottom_gap = 8.0  # Extra reserved space above the dock for normal/maximized windows.
+control_radius = 13.0  # Painted titlebar button radius.
+control_icon = 16.0  # Minimize/close icon size.
+maximize_icon = 14.0  # Maximize/restore icon size.
+app_icon_x = 26.0  # App icon center X relative to the titlebar's left edge.
+app_icon_size = 20.0  # Titlebar app icon size.
+title_x = 46.0  # Title text X relative to the titlebar's left edge.
+title_right_padding = 136.0  # Space reserved to the right of the title for window controls.
+inactive_title_alpha = 0.7  # Inactive title text opacity, 0..1.
+initial_spare_width = 120.0  # Horizontal space reserved when limiting initial window width.
+initial_spare_height = 24.0  # Vertical space reserved in addition to the initial titlebar.
+spawn_x = 48.0  # Initial cascade X offset in addition to topbar.margin.
+spawn_gap = 8.0  # Vertical gap below the topbar before a new window titlebar.
+edge_margin = 24.0  # Right/bottom margin used to clamp cascade placement.
+cascade_count = 6  # Number of cascade positions before placement repeats; 1..256.
+
+# Floating top bar; coordinates and dimensions are logical pixels.
+[topbar]
+height = 48.0  # Bar height; also the square hit-area size of icon buttons.
+margin = 12.0  # Gap from the top, left and right screen edges.
+icon_gap = 8.0  # Gap between right-side button hit areas.
+button_inset = 8.0  # Horizontal inset for the first and last buttons.
+home_icon_size = 24.0  # Home button glyph size.
+status_icon_size = 22.0  # Right-side status/control glyph size.
+button_fill_scale = 0.84  # Highlight diameter relative to button size.
+clock_gap = 16.0  # Clock X offset after one bar-height slot from the bar's left edge.
+clock_width = 80.0  # Clock pill width.
+clock_height = 32.0  # Clock pill height.
+clock_offset_y = 0.0  # Vertical offset from centered clock placement; negative moves it up.
+
+# Bottom app dock; dimensions are logical pixels.
+[dock]
+height = 80.0  # Dock background height.
+margin = 16.0  # Gap between the dock and bottom screen edge.
+icon_size = 56.0  # App button size; must fit inside the dock height.
+gap = 12.0  # Gap between neighboring app buttons.
+padding = 16.0  # Horizontal padding at each end of the dock.
+glyph_size = 28.0  # App glyph size inside a button.
+indicator_active_width = 14.0  # Width of the focused app indicator.
+indicator_width = 4.0  # Width of other running-app indicators.
+indicator_height = 3.0  # Running-app indicator height.
+indicator_bottom = 8.0  # Distance from dock bottom to indicator bottom.
+indicator_radius = 1.5  # Indicator corner radius.
+feedback_padding = 4.0  # Extra radius around app buttons for hover/click feedback.
+
+# App drawer with a fixed search field and a scrollable grid; dimensions are logical pixels.
+[launcher]
+width = 760.0  # Preferred drawer width.
+max_height = 600.0  # Maximum drawer height.
+min_width = 320.0  # Minimum drawer width.
+min_height = 240.0  # Minimum drawer height.
+margin_x = 48.0  # Horizontal screen margin used to limit drawer width.
+margin_y = 60.0  # Vertical screen margin used to limit drawer height.
+offset_y = -24.0  # Offset from vertical screen center; negative moves the drawer up.
+tile_size = 112.0  # Square app tile size; also the tile width on the home screen.
+search_height = 64.0  # Search field height.
+search_inset_x = 20.0  # Search field inset from the drawer's left and right edges.
+search_inset_y = 32.0  # Search field top inset.
+grid_gap = 8.0  # Gap between grid rows and columns.
+grid_padding = 20.0  # Grid viewport horizontal inset.
+grid_header_height = 48.0  # Space between the search field bottom and the app grid.
+bottom_padding = 16.0  # Space below the scrollable grid.
+shadow_spread = 18.0  # Drawer shadow extent.
+shadow_extra_padding = 2.0  # Additional transparent buffer space beyond the drawer shadow.
+scrim_alpha = 0.3  # Opacity of the dimming layer behind the drawer, 0..1.
+outline_width = 1.0  # Search field outline thickness.
+outline_alpha = 0.1  # Search field outline opacity, 0..1.
+handle_width = 32.0  # Width of the small drag-handle decoration.
+handle_height = 4.0  # Height of the drag-handle decoration.
+handle_y = 12.0  # Drag-handle top position inside the drawer.
+search_icon_x = 24.0  # Search icon center X within the search field.
+search_icon_size = 24.0  # Search glyph size.
+search_label_x = 52.0  # Search text X within the search field.
+section_label_x = 12.0  # Section heading X relative to the search field's left edge.
+section_label_y = 14.0  # Section heading Y offset below the search field.
+scrollbar_min_height = 24.0  # Minimum scrollbar thumb height.
+scrollbar_right = 11.0  # Distance from the drawer's right edge to the thumb's left edge.
+scrollbar_width = 4.0  # Scrollbar thumb width.
+scrollbar_alpha = 0.35  # Scrollbar thumb opacity, 0..1.
+empty_label_y = 180.0  # Empty search-result message Y within the drawer.
+
+# App tiles shared by the home screen and launcher; dimensions are logical pixels.
+[apps]
+medallion_radius = 34.0  # Radius of the tonal circle behind an app glyph.
+icon_center_y = 36.0  # Icon center Y relative to the tile's top edge.
+glyph_size = 30.0  # App glyph size inside the medallion.
+label_y = 76.0  # App caption top position within the tile.
+label_max_chars = 14  # Maximum app caption length before truncation.
+secondary_icons = ["terminal", "code", "settings", "monitor"]  # App icon keys using the secondary palette; unlisted keys use primary.
+tertiary_icons = ["public", "photo", "calendar_month"]  # App icon keys using the tertiary palette.
+
+# Home-screen clock, shortcut grid and page navigation; dimensions are logical pixels.
+[home]
+top_gap = 12.0  # Gap below the topbar area.
+bottom_gap = 16.0  # Gap above the dock area.
+margin_x = 24.0  # Minimum horizontal screen margin.
+max_width = 1120.0  # Maximum home content width; centered on wider screens.
+compact_threshold = 430.0  # Use the full clock/date layout when available home height exceeds this.
+hero_height = 172.0  # Space above shortcuts in the full clock/date layout.
+compact_hero_height = 96.0  # Space above shortcuts in the compact clock layout.
+footer_height = 52.0  # Space reserved below shortcuts for page navigation.
+cell_width = 132.0  # Minimum shortcut cell width used to choose the column count.
+cell_height = 116.0  # Shortcut row spacing; must be at least tile_height.
+tile_height = 104.0  # Shortcut tile height and clickable area.
+tile_offset_y = 8.0  # Shortcut tile offset below its row's top edge.
+page_gap = 32.0  # Extra horizontal space between animated home pages.
+nav_bottom = 40.0  # Distance from home content bottom to navigation button tops.
+nav_offset = 96.0  # Horizontal offset of the navigation buttons' outer edges from screen center.
+nav_width = 40.0  # Previous/next page button width.
+nav_height = 36.0  # Previous/next page button height.
+nav_radius = 18.0  # Page button corner radius.
+nav_icon_size = 22.0  # Page arrow glyph size.
+label_offset_y = 8.0  # Page counter top offset inside the navigation row.
+clock_x = 16.0  # Clock/date X relative to the home content's left edge.
+clock_size = 64.0  # Full-layout clock font size.
+compact_clock_size = 40.0  # Compact-layout clock font size.
+clock_line_height = 72.0  # Clock text line height in both layouts.
+date_y = 82.0  # Date text offset below the clock's top position in the full layout.
+
+# Shared floating panel placement; dimensions are logical pixels.
+[panels]
+edge_inset = 8.0  # Panel inset from the topbar edge and gap below it.
+viewport_margin = 12.0  # Screen-edge margin used to limit quick-settings height.
+bottom_gap = 20.0  # Screen-bottom space reserved when limiting calendar height.
+
+# Shared panel shadows. Opacities are fractions from 0 to 1.
+[shadow]
+padding = 16.0  # Transparent panel buffer padding; must be at least spread.
+spread = 12.0  # Shadow extent in logical pixels.
+layers = 6  # Number of concentric shadow layers; 1..32.
+inner_alpha = 0.03  # Extra opacity toward the innermost shadow layer.
+outer_alpha = 0.01  # Base shadow layer opacity; inner_alpha + outer_alpha must be <= 1.
+
+# Brightness popup geometry; controls real backlight where supported. Dimensions are logical pixels.
+[brightness]
+width = 320.0  # Popup width.
+height = 88.0  # Popup height.
+track_left = 56.0  # Slider track inset from the left popup edge.
+track_right = 20.0  # Slider track inset from the right popup edge.
+icon_x = 28.0  # Brightness icon center X within the popup.
+icon_size = 22.0  # Brightness glyph size.
+center_y_offset = 12.0  # Icon and slider center offset from the popup's vertical center.
+label_y = 8.0  # Status text top position within the popup.
+track_height = 32.0  # Slider track thickness.
+minimum_fill = 12.0  # Minimum visible filled track width.
+handle_height = 38.0  # Slider handle height at rest.
+handle_growth = 6.0  # Extra handle height while dragging.
+handle_width = 6.0  # Slider handle width.
+
+# Power menu geometry; dimensions are logical pixels.
+[power]
+width = 260.0  # Menu width.
+row_height = 56.0  # Action row height.
+row_gap = 4.0  # Gap between action rows.
+padding = 12.0  # Padding around menu rows.
+icon_x = 28.0  # Action icon center X within the menu.
+icon_size = 22.0  # Action glyph size.
+label_x = 56.0  # Action text X within the menu.
+
+# Quick-settings sheet, control tiles and palette chips; dimensions are logical pixels.
+[quick_settings]
+width = 432.0  # Preferred sheet width, limited by available screen space.
+height = 480.0  # Preferred sheet height, limited by available screen space.
+min_height = 120.0  # Minimum sheet height.
+padding = 20.0  # Sheet content inset.
+title_y = 16.0  # Sheet heading top position.
+subtitle_y = 50.0  # Sheet subtitle top position.
+tile_top = 76.0  # First control row's top position.
+tile_height = 92.0  # Control tile height.
+tile_gap = 12.0  # Gap between control rows and columns.
+chip_height = 40.0  # Palette chip height.
+chip_gap = 8.0  # Gap between palette chips and rows.
+chips_y = 322.0  # First palette chip row's top position.
+chip_margin = 16.0  # Horizontal inset around the palette chip grid.
+chip_bottom_gap = 6.0  # Minimum gap below visible palette chips.
+tile_tint = 0.3  # Idle tile blend toward a tonal container color, 0..1.
+tile_radius = 24.0  # Idle tile corner radius.
+tile_active_radius_growth = 10.0  # Extra tile corner radius when active.
+tile_press_radius_growth = 40.0  # Radius increase multiplied by (1 - pressed scale).
+icon_x = 28.0  # Control icon center X within its tile.
+icon_y = 26.0  # Control icon center Y within its tile.
+icon_radius = 16.0  # Radius of the subtle circle behind the control icon.
+icon_alpha = 0.06  # Control icon background circle opacity, 0..1.
+icon_size = 22.0  # Control glyph size.
+label_x = 14.0  # Tile text left inset and switch right inset.
+label_y = 48.0  # Tile label top position.
+status_y = 69.0  # Tile status text top position.
+switch_y = 12.0  # Switch top position within a tile.
+palette_title_gap = 30.0  # Distance from the first chip row up to the palette heading.
+swatch_first_x = 13.0  # First palette swatch center X within its chip.
+swatch_gap = 10.0  # Distance between palette swatch centers.
+swatch_radius = 4.0  # Palette swatch circle radius.
+chip_label_x = 43.0  # Palette name X within its chip.
+chip_label_padding = 6.0  # Space reserved after a palette name.
+chip_outline_width = 1.5  # Selected palette chip outline thickness.
+chip_outline_alpha = 0.45  # Selected palette chip outline opacity, 0..1.
+
+# Material toggle switch geometry; dimensions are logical pixels.
+[switch]
+width = 52.0  # Switch track width; must be at least height.
+height = 32.0  # Switch track height.
+stroke = 1.0  # Track outline thickness.
+handle_off_radius = 8.0  # Handle radius when off; must fit inside half the track height.
+handle_on_radius = 12.0  # Handle radius when on; must fit inside half the track height.
+
+# Date/time sheet and monthly calendar. Y coordinates start at the sheet top; sizes are logical pixels.
+[calendar]
+width = 360.0  # Preferred sheet width.
+height = 456.0  # Preferred sheet height, limited by available screen space.
+padding = 24.0  # Left inset for time/date text and horizontal date text padding.
+heading_y = 18.0  # Date & time heading top position.
+time_y = 44.0  # Digital clock text top position.
+time_size = 42.0  # Digital clock font size.
+time_height = 52.0  # Digital clock text line height.
+date_y = 102.0  # Full date text top position.
+zone_y = 126.0  # Time zone text top position.
+month_y = 158.0  # Displayed month/year text top position.
+nav_y = 150.0  # Month navigation button top position.
+nav_width = 40.0  # Month navigation button width.
+nav_height = 36.0  # Month navigation button height.
+nav_right = 16.0  # Right inset of the next-month button.
+nav_gap = 8.0  # Gap between previous/next month buttons.
+nav_icon_size = 22.0  # Month navigation glyph size.
+grid_padding = 20.0  # Horizontal inset around the seven-column day grid.
+weekdays_y = 196.0  # Weekday label top position.
+first_day_y = 226.0  # Center Y of the first week of dates.
+reserved_height = 256.0  # Space excluded before dividing remaining height into six week rows.
+min_row_height = 10.0  # Minimum spacing between week centers; keep <= max_row_height.
+max_row_height = 32.0  # Maximum spacing between week centers.
+today_radius_ratio = 0.48  # Today's highlight radius relative to week row spacing.
+today_radius = 16.0  # Maximum radius of today's highlight.
+day_label_offset = 10.0  # Day text top offset above its row center.
+
+# Generated tonal wallpaper; mixes and opacity are 0..1, vector coordinates are screen-relative.
+[wallpaper]
+primary_mix_dark = 0.18  # Top gradient blend toward primary_container in dark mode.
+primary_mix_light = 0.32  # Top gradient blend toward primary_container in light mode.
+tertiary_mix = 0.22  # Bottom gradient blend toward tertiary_container.
+petal_mix_dark = 0.36  # Petal blend toward secondary_container in dark mode.
+petal_mix_light = 0.65  # Petal blend toward secondary_container in light mode.
+glow_one = [0.14, 0.2, 0.85, 0.35]  # First glow: [center_x / width, center_y / height, radius / height, opacity].
+glow_two = [0.85, 0.78, 0.75, 0.45]  # Second glow: [center_x / width, center_y / height, radius / height, opacity].
+petal = [-0.1, 0.85, 0.18, 0.98, 0.22, 0.05, 0.6, 0.28, 0.92, 0.47, 0.67, 1.12, 0.35, 1.18]  # Closed path: [start_x,y, control1_x,y, control2_x,y, end1_x,y, control3_x,y, control4_x,y, end2_x,y].
+
+# Fallback pointer when a client supplies no cursor; dimensions are logical pixels.
+[cursor]
+size = 32.0  # Fallback pointer size; maximum 256.
+outline_width = 4.0  # Outer contrast outline thickness at the base cursor size of 32.
+stroke_width = 1.8  # Inner stroke thickness at the base cursor size of 32.
+fill_light = "#000000"  # Pointer fill in light mode, #RRGGBB.
+fill_dark = "#ffffff"  # Pointer fill in dark mode, #RRGGBB.
+outline_light = "#ffffff"  # Pointer contrast outline in light mode, #RRGGBB.
+outline_dark = "#000000"  # Pointer contrast outline in dark mode, #RRGGBB.
+
+# Medium headings and home date.
+[typography.title_medium]
+size = 16.0  # Font size in logical pixels.
+line_height = 24.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.15  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "medium"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Sheet headings and base style for large clocks.
+[typography.headline_small]
+size = 24.0  # Font size in logical pixels.
+line_height = 32.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.0  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "regular"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Small headings, including the calendar month.
+[typography.title_small]
+size = 14.0  # Font size in logical pixels.
+line_height = 20.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.1  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "medium"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Buttons, calendar days and control labels.
+[typography.label_large]
+size = 14.0  # Font size in logical pixels.
+line_height = 20.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.1  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "medium"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Status labels, weekdays and slider text.
+[typography.label_medium]
+size = 12.0  # Font size in logical pixels.
+line_height = 16.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.5  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "medium"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Palette chip captions.
+[typography.label_small]
+size = 11.0  # Font size in logical pixels.
+line_height = 16.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.5  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "medium"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Large body text and empty launcher message.
+[typography.body_large]
+size = 16.0  # Font size in logical pixels.
+line_height = 24.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.5  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "regular"  # Font face: "regular", "medium", "bold" or "icon".
+
+# App captions, date text and regular body text.
+[typography.body_medium]
+size = 14.0  # Font size in logical pixels.
+line_height = 20.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.25  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "regular"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Supporting descriptions and subtitles.
+[typography.body_small]
+size = 12.0  # Font size in logical pixels.
+line_height = 16.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.4  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "regular"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Focused window title.
+[typography.focused_title]
+size = 14.0  # Font size in logical pixels.
+line_height = 20.0  # Text line box height in logical pixels; must be at least size.
+tracking = 0.1  # Extra letter spacing in logical pixels; negative values tighten text.
+kind = "bold"  # Font face: "regular", "medium", "bold" or "icon".
+
+# Optional light-mode Material role overrides, e.g. primary = "#aabbcc"; omitted roles use the generated palette.
+[colors.light]
+
+# Optional dark-mode Material role overrides; opaque #RRGGBB colors, with the same role names as light mode.
+[colors.dark]
+
+# App context menu for home shortcuts and dock pins; dimensions are logical pixels.
+[app_menu]
+width = 260.0  # Menu width.
+height = 160.0  # Menu height.
+margin = 12.0  # Minimum screen-edge margin when placing the menu.
+row_inset = 8.0  # Horizontal inset of action rows.
+row_y = 44.0  # Dock pin/unpin row top position.
+home_row_y = 100.0  # Home shortcut add/remove row top position.
+row_height = 48.0  # Action row height.
+title_x = 16.0  # App name X within the menu.
+title_y = 14.0  # App name top position within the menu.
+icon_x = 30.0  # Action icon center X within the menu.
+icon_size = 22.0  # Action glyph size.
+label_x = 52.0  # Action label X within the menu.
+label_y = 14.0  # Action label top offset inside its row.
+
+# Font discovery; bundled and system fonts remain available as fallbacks.
+[fonts]
+directory = ""  # Optional font search directory; "" uses automatic discovery.
+
+# Touchpad finger scrolling in applications and the launcher; mouse-wheel direction is independent.
+[input.touchpad]
+invert_scroll = false  # true reverses both scroll axes; false keeps the original direction. Three-finger gestures are unchanged.

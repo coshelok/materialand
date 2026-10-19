@@ -3,9 +3,9 @@ use crate::{
     config::{self, AppEntry},
     desktop::{ResizeEdges, WindowMeta},
     graphics::canvas::{round_rect_path, Surface},
-    graphics::text::{FontKind, Fonts},
-    motion::{duration, CubicBezier, Spring, Tween},
-    style::{shape, state, TextStyle},
+    graphics::text::Fonts,
+    motion::{CubicBezier, Spring, Tween},
+    style::TextStyle,
     theme::{ColorVariant, KeyHash, Theme, ThemeSpec, VARIANTS},
 };
 use smithay::{
@@ -15,26 +15,6 @@ use smithay::{
 };
 use std::collections::HashMap;
 use tiny_skia::{Color, Path, PathBuilder, Transform as SkTransform};
-
-const DOCK_PAD: f32 = 16.0;
-const SEARCH_HEIGHT: f32 = 64.0;
-const GRID_GAP: f32 = 8.0;
-const GRID_PAD: f32 = 20.0;
-
-/// Horizontal gap between the right-aligned status icons in the top bar.
-const TOPBAR_ICON_GAP: f32 = 8.0;
-
-/// Margin baked into every shadowed buffer so the soft elevation shadow fits.
-pub const SHADOW_PAD: f32 = 16.0;
-/// How far the fake soft shadow extends past the container edge.
-const SHADOW_SPREAD: f32 = 12.0;
-
-/// Total height of the quick-settings sheet, including the palette grid.
-const QS_SHEET_HEIGHT: f32 = 480.0;
-const QS_CHIP_H: f32 = 40.0;
-const QS_CHIP_GAP: f32 = 8.0;
-const QS_CHIPS_Y: f32 = 322.0;
-const QS_CHIP_MARGIN: f32 = 16.0;
 
 /// Hardware backlight range. Keep a small usable floor.
 pub const BRIGHTNESS_MIN: f32 = 0.02;
@@ -65,7 +45,7 @@ pub struct Shell {
     pub reduce_motion: bool,
     pub clock: String,
     pub calendar: calendar::Calendar,
-    calendar_layer: Option<CachedLayer>,
+    calendar_layer: LayerCache,
     spec: ThemeSpec,
     /// Caches for the static chrome. Rebuilding these with tiny-skia on every
     /// frame dominates the frame cost, so each buffer is keyed by its inputs and
@@ -77,13 +57,13 @@ pub struct Shell {
     decor_cache: HashMap<Window, Vec<DecorEntry>>,
     /// Cached full-screen content layer of the launcher overlay, keyed by what
     /// it shows; the open/close transform is applied by the GPU.
-    launcher_layer: Option<CachedLayer>,
+    launcher_layer: LayerCache,
     /// Cached quick-settings sheet content (settled state only).
-    qs_layer: Option<CachedLayer>,
+    qs_layer: LayerCache,
     /// Cached brightness-popup content.
-    brightness_layer: Option<CachedLayer>,
+    brightness_layer: LayerCache,
     /// Cached session-menu content.
-    power_layer: Option<CachedLayer>,
+    power_layer: LayerCache,
     /// 1x1 scrim buffer per scheme, stretched over the output by the GPU.
     scrim_cache: Option<(u64, MemoryRenderBuffer)>,
     frame_epoch: u64,

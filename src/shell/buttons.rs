@@ -19,7 +19,12 @@ impl Shell {
         let key = PressKey::Top(action);
         let scale = self.press_scale(key);
         if let Some(bg) = bg {
-            s.circle(cx, cy, rect.w / 2.0 * 0.84 * scale, bg);
+            s.circle(
+                cx,
+                cy,
+                rect.w / 2.0 * crate::config::design().topbar.button_fill_scale * scale,
+                bg,
+            );
         }
         fonts.draw_icon_centered(s, cx, cy, icon, icon_px * scale, icon_color);
         state_layer_overlay(

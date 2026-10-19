@@ -1,15 +1,17 @@
 //! Renderer-independent scene assembly. The returned list is front-to-back.
-use super::{chrome, layers::Layers, uploads::push_buffer, windows};
-use crate::{desktop::State, shell::CircleMask};
-use smithay::backend::renderer::element::{
-    memory::MemoryRenderBufferRenderElement,
-    utils::{RelocateRenderElement, RescaleRenderElement},
+use super::{
+    chrome,
+    layers::Layers,
+    uploads::{push_buffer, push_masked_buffer},
+    windows,
 };
+use crate::{desktop::State, shell::CircleMask};
+use smithay::backend::renderer::element::utils::{RelocateRenderElement, RescaleRenderElement};
 use smithay::{
     backend::renderer::{element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
     utils::{Physical, Size},
 };
-smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=MemoryRenderBufferRenderElement<GlesRenderer>, Wl=WaylandSurfaceRenderElement<GlesRenderer>, Window=RelocateRenderElement<RescaleRenderElement<windows::WindowElement>>, }
+smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=super::uploads::ShellElement, Wl=WaylandSurfaceRenderElement<GlesRenderer>, Window=RelocateRenderElement<RescaleRenderElement<windows::WindowElement>>, }
 pub fn build_ui(
     state: &mut State,
     renderer: &mut GlesRenderer,
@@ -20,15 +22,14 @@ pub fn build_ui(
     let theme = if let Some((from, origin, t)) = state.shell.reveal_frame() {
         let dx = origin.x.max(f64::from(size.w) - origin.x).max(0.0);
         let dy = origin.y.max(f64::from(size.h) - origin.y).max(0.0);
-        second = Some((
-            target,
-            Some(CircleMask {
+        let mask = super::reveal::program(renderer)
+            .is_some()
+            .then_some(CircleMask {
                 cx: origin.x as f32,
                 cy: origin.y as f32,
                 radius: t.max(0.0) * dx.hypot(dy) as f32,
-            }),
-            1.0,
-        ));
+            });
+        second = Some((target, mask, if mask.is_some() { 1.0 } else { t }));
         from
     } else if let Some((from, alpha)) = state.shell.theme_fade() {
         second = Some((target, None, alpha));
@@ -45,13 +46,14 @@ pub fn build_ui(
     if let Some((next, mask, alpha)) = second {
         let (buffer, loc) = state
             .shell
-            .render_wallpaper(&next, size.w as u32, size.h as u32, mask);
-        push_buffer(
+            .render_wallpaper(&next, size.w as u32, size.h as u32, None);
+        push_masked_buffer(
             &mut background,
             renderer,
             &buffer,
             (loc.x, loc.y),
             Some(alpha),
+            mask,
         );
     }
     for element in background {
@@ -67,8 +69,15 @@ pub fn build_ui(
         let (buffer, loc) =
             state
                 .shell
-                .render_home(&next, &mut state.fonts, size.w as f32, size.h as f32, mask);
-        push_buffer(&mut home, renderer, &buffer, (loc.x, loc.y), Some(alpha));
+                .render_home(&next, &mut state.fonts, size.w as f32, size.h as f32, None);
+        push_masked_buffer(
+            &mut home,
+            renderer,
+            &buffer,
+            (loc.x, loc.y),
+            Some(alpha),
+            mask,
+        );
     }
     for element in home {
         scene.single(element);

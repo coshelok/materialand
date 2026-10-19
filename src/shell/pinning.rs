@@ -59,7 +59,7 @@ mod tests {
             desktop_file: Some(format!("/applications/{name}.desktop").into()),
         };
         let (a, b, missing) = (entry("a"), entry("b"), entry("missing"));
-        let mut shell = Shell::new(vec![a.clone(), b.clone()], ThemeSpec::DEFAULT);
+        let mut shell = Shell::new(vec![a.clone(), b.clone()], ThemeSpec::default());
         shell.load_pins_at(path.clone()).unwrap();
         assert_eq!(
             shell
@@ -70,12 +70,12 @@ mod tests {
             [a.identity(), b.identity()]
         );
         shell.toggle_pin(a.clone()).unwrap();
-        let mut restarted = Shell::new(vec![a, b.clone()], ThemeSpec::DEFAULT);
+        let mut restarted = Shell::new(vec![a, b.clone()], ThemeSpec::default());
         restarted.load_pins_at(path.clone()).unwrap();
         assert_eq!(restarted.pinned.len(), 1);
         assert_eq!(restarted.pinned[0].identity(), b.identity());
         restarted.toggle_pin(b).unwrap();
-        let mut reinstalled = Shell::new(vec![missing.clone()], ThemeSpec::DEFAULT);
+        let mut reinstalled = Shell::new(vec![missing.clone()], ThemeSpec::default());
         reinstalled.load_pins_at(path).unwrap();
         assert_eq!(reinstalled.pinned.len(), 1);
         assert_eq!(reinstalled.pinned[0].identity(), missing.identity());

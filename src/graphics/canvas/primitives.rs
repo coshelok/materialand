@@ -133,16 +133,30 @@ impl Surface {
         }
     }
 
-    pub fn shadow_round_rect(&mut self, x: f32, y: f32, w: f32, h: f32, radius: f32, spread: f32) {
+    #[allow(clippy::too_many_arguments)]
+    pub fn shadow_round_rect(
+        &mut self,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        radius: f32,
+        spread: f32,
+        tint: Color,
+    ) {
+        let design = crate::config::design();
         if w <= 0.0 || h <= 0.0 || spread <= 0.0 {
             return;
         }
-        const LAYERS: u32 = 6;
-        for i in (1..=LAYERS).rev() {
-            let t = i as f32 / LAYERS as f32; // 1.0 = outermost
+        let layers = design.shadow.layers as u32;
+        for i in (1..=layers).rev() {
+            let t = i as f32 / layers as f32; // 1.0 = outermost
             let grow = spread * t;
-            let alpha = 0.030 * (1.0 - t) * (1.0 - t) + 0.010;
-            let color = Color::from_rgba(0.0, 0.0, 0.0, alpha).expect("valid shadow color");
+            let alpha =
+                design.shadow.inner_alpha * (1.0 - t) * (1.0 - t) + design.shadow.outer_alpha;
+            let color =
+                Color::from_rgba(tint.red(), tint.green(), tint.blue(), alpha * tint.alpha())
+                    .expect("valid shadow color");
             self.fill_round_rect(
                 x - grow,
                 y - grow,

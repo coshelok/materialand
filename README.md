@@ -5,6 +5,7 @@ An Android-inspired Wayland desktop for Linux, built with Rust and Smithay. Mate
 - Add your favorite apps to the home screen and keep separate dock pins.
 - Search and scroll installed apps, or use three-finger swipes to open and close the launcher.
 - Use the clock/calendar, saved theme and palette choices, Night light, hardware brightness and reduced motion.
+- Animate at the active display's refresh rate, with GPU window transforms and circular theme reveals.
 - Run as a desktop session from SDDM or a TTY, or inside another desktop with `--nested`.
 
 ## Build and run
@@ -51,16 +52,14 @@ Right-click an app to add/remove its home shortcut or dock pin. Click a home sho
 
 ## Configuration
 
-For example, use dark mode on first launch and English/Russian keyboard layouts:
+Appearance, layout, typography and animation settings live in `~/.config/materialand/config.toml`, or under `$XDG_CONFIG_HOME/materialand/`. A complete file with comments explaining every parameter is created on first launch; `materialand --init-config` creates it without starting a session. Saved theme and palette choices migrate automatically.
 
-```sh
-MATERIALAND_THEME=dark MATERIALAND_XKB_LAYOUT=us,ru ./target/release/materialand
-```
+Edit the file and restart the session to apply design changes. Quick settings save theme, palette and reduced motion immediately, preserving comments and other settings. Set `[input.touchpad] invert_scroll = true` to reverse touchpad scrolling. Use `materialand --check-config` to validate edits. See [Design configuration](docs/DESIGN.md) and the commented [default configuration](config/default.toml).
 
-Shortcuts and dock pins persist in `~/.config/materialand/`, or under `$XDG_CONFIG_HOME/materialand/` when configured. See [Configuration](docs/CONFIGURATION.md) for palette, keyboard and display options.
+Home shortcuts and dock pins persist separately in the same directory. [Configuration](docs/CONFIGURATION.md) covers keyboard and display options.
 
 ## Project status
 
 Materialand is experimental. It currently drives one output at scale 1 and supports native Wayland applications. XWayland and multi-monitor layouts are not implemented. Hardware brightness, Night light and touchpad gestures require a direct session and compatible hardware.
 
-[Release notes](docs/RELEASE_NOTES_v0.2.5.md) · [Architecture](docs/ARCHITECTURE.md) · [Build checks and manual validation](docs/VALIDATION.md)
+[Release notes](docs/RELEASE_NOTES_v0.3.0.md) · [Architecture](docs/ARCHITECTURE.md) · [Build checks and manual validation](docs/VALIDATION.md)

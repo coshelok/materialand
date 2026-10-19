@@ -49,6 +49,7 @@ pub(super) fn launch_or_focus(
 }
 
 pub(super) fn launcher_launch_origin(state: &State, slot: usize) -> Option<shell::RectF> {
+    let design = crate::config::design();
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     let mut origin = shell::launcher_grid_origin(w, h);
     origin.1 -= state.shell.launcher_scroll();
@@ -57,12 +58,12 @@ pub(super) fn launcher_launch_origin(state: &State, slot: usize) -> Option<shell
         slot,
         shell::launcher_columns(shell::launcher_card(w, h).w),
     );
-    let icon = shell::RectF {
-        x: x + 22.0,
-        y: y + 2.0,
-        w: 68.0,
-        h: 68.0,
-    };
+    let icon = shell::app_icon_rect(shell::RectF {
+        x,
+        y,
+        w: design.launcher.tile_size,
+        h: design.launcher.tile_size,
+    });
     let viewport = shell::launcher_viewport(w, h);
     if icon.bottom() <= viewport.y || icon.y >= viewport.bottom() {
         return None;

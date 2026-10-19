@@ -1,40 +1,43 @@
+//! Typography roles are resolved from the process-wide design snapshot.
 use crate::graphics::text::FontKind;
-
-/// Material 3 type-scale roles used by the shell. `size`, `line_height` and
-/// `tracking` follow the M3 spec; `kind` maps onto one of the embedded Roboto
-/// weights.
-#[derive(Clone, Copy, Debug, PartialEq)]
+use serde::Deserialize;
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TextStyle {
     pub size: f32,
     pub line_height: f32,
     pub tracking: f32,
     pub kind: FontKind,
 }
-
 impl TextStyle {
-    const fn new(size: f32, line_height: f32, tracking: f32, kind: FontKind) -> Self {
-        Self {
-            size,
-            line_height,
-            tracking,
-            kind,
-        }
+    pub fn title_medium() -> Self {
+        crate::config::design().typography.title_medium
     }
-
-    // Material 3 type scale. Sizes/line heights are dp; tracking is in px at
-    // scale 1. The compositor currently uses the roles listed below directly.
-    /// Top-bar title.
-    pub const TITLE_MEDIUM: Self = Self::new(16.0, 24.0, 0.15, FontKind::Medium);
-    pub const HEADLINE_SMALL: Self = Self::new(24.0, 32.0, 0.0, FontKind::Regular);
-    /// Window decoration title.
-    pub const TITLE_SMALL: Self = Self::new(14.0, 20.0, 0.1, FontKind::Medium);
-    /// Top-bar clock.
-    pub const LABEL_LARGE: Self = Self::new(14.0, 20.0, 0.1, FontKind::Medium);
-    pub const LABEL_MEDIUM: Self = Self::new(12.0, 16.0, 0.5, FontKind::Medium);
-    pub const LABEL_SMALL: Self = Self::new(11.0, 16.0, 0.5, FontKind::Medium);
-    /// Launcher search field.
-    pub const BODY_LARGE: Self = Self::new(16.0, 24.0, 0.5, FontKind::Regular);
-    pub const BODY_MEDIUM: Self = Self::new(14.0, 20.0, 0.25, FontKind::Regular);
-    /// Launcher tile caption.
-    pub const BODY_SMALL: Self = Self::new(12.0, 16.0, 0.4, FontKind::Regular);
+    pub fn headline_small() -> Self {
+        crate::config::design().typography.headline_small
+    }
+    pub fn title_small() -> Self {
+        crate::config::design().typography.title_small
+    }
+    pub fn label_large() -> Self {
+        crate::config::design().typography.label_large
+    }
+    pub fn label_medium() -> Self {
+        crate::config::design().typography.label_medium
+    }
+    pub fn label_small() -> Self {
+        crate::config::design().typography.label_small
+    }
+    pub fn body_large() -> Self {
+        crate::config::design().typography.body_large
+    }
+    pub fn body_medium() -> Self {
+        crate::config::design().typography.body_medium
+    }
+    pub fn body_small() -> Self {
+        crate::config::design().typography.body_small
+    }
+    pub fn focused_title() -> Self {
+        crate::config::design().typography.focused_title
+    }
 }

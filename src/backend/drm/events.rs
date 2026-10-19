@@ -73,11 +73,7 @@ fn on_vblank(app: &mut App, crtc: crtc::Handle) {
     app.state.shell.window_frame_presented();
     ui::send_frames_all(&app.state);
     let _ = app.display.flush_clients();
-    app.animating = app.ticker.tick(&mut app.state);
-    app.dirty |= app.animating;
-    if app.dirty {
-        render(app);
-    }
+    app.redraw();
 }
 pub(super) fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBackend>) {
     if !app.backend.active {

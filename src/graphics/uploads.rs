@@ -1,15 +1,20 @@
 //! Uploads for cached shell layers.
+use super::reveal::{self, RevealElement};
 use super::scene::UiElement;
 use crate::shell;
+smithay::render_elements! { pub ShellElement<=GlesRenderer>;
+    Memory=MemoryRenderBufferRenderElement<GlesRenderer>,
+    Reveal=RevealElement<MemoryRenderBufferRenderElement<GlesRenderer>>,
+}
 use smithay::{
     backend::renderer::{
         element::{
             memory::{MemoryRenderBuffer, MemoryRenderBufferRenderElement},
-            Kind,
+            Element, Kind, RenderElement, UnderlyingStorage,
         },
         gles::GlesRenderer,
     },
-    utils::Point,
+    utils::{Point, Transform},
 };
 pub(super) fn push_buffer(
     elements: &mut Vec<UiElement>,
@@ -18,7 +23,17 @@ pub(super) fn push_buffer(
     loc: (f64, f64),
     alpha: Option<f32>,
 ) {
-    if let Some(el) = buffer_element(renderer, buffer, loc, alpha) {
+    push_masked_buffer(elements, renderer, buffer, loc, alpha, None);
+}
+pub(super) fn push_masked_buffer(
+    elements: &mut Vec<UiElement>,
+    renderer: &mut GlesRenderer,
+    buffer: &MemoryRenderBuffer,
+    loc: (f64, f64),
+    alpha: Option<f32>,
+    mask: Option<shell::CircleMask>,
+) {
+    if let Some(el) = masked_buffer_element(renderer, buffer, loc, alpha, mask) {
         elements.push(UiElement::Memory(el));
     }
 }
@@ -27,8 +42,17 @@ pub(super) fn buffer_element(
     buffer: &MemoryRenderBuffer,
     loc: (f64, f64),
     alpha: Option<f32>,
-) -> Option<MemoryRenderBufferRenderElement<GlesRenderer>> {
-    MemoryRenderBufferRenderElement::from_buffer(
+) -> Option<ShellElement> {
+    masked_buffer_element(renderer, buffer, loc, alpha, None)
+}
+pub(super) fn masked_buffer_element(
+    renderer: &mut GlesRenderer,
+    buffer: &MemoryRenderBuffer,
+    loc: (f64, f64),
+    alpha: Option<f32>,
+    mask: Option<shell::CircleMask>,
+) -> Option<ShellElement> {
+    let element = MemoryRenderBufferRenderElement::from_buffer(
         renderer,
         Point::from(loc),
         buffer,
@@ -37,7 +61,24 @@ pub(super) fn buffer_element(
         None,
         Kind::Unspecified,
     )
-    .ok()
+    .ok()?;
+    Some(apply_mask(renderer, element, mask))
+}
+fn apply_mask(
+    renderer: &mut GlesRenderer,
+    element: MemoryRenderBufferRenderElement<GlesRenderer>,
+    mask: Option<shell::CircleMask>,
+) -> ShellElement {
+    if let Some(mask) = mask {
+        if let (Some(program), Some(UnderlyingStorage::Memory(memory))) = (
+            reveal::program(renderer),
+            element.underlying_storage(renderer),
+        ) {
+            let size = memory.size();
+            return ShellElement::Reveal(RevealElement::new(element, program, mask, size));
+        }
+    }
+    ShellElement::Memory(element)
 }
 
 /// Push one overlay layer, letting the GPU scale it when the layer carries a
@@ -47,18 +88,37 @@ pub(super) fn push_layer(
     renderer: &mut GlesRenderer,
     layer: &shell::LayerFrame,
     alpha: Option<f32>,
+    mask: Option<shell::CircleMask>,
 ) {
-    if let Ok(el) = MemoryRenderBufferRenderElement::from_buffer(
+    let Ok(mut el) = MemoryRenderBufferRenderElement::from_buffer(
         renderer,
         layer.loc.to_physical(1.0),
         &layer.buffer,
         alpha,
         None,
-        layer.size,
+        None,
         Kind::Unspecified,
-    ) {
-        elements.push(UiElement::Memory(el));
+    ) else {
+        return;
+    };
+    if let Some(size) = layer.size {
+        // Keep the full native source when scaling. Using the destination size
+        // as the source rectangle crops app drawers during their entrance.
+        let source = el.src().to_logical(1.0, Transform::Normal, &el.src().size);
+        let Ok(scaled) = MemoryRenderBufferRenderElement::from_buffer(
+            renderer,
+            layer.loc.to_physical(1.0),
+            &layer.buffer,
+            alpha,
+            Some(source),
+            Some(size),
+            Kind::Unspecified,
+        ) else {
+            return;
+        };
+        el = scaled;
     }
+    elements.push(UiElement::Memory(apply_mask(renderer, el, mask)));
 }
 
 /// Push every piece of an overlay frame (scrim, card, press feedback) in order,
@@ -69,7 +129,16 @@ pub(super) fn push_overlay(
     frame: &shell::OverlayFrame,
     fade: f32,
 ) {
+    push_masked_overlay(elements, renderer, frame, fade, None);
+}
+pub(super) fn push_masked_overlay(
+    elements: &mut Vec<UiElement>,
+    renderer: &mut GlesRenderer,
+    frame: &shell::OverlayFrame,
+    fade: f32,
+    mask: Option<shell::CircleMask>,
+) {
     for (layer, alpha) in &frame.pieces {
-        push_layer(elements, renderer, layer, Some(alpha * fade));
+        push_layer(elements, renderer, layer, Some(alpha * fade), mask);
     }
 }

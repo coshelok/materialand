@@ -1,6 +1,9 @@
 //! Apply one uniform transform to each window's content, decorations and popups.
 use super::{
-    layers::Layers, scene::UiElement, uploads::buffer_element, window_transform::transform,
+    layers::Layers,
+    scene::UiElement,
+    uploads::{buffer_element, masked_buffer_element, ShellElement},
+    window_transform::transform,
 };
 use crate::{
     desktop::State,
@@ -8,13 +11,10 @@ use crate::{
     theme::Theme,
 };
 use smithay::backend::renderer::{
-    element::{
-        memory::MemoryRenderBufferRenderElement, surface::WaylandSurfaceRenderElement,
-        AsRenderElements,
-    },
+    element::{surface::WaylandSurfaceRenderElement, AsRenderElements},
     gles::GlesRenderer,
 };
-smithay::render_elements! { pub WindowElement<=GlesRenderer>; Memory=MemoryRenderBufferRenderElement<GlesRenderer>, Wl=WaylandSurfaceRenderElement<GlesRenderer>, }
+smithay::render_elements! { pub WindowElement<=GlesRenderer>; Memory=ShellElement, Wl=WaylandSurfaceRenderElement<GlesRenderer>, }
 
 pub(super) fn paint(
     state: &mut State,
@@ -79,11 +79,15 @@ pub(super) fn paint(
                     &window,
                     geometry,
                     params,
-                    mask,
+                    None,
                 );
-                if let Some(el) =
-                    buffer_element(renderer, &buffer, (loc.x, loc.y), Some(pose.alpha * fade))
-                {
+                if let Some(el) = masked_buffer_element(
+                    renderer,
+                    &buffer,
+                    (loc.x, loc.y),
+                    Some(pose.alpha * fade),
+                    mask,
+                ) {
                     decorations.insert(0, WindowElement::Memory(el));
                 }
             }

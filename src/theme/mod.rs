@@ -5,10 +5,9 @@ mod cache_key;
 pub use cache_key::KeyHash;
 mod seed;
 pub use seed::*;
+mod overrides;
 mod roles;
-/// Muted cornflower seed; dynamic roles retain their Material contrast pairs.
-pub const SEED: u32 = 0xff6b_85b3;
-
+pub use overrides::{parse_role_color, valid_role};
 /// The nine Material You colour variants exposed by the palette picker.
 ///
 /// This mirrors `material_colors::dynamic_color::Variant`, re-declared as a
@@ -88,41 +87,19 @@ pub struct ThemeSpec {
 }
 
 impl ThemeSpec {
-    pub const DEFAULT: ThemeSpec = ThemeSpec {
-        seed: SEED,
-        variant: ColorVariant::TonalSpot,
-    };
-
-    /// Read `MATERIALAND_SEED`, `MATERIALAND_VARIANT` and
-    /// `MATERIALAND_WALLPAPER` (in that precedence) once at start-up.
-    pub fn from_env() -> (Self, SeedSource) {
-        let mut spec = Self::DEFAULT;
-        let source = match std::env::var("MATERIALAND_SEED")
-            .ok()
-            .and_then(|raw| parse_seed(&raw))
-        {
-            Some(seed) => {
+    /// Resolve seed extraction once after the central design file is loaded.
+    pub fn from_config() -> (Self, SeedSource) {
+        let mut spec = Self::default();
+        let appearance = &crate::config::design().appearance;
+        if appearance.seed.is_empty() && !appearance.wallpaper.is_empty() {
+            let path = PathBuf::from(&appearance.wallpaper);
+            if let Some(seed) = seed_from_wallpaper(&path) {
                 spec.seed = seed;
-                SeedSource::Env
+                return (spec, SeedSource::Wallpaper(path));
             }
-            None => match std::env::var_os("MATERIALAND_WALLPAPER").map(PathBuf::from) {
-                Some(path) => match seed_from_wallpaper(&path) {
-                    Some(seed) => {
-                        spec.seed = seed;
-                        SeedSource::Wallpaper(path)
-                    }
-                    None => SeedSource::Default,
-                },
-                None => SeedSource::Default,
-            },
-        };
-        if let Some(variant) = std::env::var("MATERIALAND_VARIANT")
-            .ok()
-            .and_then(|raw| ColorVariant::from_name(&raw))
-        {
-            spec.variant = variant;
+            return (spec, SeedSource::Default);
         }
-        (spec, source)
+        (spec, SeedSource::Configuration)
     }
 
     pub fn dark(self) -> Theme {
@@ -134,11 +111,24 @@ impl ThemeSpec {
     }
 }
 
+impl Default for ThemeSpec {
+    fn default() -> Self {
+        let appearance = &crate::config::design().appearance;
+        Self {
+            seed: parse_seed(&appearance.seed).unwrap_or_else(|| {
+                parse_seed(&crate::config::built_in_design().appearance.seed)
+                    .expect("built-in seed")
+            }),
+            variant: ColorVariant::from_name(&appearance.variant).expect("validated palette"),
+        }
+    }
+}
+
 /// Where the palette seed came from, for logging.
 #[derive(Clone, Debug)]
 pub enum SeedSource {
     Default,
-    Env,
+    Configuration,
     Wallpaper(PathBuf),
 }
 
@@ -146,7 +136,7 @@ impl SeedSource {
     pub fn describe(&self) -> String {
         match self {
             SeedSource::Default => "the default Material baseline seed".into(),
-            SeedSource::Env => "MATERIALAND_SEED".into(),
+            SeedSource::Configuration => "the central design configuration".into(),
             SeedSource::Wallpaper(path) => format!("the wallpaper {}", path.display()),
         }
     }

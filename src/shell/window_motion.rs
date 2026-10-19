@@ -59,7 +59,11 @@ impl Shell {
         }
         if let Some(s) = self.window_out.get(window) {
             let t = s.value().clamp(0.0, 1.0);
-            return WindowPose::centered(frame, 1.0 - 0.06 * t, 1.0 - t);
+            return WindowPose::centered(
+                frame,
+                1.0 - crate::config::design().motion.window_close_shrink * t,
+                1.0 - t,
+            );
         }
         WindowPose::centered(frame, 1.0, 1.0)
     }

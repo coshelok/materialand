@@ -1,16 +1,8 @@
-//! Vblank paces presentation; a coalesced timer advances animation and the clock.
+//! Page flips pace animation; timers start redraws, retry unchanged scenes and maintain the idle clock.
 use super::*;
 impl App {
     pub(super) fn frame_budget(&self) -> Duration {
-        let refresh = self
-            .state
-            .display
-            .handle
-            .current_mode()
-            .map(|m| m.refresh)
-            .unwrap_or(60_000)
-            .max(1) as u64;
-        Duration::from_nanos((1_000_000_000_000 / refresh).clamp(1_000_000, 100_000_000))
+        crate::app::frame_interval(self.state.display.handle.current_mode().map(|m| m.refresh))
     }
     pub(super) fn schedule(&mut self, delay: Duration) {
         if !self.backend.active || self.backend.gpu.is_none() {
@@ -42,8 +34,20 @@ impl App {
     }
     fn on_timer(&mut self) -> TimeoutAction {
         self.timer = None;
-        self.animating = self.ticker.tick(&mut self.state);
-        self.dirty |= self.animating;
+        self.redraw();
+        TimeoutAction::Drop
+    }
+    pub(super) fn redraw(&mut self) {
+        // A queued page flip owns the next wakeup. Input may mark the scene
+        // dirty, but must never advance animations or enqueue a second frame.
+        if self.pending() {
+            return;
+        }
+        let was_animating = self.animating;
+        let interval = self.frame_budget();
+        self.animating = self.ticker.tick(&mut self.state, interval);
+        // Include the final settled pose even when tick reports no more motion.
+        self.dirty |= was_animating || self.animating;
         if let Some(gpu) = self.backend.gpu.as_mut() {
             if let Some(backlight) = &mut gpu.backlight {
                 self.dirty |= backlight.sync(&mut self.state);
@@ -63,15 +67,18 @@ impl App {
         if self.dirty && !self.pending() {
             render(self);
         }
-        self.schedule(if self.animating || self.dirty || self.pending() {
-            self.frame_budget()
-        } else {
-            IDLE_TICK
-        });
-        TimeoutAction::Drop
+        if !self.pending() {
+            self.schedule(if self.animating || self.dirty {
+                self.frame_budget()
+            } else {
+                IDLE_TICK
+            });
+        }
     }
     pub(super) fn request_redraw(&mut self) {
         self.dirty = true;
-        self.schedule(Duration::ZERO);
+        if !self.pending() {
+            self.schedule(Duration::ZERO);
+        }
     }
 }

@@ -71,6 +71,7 @@ impl Backend {
             device = %path.display(),
             connector = ?connector,
             mode = ?mode.name(),
+            refresh_hz = f64::from(to_output_mode(mode).refresh) / 1000.0,
             "output initialized"
         );
 

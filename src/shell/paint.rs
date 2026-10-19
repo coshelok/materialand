@@ -33,25 +33,37 @@ pub(super) fn masked_from(
 // ---- Layout -------------------------------------------------------------
 
 pub(super) fn draw_m3_switch(s: &mut Surface, x: f32, y: f32, t: f32, theme: &Theme) {
+    let design = crate::config::design();
     let t = t.max(0.0);
     let curve = t.clamp(0.0, 1.0);
     let track = Theme::mix(theme.surface_container_highest, theme.primary, curve);
     let handle_color = Theme::mix(theme.outline, theme.on_primary, curve);
-    s.fill_round_rect(x, y, 52.0, 32.0, 16.0, track);
+    s.fill_round_rect(
+        x,
+        y,
+        design.switch.width,
+        design.switch.height,
+        design.switch.height / 2.0,
+        track,
+    );
     if curve < 0.999 {
         s.stroke_round_rect(
-            x + 0.5,
-            y + 0.5,
-            51.0,
-            31.0,
-            16.0,
-            1.0,
+            x + design.switch.stroke / 2.0,
+            y + design.switch.stroke / 2.0,
+            design.switch.width - design.switch.stroke,
+            design.switch.height - design.switch.stroke,
+            design.switch.height / 2.0,
+            design.switch.stroke,
             Theme::with_alpha(theme.outline, 1.0 - curve),
         );
     }
-    let cx = x + 16.0 + 20.0 * t.clamp(0.0, 1.06);
-    let radius = 8.0 + 4.0 * curve;
-    s.circle(cx, y + 16.0, radius, handle_color);
+    let cx = x
+        + design.switch.height / 2.0
+        + (design.switch.width - design.switch.height)
+            * t.clamp(0.0, design.motion.overshoot_limit);
+    let radius = design.switch.handle_off_radius
+        + (design.switch.handle_on_radius - design.switch.handle_off_radius) * curve;
+    s.circle(cx, y + design.switch.height / 2.0, radius, handle_color);
 }
 pub(super) fn state_layer_overlay(
     s: &mut Surface,
@@ -62,10 +74,11 @@ pub(super) fn state_layer_overlay(
     hovered: bool,
     pressed: bool,
 ) {
+    let design = crate::config::design();
     let opacity = if pressed {
-        state::PRESSED
+        design.state.pressed
     } else if hovered {
-        state::HOVER
+        design.state.hover
     } else {
         return;
     };
@@ -88,12 +101,14 @@ pub(super) fn truncate(s: &str, max: usize) -> String {
 /// Pastel app medallions use complete Material foreground/background pairs.
 /// Fixed container tones keep their soft appearance in both brightness modes.
 pub(super) fn app_colors(theme: &Theme, key: &str) -> (Color, Color) {
-    match config::icon_for_key(key) {
-        "public" | "photo" | "calendar_month" => (theme.tertiary_fixed, theme.on_tertiary_fixed),
-        "terminal" | "code" | "settings" | "monitor" => {
-            (theme.secondary_fixed, theme.on_secondary_fixed)
-        }
-        _ => (theme.primary_fixed, theme.on_primary_fixed),
+    let icon = config::icon_for_key(key);
+    let apps = &crate::config::design().apps;
+    if apps.tertiary_icons.iter().any(|value| value == icon) {
+        (theme.tertiary_fixed, theme.on_tertiary_fixed)
+    } else if apps.secondary_icons.iter().any(|value| value == icon) {
+        (theme.secondary_fixed, theme.on_secondary_fixed)
+    } else {
+        (theme.primary_fixed, theme.on_primary_fixed)
     }
 }
 

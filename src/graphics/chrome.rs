@@ -49,14 +49,15 @@ pub(super) fn paint(
                 win_h,
                 &items,
                 focused.as_ref(),
-                mask,
+                None,
             );
-            push_buffer(
+            push_masked_buffer(
                 &mut elements,
                 renderer,
                 &dock,
                 (dock_loc.x, dock_loc.y),
                 Some(alpha),
+                mask,
             );
         }
 
@@ -80,13 +81,14 @@ pub(super) fn paint(
             let (topbar, topbar_loc) =
                 state
                     .shell
-                    .render_topbar(&target, &mut state.fonts, win_w, &title, mask);
-            push_buffer(
+                    .render_topbar(&target, &mut state.fonts, win_w, &title, None);
+            push_masked_buffer(
                 &mut elements,
                 renderer,
                 &topbar,
                 (topbar_loc.x, topbar_loc.y),
                 Some(alpha),
+                mask,
             );
         }
     }
@@ -115,9 +117,9 @@ pub(super) fn paint(
                 quick_settings_p,
                 state.brightness,
                 variant,
-                mask,
+                None,
             );
-            push_overlay(&mut elements, renderer, &frame, alpha);
+            push_masked_overlay(&mut elements, renderer, &frame, alpha, mask);
         }
     }
 
@@ -137,9 +139,9 @@ pub(super) fn paint(
                 win_w,
                 win_h,
                 launcher_p,
-                mask,
+                None,
             );
-            push_overlay(&mut elements, renderer, &frame, alpha);
+            push_masked_overlay(&mut elements, renderer, &frame, alpha, mask);
         }
     }
 
@@ -171,9 +173,9 @@ pub(super) fn paint(
                 win_w,
                 state.brightness,
                 brightness_p,
-                mask,
+                None,
             );
-            push_overlay(&mut elements, renderer, &frame, alpha);
+            push_masked_overlay(&mut elements, renderer, &frame, alpha, mask);
         }
     }
 
@@ -188,8 +190,8 @@ pub(super) fn paint(
             let frame =
                 state
                     .shell
-                    .render_power_menu(&target, &mut state.fonts, win_w, power_p, mask);
-            push_overlay(&mut elements, renderer, &frame, alpha);
+                    .render_power_menu(&target, &mut state.fonts, win_w, power_p, None);
+            push_masked_overlay(&mut elements, renderer, &frame, alpha, mask);
         }
     }
 
@@ -201,8 +203,8 @@ pub(super) fn paint(
         if let Some((target, mask, alpha)) = second {
             let frame = state
                 .shell
-                .render_calendar(&target, &mut state.fonts, win_w, win_h, mask);
-            push_overlay(&mut elements, renderer, &frame, alpha);
+                .render_calendar(&target, &mut state.fonts, win_w, win_h, None);
+            push_masked_overlay(&mut elements, renderer, &frame, alpha, mask);
         }
     }
 
@@ -216,14 +218,15 @@ pub(super) fn paint(
             if let Some((buffer, loc)) =
                 state
                     .shell
-                    .render_app_menu(&target, &mut state.fonts, win_w, win_h, mask)
+                    .render_app_menu(&target, &mut state.fonts, win_w, win_h, None)
             {
-                push_buffer(
+                push_masked_buffer(
                     &mut elements,
                     renderer,
                     &buffer,
                     (loc.x, loc.y),
                     Some(alpha),
+                    mask,
                 );
             }
         }

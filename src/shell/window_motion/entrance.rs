@@ -32,7 +32,12 @@ pub(in crate::shell) struct Entrance {
 }
 impl Entrance {
     pub(super) fn new(origin: Option<RectF>) -> Self {
-        let mut progress = Spring::at(0.0, 220.0, 0.90);
+        let design = crate::config::design();
+        let mut progress = Spring::at(
+            0.0,
+            design.motion.window_stiffness,
+            design.motion.window_damping,
+        );
         progress.set_target(1.0);
         Self {
             origin,
@@ -73,10 +78,16 @@ impl Entrance {
         self.progress.settled()
     }
     pub(super) fn pose(&self, frame: RectF) -> WindowPose {
+        let design = crate::config::design();
         let t = self.progress.value().clamp(0.0, 1.0);
-        let alpha = (0.06 + t * 1.8).min(1.0);
+        let alpha =
+            (design.motion.window_initial_alpha + t * design.motion.window_alpha_gain).min(1.0);
         let Some(icon) = self.origin else {
-            return WindowPose::centered(frame, 0.86 + 0.14 * t, alpha);
+            return WindowPose::centered(
+                frame,
+                design.motion.window_initial_scale + (1.0 - design.motion.window_initial_scale) * t,
+                alpha,
+            );
         };
         let start_scale = (icon.w / frame.w.max(1.0))
             .min(icon.h / frame.h.max(1.0))

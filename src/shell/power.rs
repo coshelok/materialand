@@ -12,7 +12,7 @@ impl Shell {
     ) -> OverlayFrame {
         let p = progress.clamp(0.0, 1.0);
         let card = power_menu_rect(win_w);
-        let pad = SHADOW_PAD;
+        let pad = crate::config::design().shadow.padding;
         let layer_w = (card.w + 2.0 * pad).ceil() as u32;
         let layer_h = (card.h + 2.0 * pad).ceil() as u32;
         let loc_x = card.x as f64 - pad as f64;
@@ -28,8 +28,7 @@ impl Shell {
             .u64(theme.cache_key())
             .i32(self.hover_power.map_or(-1, |i| i as i32))
             .finish();
-        let cached_ok =
-            mask.is_none() && stable && self.power_layer.as_ref().is_some_and(|l| l.key == key);
+        let cached_ok = mask.is_none() && stable && self.power_layer.select(key);
         let fresh = if cached_ok {
             None
         } else {
@@ -37,7 +36,7 @@ impl Shell {
             self.paint_power_menu(&mut layer, fonts, theme, &card, win_w);
             let buffer = layer.to_memory_buffer();
             if mask.is_none() && stable {
-                self.power_layer = Some(CachedLayer {
+                self.power_layer.store(CachedLayer {
                     key,
                     surface: layer,
                     buffer,
@@ -91,14 +90,23 @@ impl Shell {
         card: &RectF,
         win_w: f32,
     ) {
-        let pad = SHADOW_PAD;
-        layer.shadow_round_rect(pad, pad, card.w, card.h, shape::EXTRA_LARGE, SHADOW_SPREAD);
+        let design = crate::config::design();
+        let pad = design.shadow.padding;
+        layer.shadow_round_rect(
+            pad,
+            pad,
+            card.w,
+            card.h,
+            design.shape.extra_large,
+            design.shadow.spread,
+            theme.shadow,
+        );
         layer.fill_round_rect(
             pad,
             pad,
             card.w,
             card.h,
-            shape::EXTRA_LARGE,
+            design.shape.extra_large,
             theme.surface_container_low,
         );
         for (i, action) in POWER_ACTIONS.iter().enumerate() {
@@ -108,7 +116,9 @@ impl Shell {
             let key = PressKey::Power(i);
             // The press spring drives the state layer, so a release fades the
             // highlight out over the same frames as the squeeze.
-            let hold = ((1.0 - self.press_scale(key)) / 0.10).clamp(0.0, 1.0);
+            let hold = ((1.0 - self.press_scale(key))
+                / (1.0 - design.motion.press_scale).max(0.001))
+            .clamp(0.0, 1.0);
             let hovered = self.hover_power == Some(i);
             if hovered || hold > 0.001 {
                 layer.fill_round_rect(
@@ -116,20 +126,30 @@ impl Shell {
                     ry,
                     row.w,
                     row.h,
-                    shape::MEDIUM,
-                    theme.state_layer(theme.on_surface, state::HOVER.max(state::PRESSED * hold)),
+                    design.shape.medium,
+                    theme.state_layer(
+                        theme.on_surface,
+                        design.state.hover.max(design.state.pressed * hold),
+                    ),
                 );
             }
-            let clip = round_rect_path(rx, ry, row.w, row.h, shape::MEDIUM);
+            let clip = round_rect_path(rx, ry, row.w, row.h, design.shape.medium);
             self.draw_ripple(layer, key, &clip, theme.on_surface);
 
             let cy = ry + row.h / 2.0;
-            fonts.draw_icon_centered(layer, rx + 28.0, cy, action.icon(), 22.0, theme.on_surface);
+            fonts.draw_icon_centered(
+                layer,
+                rx + design.power.icon_x,
+                cy,
+                action.icon(),
+                design.power.icon_size,
+                theme.on_surface,
+            );
             fonts.draw_text_role(
                 layer,
-                rx + 56.0,
-                cy - TextStyle::LABEL_LARGE.line_height / 2.0,
-                TextStyle::LABEL_LARGE,
+                rx + design.power.label_x,
+                cy - TextStyle::label_large().line_height / 2.0,
+                TextStyle::label_large(),
                 action.label(),
                 theme.on_surface,
             );

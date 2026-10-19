@@ -169,6 +169,7 @@ pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
     }
 }
 pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical>) {
+    let design = crate::config::design();
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     let (key, rect) = match control {
         Control::HomeMenu => {
@@ -229,8 +230,8 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
             let r = shell::RectF {
                 x: 0.0,
                 y: 0.0,
-                w: config::LAUNCHER_TILE,
-                h: config::LAUNCHER_TILE,
+                w: design.launcher.tile_size,
+                h: design.launcher.tile_size,
             };
             (PressKey::Launcher(i), r)
         }
@@ -256,16 +257,19 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
             rect.y - state.shell.dock_rect(w, h, dock_item_count(state)).y + rect.h / 2.0,
         ),
         Control::Power(_) => (
-            rect.x - shell::power_menu_rect(w).x + shell::SHADOW_PAD + rect.w / 2.0,
-            rect.y - shell::power_menu_rect(w).y + shell::SHADOW_PAD + rect.h / 2.0,
+            rect.x - shell::power_menu_rect(w).x + design.shadow.padding + rect.w / 2.0,
+            rect.y - shell::power_menu_rect(w).y + design.shadow.padding + rect.h / 2.0,
         ),
         _ => (
-            rect.x - shell::quick_settings_rect(w, h).x + shell::SHADOW_PAD + rect.w / 2.0,
-            rect.y - shell::quick_settings_rect(w, h).y + shell::SHADOW_PAD + rect.h / 2.0,
+            rect.x - shell::quick_settings_rect(w, h).x + design.shadow.padding + rect.w / 2.0,
+            rect.y - shell::quick_settings_rect(w, h).y + design.shadow.padding + rect.h / 2.0,
         ),
     };
     let _ = pos;
-    state
-        .shell
-        .press_begin(key, center, rect.w.max(rect.h) * 0.7, 0.90);
+    state.shell.press_begin(
+        key,
+        center,
+        rect.w.max(rect.h) * design.motion.ripple_radius_ratio,
+        design.motion.press_scale,
+    );
 }

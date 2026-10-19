@@ -50,7 +50,7 @@ pub(super) fn paint(
                 None,
                 Kind::Cursor,
             )
-            .map(|element| vec![UiElement::Memory(element)])
+            .map(|element| vec![UiElement::Memory(element.into())])
             .unwrap_or_default()
         }
     }

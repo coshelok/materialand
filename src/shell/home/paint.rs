@@ -9,6 +9,7 @@ impl Shell {
         h: f32,
         mask: Option<CircleMask>,
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
+        let design = crate::config::design();
         let layout = home_layout(w, h);
         let mut hash = KeyHash::new()
             .u64(theme.cache_key())
@@ -28,23 +29,27 @@ impl Shell {
                 .u32(self.press_scale(PressKey::Home(i)).to_bits());
         }
         let key = hash.finish();
-        if self.home.cache.as_ref().is_none_or(|l| l.key != key) {
+        if !self.home.cache.select(key) {
             let mut s = Surface::new(layout.area.w.ceil() as u32, layout.area.h.ceil() as u32);
-            let x = 16.0;
+            let x = design.home.clock_x;
             let y = self.home_offset();
             let large = TextStyle {
-                size: if layout.area.h > 430.0 { 64.0 } else { 40.0 },
-                line_height: 72.0,
-                tracking: 0.0,
-                kind: FontKind::Regular,
+                size: if layout.area.h > design.home.compact_threshold {
+                    design.home.clock_size
+                } else {
+                    design.home.compact_clock_size
+                },
+                line_height: design.home.clock_line_height,
+                tracking: TextStyle::headline_small().tracking,
+                kind: TextStyle::headline_small().kind,
             };
             fonts.draw_text_role(&mut s, x, y, large, &self.clock, theme.on_surface);
-            if layout.area.h > 430.0 {
+            if layout.area.h > design.home.compact_threshold {
                 fonts.draw_text_role(
                     &mut s,
                     x,
-                    y + 82.0,
-                    TextStyle::TITLE_MEDIUM,
+                    y + design.home.date_y,
+                    TextStyle::title_medium(),
                     &self.calendar.now.date_text(),
                     theme.on_surface_variant,
                 );
@@ -62,8 +67,8 @@ impl Shell {
                         ty,
                         rect.w,
                         rect.h,
-                        24.0,
-                        Theme::with_alpha(theme.primary, 0.10),
+                        design.shape.large,
+                        Theme::with_alpha(theme.primary, design.state.pressed),
                     );
                 }
                 self.draw_launcher_tile(
@@ -96,7 +101,7 @@ impl Shell {
                         r.y - layout.area.y,
                         r.w,
                         r.h,
-                        18.0,
+                        design.home.nav_radius,
                         theme.secondary_container,
                     );
                     fonts.draw_icon_centered(
@@ -104,23 +109,23 @@ impl Shell {
                         r.x - layout.area.x + r.w / 2.0,
                         r.y - layout.area.y + r.h / 2.0,
                         icon,
-                        22.0,
+                        design.home.nav_icon_size,
                         theme.on_secondary_container,
                     );
                 }
                 let label = format!("{} / {}", self.home.page + 1, pages);
-                let tw = fonts.text_width_styled(TextStyle::LABEL_LARGE, &label);
+                let tw = fonts.text_width_styled(TextStyle::label_large(), &label);
                 fonts.draw_text_role(
                     &mut s,
                     w / 2.0 - layout.area.x - tw / 2.0,
-                    layout.previous.y - layout.area.y + 8.0,
-                    TextStyle::LABEL_LARGE,
+                    layout.previous.y - layout.area.y + design.home.label_offset_y,
+                    TextStyle::label_large(),
                     &label,
                     theme.on_surface,
                 );
             }
             let buffer = s.to_memory_buffer();
-            self.home.cache = Some(CachedLayer {
+            self.home.cache.store(CachedLayer {
                 key,
                 surface: s,
                 buffer,

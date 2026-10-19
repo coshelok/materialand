@@ -13,6 +13,14 @@ cargo build --release --locked
 
 The rewrite was developed in an execution environment without a usable seat/GPU session; local Unix-socket/TCP IPC operations are restricted. Compilation and pure tests can be checked there. Interactive Wayland protocol exchanges, output pixels and real KMS presentation are not established by those tests.
 
+The reveal shader also has an explicit offscreen EGL pixel test. It can run on an EGL device or Mesa's software renderer without taking a seat:
+
+```sh
+cargo test --locked egl_reveal_preserves_pixels_clipping_scaling_and_shader_isolation -- --ignored
+```
+
+This checks shader compilation, radial clipping, alpha blending, scaled/cropped sources, framebuffer orientation and shader state isolation. It does not measure physical display FPS. CPU regressions cover native-resolution refresh selection, 30–360 Hz/fractional animation intervals and retention of both cached theme endpoints.
+
 ## Nested session
 
 1. Start `./target/release/materialand --nested` from a working Wayland desktop.
@@ -29,7 +37,7 @@ The rewrite was developed in an execution environment without a usable seat/GPU 
 12. Add/remove home shortcuts from the launcher, dock and home context menus. Restart and verify persistence and independence from dock pins. Fill multiple pages, navigate to the last app, shrink the output and remove apps on the last page. Check icon hit regions while pages animate and repeat with reduced motion.
 13. Press Home or Super+H, including while dragging/resizing an app or with the launcher open. Windows should minimize and remain recoverable from the dock, home shortcut or launcher. Opening a running app should restore it without spawning a second instance. A fresh session should show the home screen.
 14. Launch apps from home, dock and launcher, including after a long idle period and with slow startup. Check that the window grows from the selected icon without pausing an extra frame, stays visible above the closing launcher, preserves aspect ratio and keeps decorations/popups attached. Restore minimized apps and repeat with reduced motion. Click a moving window and check that the click does not activate an invisible final-position control. Check the home screen has no All apps button or empty-state text, and the calendar has no Today button or calendar icon.
-15. Select dark mode and Vibrant, then restart the session and check both are restored on the first frame. Switch back to light and Tonal spot and repeat. Test with a temporary XDG_CONFIG_HOME as well. Saved choices should override startup defaults; a missing or invalid appearance file must not prevent startup.
+15. Select dark mode and Vibrant, then restart the session and check both are restored on the first frame. Switch back to light and Tonal spot and repeat. Test with a temporary XDG_CONFIG_HOME as well. Saved choices should override startup defaults; a missing config must initialize from defaults and legacy appearance; an invalid config must be preserved and reported while the session uses built-in values.
 15. Copy/paste text between two clients, and check applications using D-Bus activation and portal dialogs.
 
 ## Direct session
@@ -47,3 +55,10 @@ The rewrite was developed in an execution environment without a usable seat/GPU 
 11. Close the compositor normally and verify that the display manager/console regains the device.
 
 Record GPU, driver, connector/mode, client, action and logs with any failure. These checks remain pending until run on the actual graphical environment.
+
+16. Run `materialand --init-config` with a temporary XDG_CONFIG_HOME containing a legacy `materialand/appearance` file. Verify migration of dark/Vibrant and that the legacy file remains untouched. Run initialization again and confirm existing edits are preserved. Validate both the generated file and a partial file with `--check-config`.
+17. Customize bar/dock dimensions, window titlebar height, app medallions, text sizes, color roles and spring values in `config.toml`. Restart and check that drawing, click targets, launch origins and maximized placement use the new values together. Toggle theme/palette/reduced motion, then confirm custom layout, colors and comments survive a restart. Check invalid values, typos, unknown schema versions and malformed files through the validator.
+
+18. Initialize a fresh configuration and confirm it contains every built-in section and parameter comments. Change theme/palette/reduced motion through quick settings and confirm the full file, comments and custom values remain. If explicitly using `--compact-config`, compare effective settings before/after, including custom calendar values; verify the exact backup. Enable `input.touchpad.invert_scroll`, restart, and check both axes inside native apps and the launcher. Finger-stop events must preserve kinetic scrolling behavior. Check a mouse wheel and tilted wheel retain their original direction and speed; set the option to false and repeat.
+
+19. On a high-refresh display, verify the direct-session `output initialized` log reports the highest progressive rate at its preferred resolution. Exercise app opening/closing, dock resizing, launcher and sheets, home-page changes, press feedback and repeated theme/palette transitions. Inspect frame intervals with GPU/KMS tracing: the target period is 1000 / refresh_hz milliseconds (6.94 ms at 144 Hz). Check both the first frame after idle and the final settled frame, plus simultaneous app opening and theme changes. Repeat nested on two monitors with different rates and move the host window between them. Check reduced motion, VT pause/resume and idle CPU use. Record actual missed frames and render times on the target hardware; an offscreen/software test cannot establish refresh-rate presentation.

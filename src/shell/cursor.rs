@@ -7,6 +7,7 @@ impl Shell {
         theme: &Theme,
         icon: CursorIcon,
     ) -> (MemoryRenderBuffer, Point<i32, Logical>) {
+        let design = crate::config::design();
         let centered = matches!(
             icon,
             CursorIcon::Text
@@ -19,7 +20,11 @@ impl Shell {
                 | CursorIcon::AllScroll
         );
         let hotspot = if centered {
-            (16, 16).into()
+            (
+                (design.cursor.size / 2.0).round() as i32,
+                (design.cursor.size / 2.0).round() as i32,
+            )
+                .into()
         } else {
             (0, 0).into()
         };
@@ -28,16 +33,20 @@ impl Shell {
                 return (buffer.clone(), hotspot);
             }
         }
-        let mut canvas = Surface::new(32, 32);
+        let mut canvas = Surface::new(design.cursor.size as u32, design.cursor.size as u32);
         let fill = if theme.is_dark {
-            Color::WHITE
+            crate::theme::parse_role_color(&design.cursor.fill_dark)
+                .expect("validated cursor color")
         } else {
-            Color::BLACK
+            crate::theme::parse_role_color(&design.cursor.fill_light)
+                .expect("validated cursor color")
         };
         let outline = if theme.is_dark {
-            Color::BLACK
+            crate::theme::parse_role_color(&design.cursor.outline_dark)
+                .expect("validated cursor color")
         } else {
-            Color::WHITE
+            crate::theme::parse_role_color(&design.cursor.outline_light)
+                .expect("validated cursor color")
         };
         let path = if matches!(icon, CursorIcon::Text | CursorIcon::VerticalText) {
             let mut path = PathBuilder::new();
@@ -82,9 +91,13 @@ impl Shell {
                 (19.5, 16.0),
             ])
         };
-        canvas.stroke_path(&path, 4.0, outline);
+        let factor = design.cursor.size / 32.0;
+        let path = path
+            .transform(SkTransform::from_scale(factor, factor))
+            .expect("valid cursor scale");
+        canvas.stroke_path(&path, design.cursor.outline_width * factor, outline);
         if centered {
-            canvas.stroke_path(&path, 1.8, fill);
+            canvas.stroke_path(&path, design.cursor.stroke_width * factor, fill);
         } else {
             canvas.fill_path(&path, fill);
         }

@@ -37,7 +37,7 @@ fn state() -> (Display<State>, State) {
         Fonts::load().unwrap(),
         vec![],
         vec![],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     (display, state)
 }

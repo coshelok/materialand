@@ -10,6 +10,7 @@ impl Shell {
         _title: &str,
         mask: Option<CircleMask>,
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
+        let design = crate::config::design();
         let rect = topbar_rect(win_w);
         let loc = Point::from((rect.x as f64, rect.y as f64));
         let key = KeyHash::new()
@@ -36,7 +37,6 @@ impl Shell {
             rect.h / 2.0,
             theme.surface_container_low,
         );
-        let cy = rect.h / 2.0;
         let button = |action| {
             let mut b = topbar_button_rect(win_w, action);
             b.x -= rect.x;
@@ -44,7 +44,7 @@ impl Shell {
             b
         };
 
-        // Leading Home button and clock; All apps lives on the home screen and dock.
+        // Leading Home button and clock; the dock opens All apps.
         self.draw_icon_button(
             &mut s,
             fonts,
@@ -52,11 +52,11 @@ impl Shell {
             button(TopAction::Home),
             TopAction::Home,
             "home",
-            24.0,
+            design.topbar.home_icon_size,
             theme.on_primary_container,
             Some(theme.primary_container),
         );
-        let clock_style = TextStyle::LABEL_LARGE;
+        let clock_style = TextStyle::label_large();
         let clock = button(TopAction::Clock);
         let clock_w = fonts.text_width_styled(clock_style, &self.clock);
         s.fill_round_rect(
@@ -74,7 +74,7 @@ impl Shell {
         fonts.draw_text_role(
             &mut s,
             clock.x + (clock.w - clock_w) / 2.0,
-            cy - clock_style.line_height / 2.0,
+            clock.y + (clock.h - clock_style.line_height) / 2.0,
             clock_style,
             &self.clock,
             theme.on_surface,
@@ -88,7 +88,7 @@ impl Shell {
             button(TopAction::Power),
             TopAction::Power,
             "account_circle",
-            22.0,
+            design.topbar.status_icon_size,
             theme.on_surface,
             Some(theme.surface_container_high),
         );
@@ -104,7 +104,7 @@ impl Shell {
             button(TopAction::Theme),
             TopAction::Theme,
             theme_icon,
-            22.0,
+            design.topbar.status_icon_size,
             theme.on_surface_variant,
             None,
         );
@@ -115,7 +115,7 @@ impl Shell {
             button(TopAction::Brightness),
             TopAction::Brightness,
             "brightness_medium",
-            22.0,
+            design.topbar.status_icon_size,
             theme.on_surface_variant,
             None,
         );
@@ -129,7 +129,7 @@ impl Shell {
             button(TopAction::QuickSettings),
             TopAction::QuickSettings,
             "settings",
-            22.0,
+            design.topbar.status_icon_size,
             if self.quick_settings_open {
                 theme.on_secondary_container
             } else {

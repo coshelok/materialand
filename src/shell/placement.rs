@@ -46,7 +46,7 @@ impl Shell {
         let origin = self
             .launcher_origin
             .unwrap_or_else(|| topbar_button_rect(w, TopAction::Launcher));
-        let t = progress.clamp(0.0, 1.06);
+        let t = progress.clamp(0.0, crate::config::design().motion.overshoot_limit);
         let lerp = |a: f32, b: f32| a + (b - a) * t;
         CardPlacement {
             source,
@@ -60,12 +60,14 @@ impl Shell {
     }
 
     pub fn quick_settings_placement(&self, w: f32, h: f32, progress: f32) -> CardPlacement {
+        let design = crate::config::design();
         let source = quick_settings_rect(w, h);
         let origin = self
             .qs_origin
             .unwrap_or_else(|| topbar_button_rect(w, TopAction::QuickSettings));
-        let t = progress.clamp(0.0, 1.06);
-        let scale = 0.82 + 0.18 * t;
+        let t = progress.clamp(0.0, design.motion.overshoot_limit);
+        let scale =
+            design.motion.settings_initial_scale + (1.0 - design.motion.settings_initial_scale) * t;
         let dy = (origin.y + origin.h / 2.0 - (source.y + source.h / 2.0)) * (1.0 - t);
         CardPlacement {
             source,
@@ -93,8 +95,9 @@ impl Shell {
 }
 
 fn panel_placement(source: RectF, bar_bottom: f32, progress: f32, corner: bool) -> CardPlacement {
-    let t = progress.clamp(0.0, 1.06);
-    let scale = 0.86 + 0.14 * t;
+    let design = crate::config::design();
+    let t = progress.clamp(0.0, design.motion.overshoot_limit);
+    let scale = design.motion.panel_initial_scale + (1.0 - design.motion.panel_initial_scale) * t;
     CardPlacement {
         source,
         target: RectF {

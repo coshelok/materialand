@@ -14,7 +14,7 @@ fn home_shortcuts_survive_restart_independently_of_dock_pins() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("home-apps");
     std::fs::write(&path, "desktop:app-3.desktop\ndesktop:missing.desktop\n").unwrap();
-    let mut shell = Shell::new((0..8).map(app).collect(), ThemeSpec::DEFAULT);
+    let mut shell = Shell::new((0..8).map(app).collect(), ThemeSpec::default());
     shell.load_home_at(path.clone()).unwrap();
     assert_eq!(shell.home.apps[0].identity(), app(3).identity());
     let dock: Vec<_> = shell.pinned.iter().map(AppEntry::identity).collect();
@@ -28,7 +28,7 @@ fn home_shortcuts_survive_restart_independently_of_dock_pins() {
             .collect::<Vec<_>>(),
         dock
     );
-    let mut restarted = Shell::new((0..8).map(app).collect(), ThemeSpec::DEFAULT);
+    let mut restarted = Shell::new((0..8).map(app).collect(), ThemeSpec::default());
     restarted.load_home_at(path.clone()).unwrap();
     assert_eq!(restarted.home.apps.len(), 1);
     assert_eq!(restarted.home.apps[0].identity(), app(5).identity());
@@ -42,14 +42,14 @@ fn home_shortcuts_survive_restart_independently_of_dock_pins() {
 }
 #[test]
 fn failed_home_save_does_not_add_a_shortcut() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     shell.home.pins.set_path("/dev/null/home-apps".into());
     assert!(shell.toggle_home_app(app(1)).is_err());
     assert!(!shell.is_on_home(&app(1)) && shell.home.apps.is_empty());
 }
 #[test]
 fn every_home_shortcut_can_be_reached_and_pages_clamp_after_removal() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     shell.set_reduce_motion(true);
     for i in 0..95 {
         shell.toggle_home_app(app(i)).unwrap();
@@ -79,7 +79,7 @@ fn every_home_shortcut_can_be_reached_and_pages_clamp_after_removal() {
 }
 #[test]
 fn ticking_does_not_cancel_home_clicks_and_moving_icons_use_visible_positions() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     for i in 0..50 {
         shell.toggle_home_app(app(i)).unwrap();
     }
@@ -97,4 +97,29 @@ fn ticking_does_not_cancel_home_clicks_and_moving_icons_use_visible_positions() 
     let point = (f64::from(r.x + r.w / 2.0), f64::from(r.y + r.h / 2.0)).into();
     assert!(home_layout(w, h).grid.contains(point));
     assert_eq!(shell.home_hit(w, h, point), Some(HomeHit::App(i)));
+}
+
+#[test]
+fn home_keeps_both_theme_textures_without_rasterizing_on_each_transition_frame() {
+    let spec = ThemeSpec::default();
+    let mut shell = Shell::new(vec![], spec);
+    let mut fonts = Fonts::load().unwrap();
+    let mut pointers = Vec::new();
+    for theme in [spec.light(), spec.dark(), spec.light(), spec.dark()] {
+        shell.render_home(&theme, &mut fonts, 1280.0, 800.0, None);
+        pointers.push(
+            shell
+                .home
+                .cache
+                .as_ref()
+                .unwrap()
+                .surface
+                .pixmap
+                .data()
+                .as_ptr(),
+        );
+    }
+    assert_ne!(pointers[0], pointers[1]);
+    assert_eq!(pointers[0], pointers[2]);
+    assert_eq!(pointers[1], pointers[3]);
 }

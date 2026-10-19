@@ -33,7 +33,9 @@ Resize requests configure a size while retaining the committed window placement.
 
 Window entrances uniformly transform the entire surface/decorations group on the GPU while clients retain their native protocol size. The origin is the launch icon when a matching launch is pending, otherwise the window center. Entrance time starts after its first frame is presented. A focused launching window is composited above the outgoing launcher; panels and menus stay in front. Clicks on the moving frame finish the entrance and are consumed so controls at invisible final coordinates cannot activate. Once settled, surface coordinates and normal input delivery apply directly. Client cursor surfaces retain their own buffer scale and hotspot; named cursors have a raster fallback.
 
-The output model describes an upright, scale-1 logical desktop. Winit's framebuffer orientation is handled by its own damage tracker, independently of protocol output metadata. DRM gets the connector's physical mode and millihertz refresh. `set_output_mode` updates output metadata, desktop size, pointer bounds and maximized/fullscreen placement together.
+The output model describes an upright, scale-1 logical desktop. Winit's framebuffer orientation is handled by its own damage tracker, independently of protocol output metadata. DRM selects the highest progressive millihertz refresh at the preferred resolution. Nested mode tracks its host monitor's reported rate. `set_output_mode` updates output metadata, desktop size, pointer bounds and maximized/fullscreen placement together.
+
+Radial theme reveals clip cached shell textures with a GLES fragment shader. Draw-time source/destination mapping keeps the circle in screen coordinates during clipping, panel scaling and window entrances. A failed shader compilation falls back to a crossfade. The shader override is scoped to one draw; client surfaces retain their own colors. Home and sheet caches retain both palette endpoints, so switching between them does not rasterize or upload the same pixels every frame. Scaled overlays sample their full native source texture instead of treating the destination size as a source crop.
 
 DMA-BUF import requests are completed only after the active renderer validates the buffer. A changed GPU format set replaces the advertised global while preserving disabled old globals for existing clients.
 
@@ -41,11 +43,13 @@ DMA-BUF import requests are completed only after the active renderer validates t
 
 The DRM backend owns the seat, libinput/udev sources, pending GPU initialization and the active output. Input source registration succeeds as a unit. Pause removes timers/device sources and drops scanout; resume rebuilds renderer/output state from the seat. Connector-change events keep an unchanged output alive and recreate it when the selected connector/mode changes.
 
-`FrameState` permits one submitted frame. Rendering synchronizes its fence, queues once, and waits for vblank before acknowledging scanout and releasing client frame callbacks. A no-damage frame may release callbacks for content already presented. Scheduling coalesces redraw requests and derives its animation budget from the output refresh; idle wakeups maintain the clock.
+`FrameState` permits one submitted frame. Rendering synchronizes its fence, queues once, and waits for vblank before acknowledging scanout and releasing client frame callbacks. While a flip is pending, redraw requests only mark the scene dirty: they neither arm an animation timer nor advance springs. The page-flip callback advances and renders the next pose immediately. A no-damage frame may release callbacks for content already presented and uses a refresh-derived timer when more animation work remains. Idle wakeups maintain the clock. Both backends paint the final settled pose, and the animation clock limits its first step after idle to one display interval.
 
 The listening socket, output and GPU are separate resources. Dropping/reopening a GPU preserves Wayland clients and desktop state. A private session bus has the compositor process lifetime and isolates normal D-Bus activation from a parent desktop.
 
-Light/dark mode and palette choices are loaded before the first frame and saved together on every change. Environment settings supply initial defaults; saved choices take priority. Appearance, dock pins and home shortcuts share atomic file replacement under the XDG configuration directory.
+`config/default.toml` is the source of built-in design values. Before fonts, devices and windows are initialized, a partial user `config.toml` is merged and validated into one immutable typed design snapshot. Layout, rendering, input geometry, window placement, typography, Material roles and motion constructors consume that snapshot. Runtime caches therefore require no filesystem reads or configuration locks.
+
+Light/dark mode, palette and reduced motion save to the same TOML document. Preference writes reread the user file, validate it, change only those keys and preserve other values and comments. The legacy `appearance` file migrates when the new file is absent. Appearance, dock pins and home shortcuts share atomic file replacement under the XDG configuration directory. See [Design configuration](DESIGN.md) for the schema and update contract.
 
 ## Boundaries retained from the original implementation
 

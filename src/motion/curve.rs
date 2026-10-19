@@ -12,9 +12,15 @@ impl CubicBezier {
     }
 
     /// M3 curve for elements entering the screen.
-    pub const STANDARD_DECELERATE: Self = Self::new(0.0, 0.0, 0.0, 1.0);
+    pub fn standard_decelerate() -> Self {
+        let c = crate::config::design().easing.standard_decelerate;
+        Self::new(c[0], c[1], c[2], c[3])
+    }
     /// M3 emphasized decelerate curve: fast start, smooth settling.
-    pub const EMPHASIZED_DECELERATE: Self = Self::new(0.05, 0.7, 0.1, 1.0);
+    pub fn emphasized_decelerate() -> Self {
+        let c = crate::config::design().easing.emphasized_decelerate;
+        Self::new(c[0], c[1], c[2], c[3])
+    }
 
     fn axis(&self, t: f32, a1: f32, a2: f32) -> f32 {
         let mt = 1.0 - t;
@@ -59,11 +65,4 @@ impl CubicBezier {
         }
         self.axis(t, self.y1, self.y2)
     }
-}
-
-/// Named Material 3 duration token used by the shell, in seconds.
-pub mod duration {
-    pub const MEDIUM3: f32 = 0.350;
-    pub const LONG1: f32 = 0.450;
-    pub const LONG2: f32 = 0.500;
 }

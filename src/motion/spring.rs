@@ -22,17 +22,32 @@ impl Spring {
     /// Expressive shell geometry: a gentle, visible overshoot and soft landing.
     /// Tuned for desktop panel sizes; not an exact Android platform token.
     pub fn spatial(value: f32) -> Self {
-        Self::at(value, 420.0, 0.68)
+        let design = crate::config::design();
+        Self::at(
+            value,
+            design.motion.spatial_stiffness,
+            design.motion.spatial_damping,
+        )
     }
 
     /// Short press/squeeze feedback returns faster than a large panel.
     pub fn responsive(value: f32) -> Self {
-        Self::at(value, 850.0, 0.58)
+        let design = crate::config::design();
+        Self::at(
+            value,
+            design.motion.responsive_stiffness,
+            design.motion.responsive_damping,
+        )
     }
 
     /// Alpha and color effects should settle without bouncing.
     pub fn effects(value: f32) -> Self {
-        Self::at(value, 1000.0, 1.0)
+        let design = crate::config::design();
+        Self::at(
+            value,
+            design.motion.effects_stiffness,
+            design.motion.effects_damping,
+        )
     }
 
     pub fn value(&self) -> f32 {

@@ -91,7 +91,7 @@ fn animated_clock_navigation_uses_drawn_geometry_and_matching_release() {
         Fonts::load().unwrap(),
         vec![],
         vec![],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     state.shell.set_calendar_open(true);
     state.shell.calendar.year = 2026;

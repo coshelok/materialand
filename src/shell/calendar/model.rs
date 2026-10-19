@@ -31,14 +31,18 @@ impl Shell {
         self.calendar.animation.value()
     }
     pub fn calendar_placement(&self, w: f32, h: f32) -> CardPlacement {
+        let design = crate::config::design();
         let source = calendar_rect(w, h);
-        let t = self.calendar_progress().clamp(0.0, 1.06);
-        let scale = 0.86 + 0.14 * t;
+        let t = self
+            .calendar_progress()
+            .clamp(0.0, design.motion.overshoot_limit);
+        let scale =
+            design.motion.panel_initial_scale + (1.0 - design.motion.panel_initial_scale) * t;
         CardPlacement {
             source,
             target: RectF {
                 x: source.x,
-                y: source.y - 14.0 * (1.0 - t),
+                y: source.y - design.motion.calendar_offset * (1.0 - t),
                 w: source.w * scale,
                 h: source.h * scale,
             },
@@ -67,7 +71,7 @@ mod clock_tests {
     use super::*;
     #[test]
     fn closed_clock_stays_idle_but_open_calendar_tracks_seconds_and_rollover() {
-        let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+        let mut shell = Shell::new(vec![], ThemeSpec::default());
         let mut time = LocalTime {
             year: 2026,
             month: 12,

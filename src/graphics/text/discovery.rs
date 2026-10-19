@@ -2,8 +2,9 @@
 use super::*;
 pub(super) fn font_search_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
-    if let Some(dir) = std::env::var_os("MATERIALAND_FONT_DIR") {
-        roots.push(PathBuf::from(dir));
+    let directory = &crate::config::design().fonts.directory;
+    if !directory.is_empty() {
+        roots.push(PathBuf::from(directory));
     }
     roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fonts"));
     roots.push(PathBuf::from("assets/fonts"));

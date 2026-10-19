@@ -9,7 +9,7 @@
 //! Structure of the module:
 //! - [`Backend`] owns the session and the currently driven GPU,
 //! - [`App`] is the calloop state: the display, the shell state and the
-//!   backend, driven event-driven instead of the fixed 60 Hz loop of winit,
+//!   backend, driven by input, client commits and output page flips,
 //! - frames are paced on vblank: at most one frame is queued per output and
 //!   client frame callbacks fire when the flip completes.
 

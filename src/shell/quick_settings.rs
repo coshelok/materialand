@@ -15,7 +15,7 @@ impl Shell {
     ) -> OverlayFrame {
         let p = progress.clamp(0.0, 1.0);
         let rect = quick_settings_rect(win_w, win_h);
-        let pad = SHADOW_PAD;
+        let pad = crate::config::design().shadow.padding;
         let layer_w = (rect.w + 2.0 * pad).ceil() as u32;
         let layer_h = (rect.h + 2.0 * pad).ceil() as u32;
         let loc_x = rect.x as f64 - pad as f64;
@@ -45,8 +45,7 @@ impl Shell {
         }
         let key = key.finish();
 
-        let cached_ok =
-            mask.is_none() && stable && self.qs_layer.as_ref().is_some_and(|l| l.key == key);
+        let cached_ok = mask.is_none() && stable && self.qs_layer.select(key);
         let fresh = if cached_ok {
             None
         } else {
@@ -54,7 +53,7 @@ impl Shell {
             self.paint_quick_settings(&mut layer, fonts, theme, rect, brightness, variant);
             let buffer = layer.to_memory_buffer();
             if mask.is_none() && stable {
-                self.qs_layer = Some(CachedLayer {
+                self.qs_layer.store(CachedLayer {
                     key,
                     surface: layer,
                     buffer,
@@ -107,29 +106,38 @@ impl Shell {
         brightness: f32,
         variant: ColorVariant,
     ) {
-        let pad = SHADOW_PAD;
-        layer.shadow_round_rect(pad, pad, rect.w, rect.h, shape::EXTRA_LARGE, SHADOW_SPREAD);
+        let design = crate::config::design();
+        let pad = design.shadow.padding;
+        layer.shadow_round_rect(
+            pad,
+            pad,
+            rect.w,
+            rect.h,
+            design.shape.extra_large,
+            design.shadow.spread,
+            theme.shadow,
+        );
         layer.fill_round_rect(
             pad,
             pad,
             rect.w,
             rect.h,
-            shape::EXTRA_LARGE,
+            design.shape.extra_large,
             theme.surface_container_low,
         );
         fonts.draw_text_role(
             layer,
-            pad + 20.0,
-            pad + 16.0,
-            TextStyle::HEADLINE_SMALL,
+            pad + design.quick_settings.padding,
+            pad + design.quick_settings.title_y,
+            TextStyle::headline_small(),
             "Quick settings",
             theme.on_surface,
         );
         fonts.draw_text_role(
             layer,
-            pad + 20.0,
-            pad + 50.0,
-            TextStyle::BODY_SMALL,
+            pad + design.quick_settings.padding,
+            pad + design.quick_settings.subtitle_y,
+            TextStyle::body_small(),
             "Appearance & display",
             theme.on_surface_variant,
         );
@@ -159,21 +167,40 @@ impl Shell {
                 } else {
                     theme.secondary_container
                 },
-                0.30,
+                design.quick_settings.tile_tint,
             );
             let fill = Theme::mix(idle, theme.primary_container, t);
             let on = Theme::mix(theme.on_surface, theme.on_primary_container, t);
             // A pressed tile softens from a rounded rectangle into a pill.
-            let radius = 24.0 + 10.0 * t + 40.0 * (1.0 - squeeze);
+            let radius = design.quick_settings.tile_radius
+                + design.quick_settings.tile_active_radius_growth * t
+                + design.quick_settings.tile_press_radius_growth * (1.0 - squeeze);
             layer.fill_round_rect(tx, ty, tw, th, radius, fill);
-            layer.circle(x + 28.0, y + 26.0, 16.0, Theme::with_alpha(on, 0.06));
-            fonts.draw_icon_centered(layer, x + 28.0, y + 26.0, icon, 22.0 * squeeze, on);
-            let label = fit_text(fonts, TextStyle::LABEL_LARGE, label, tile.w - 28.0);
+            layer.circle(
+                x + design.quick_settings.icon_x,
+                y + design.quick_settings.icon_y,
+                design.quick_settings.icon_radius,
+                Theme::with_alpha(on, design.quick_settings.icon_alpha),
+            );
+            fonts.draw_icon_centered(
+                layer,
+                x + design.quick_settings.icon_x,
+                y + design.quick_settings.icon_y,
+                icon,
+                design.quick_settings.icon_size * squeeze,
+                on,
+            );
+            let label = fit_text(
+                fonts,
+                TextStyle::label_large(),
+                label,
+                tile.w - 2.0 * design.quick_settings.label_x,
+            );
             fonts.draw_text_role(
                 layer,
-                x + 14.0,
-                y + 48.0,
-                TextStyle::LABEL_LARGE,
+                x + design.quick_settings.label_x,
+                y + design.quick_settings.label_y,
+                TextStyle::label_large(),
                 &label,
                 on,
             );
@@ -192,17 +219,17 @@ impl Shell {
             };
             fonts.draw_text_role(
                 layer,
-                x + 14.0,
-                y + 69.0,
-                TextStyle::LABEL_MEDIUM,
+                x + design.quick_settings.label_x,
+                y + design.quick_settings.status_y,
+                TextStyle::label_medium(),
                 &status,
                 on,
             );
             if *action != QuickAction::Brightness {
                 draw_m3_switch(
                     layer,
-                    x + tile.w - 66.0,
-                    y + 12.0,
+                    x + tile.w - design.switch.width - design.quick_settings.label_x,
+                    y + design.quick_settings.switch_y,
                     self.switch_spring(*action),
                     theme,
                 );
@@ -214,7 +241,7 @@ impl Shell {
                     tw,
                     th,
                     radius,
-                    theme.state_layer(on, state::PRESSED),
+                    theme.state_layer(on, design.state.pressed),
                 );
             }
             let clip = round_rect_path(tx, ty, tw, th, radius);
@@ -223,16 +250,16 @@ impl Shell {
 
         fonts.draw_text_role(
             layer,
-            pad + 20.0,
-            pad + QS_CHIPS_Y - 30.0,
-            TextStyle::TITLE_MEDIUM,
+            pad + design.quick_settings.padding,
+            pad + design.quick_settings.chips_y - design.quick_settings.palette_title_gap,
+            TextStyle::title_medium(),
             "Color palette",
             theme.on_surface,
         );
         let swatches = *self.swatches(theme.is_dark);
         for (i, variant_i) in VARIANTS.iter().enumerate() {
             let chip = palette_chip_rect_in(rect, i);
-            if chip.bottom() > rect.bottom() - 6.0 {
+            if chip.bottom() > rect.bottom() - design.quick_settings.chip_bottom_gap {
                 break;
             }
             let key = PressKey::Chip(i);
@@ -255,21 +282,41 @@ impl Shell {
                     cw - 2.0,
                     ch - 2.0,
                     ch / 2.0,
-                    1.5,
-                    Theme::with_alpha(theme.primary, 0.45),
+                    design.quick_settings.chip_outline_width,
+                    Theme::with_alpha(theme.primary, design.quick_settings.chip_outline_alpha),
                 );
             }
             let (a, b, c) = swatches[i];
             let cy = y + ch / 2.0;
-            layer.circle(x + 13.0, cy, 4.0, a);
-            layer.circle(x + 23.0, cy, 4.0, b);
-            layer.circle(x + 33.0, cy, 4.0, c);
-            let name = fit_text(fonts, TextStyle::LABEL_SMALL, variant_i.name(), cw - 49.0);
+            layer.circle(
+                x + design.quick_settings.swatch_first_x,
+                cy,
+                design.quick_settings.swatch_radius,
+                a,
+            );
+            layer.circle(
+                x + design.quick_settings.swatch_first_x + design.quick_settings.swatch_gap,
+                cy,
+                design.quick_settings.swatch_radius,
+                b,
+            );
+            layer.circle(
+                x + design.quick_settings.swatch_first_x + 2.0 * design.quick_settings.swatch_gap,
+                cy,
+                design.quick_settings.swatch_radius,
+                c,
+            );
+            let name = fit_text(
+                fonts,
+                TextStyle::label_small(),
+                variant_i.name(),
+                cw - design.quick_settings.chip_label_x - design.quick_settings.chip_label_padding,
+            );
             fonts.draw_text_role(
                 layer,
-                x + 43.0,
-                cy - TextStyle::LABEL_SMALL.line_height / 2.0,
-                TextStyle::LABEL_SMALL,
+                x + design.quick_settings.chip_label_x,
+                cy - TextStyle::label_small().line_height / 2.0,
+                TextStyle::label_small(),
                 &name,
                 on,
             );

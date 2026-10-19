@@ -92,7 +92,7 @@ fn blit_clip_cuts_in_destination_space() {
 #[test]
 fn shadow_fades_outward_and_stops() {
     let mut s = Surface::new(120, 120);
-    s.shadow_round_rect(40.0, 40.0, 40.0, 40.0, 4.0, 16.0);
+    s.shadow_round_rect(40.0, 40.0, 40.0, 40.0, 4.0, 16.0, Color::BLACK);
     let near = px(&s, 60, 39).3;
     let mid = px(&s, 60, 30).3;
     let far = px(&s, 60, 27).3;

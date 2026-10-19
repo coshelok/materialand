@@ -13,6 +13,7 @@ impl Shell {
         focused: Option<&Window>,
         mask: Option<CircleMask>,
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
+        let design = crate::config::design();
         let rect = self.dock_rect(win_w, win_h, items.len());
         let loc = Point::from((rect.x as f64, rect.y as f64));
         let mut key = KeyHash::new()
@@ -55,7 +56,7 @@ impl Shell {
             if icon_size < 0.5 {
                 continue;
             }
-            let unit = icon_size / config::DOCK_ICON;
+            let unit = icon_size / design.dock.icon_size;
             let cx = item_rect.x - rect.x + icon_size / 2.0;
             let key = PressKey::Dock(i);
             let scale = self.press_scale(key);
@@ -68,7 +69,7 @@ impl Shell {
                         cx,
                         cy,
                         "apps",
-                        28.0 * scale * unit,
+                        design.dock.glyph_size * scale * unit,
                         theme.on_primary_container,
                     );
                 }
@@ -76,7 +77,14 @@ impl Shell {
                     let icon = config::icon_for_key(&app.icon);
                     let (fill, on) = app_colors(theme, &app.icon);
                     s.circle(cx, cy, icon_size / 2.0 * scale, fill);
-                    fonts.draw_icon_centered(&mut s, cx, cy, icon, 28.0 * scale * unit, on);
+                    fonts.draw_icon_centered(
+                        &mut s,
+                        cx,
+                        cy,
+                        icon,
+                        design.dock.glyph_size * scale * unit,
+                        on,
+                    );
                 }
                 DockItem::Focus { window, key: k, .. } => {
                     let icon = config::icon_for_key(k);
@@ -91,7 +99,7 @@ impl Shell {
                             cy - h / 2.0,
                             w,
                             h,
-                            shape::LARGE,
+                            design.shape.large,
                             theme.primary_container,
                         );
                     }
@@ -100,7 +108,7 @@ impl Shell {
                         cx,
                         cy,
                         icon,
-                        28.0 * scale * unit,
+                        design.dock.glyph_size * scale * unit,
                         if active {
                             theme.on_primary_container
                         } else {
@@ -109,11 +117,19 @@ impl Shell {
                     );
                     // Indicator dot for running apps.
                     s.fill_round_rect(
-                        cx - if active { 7.0 } else { 2.0 },
-                        rect.h - 8.0,
-                        if active { 14.0 } else { 4.0 },
-                        3.0,
-                        1.5,
+                        cx - if active {
+                            design.dock.indicator_active_width / 2.0
+                        } else {
+                            design.dock.indicator_width / 2.0
+                        },
+                        rect.h - design.dock.indicator_bottom,
+                        if active {
+                            design.dock.indicator_active_width
+                        } else {
+                            design.dock.indicator_width
+                        },
+                        design.dock.indicator_height,
+                        design.dock.indicator_radius,
                         theme.primary,
                     );
                 }
@@ -123,19 +139,19 @@ impl Shell {
             let pressed = self.press_dock == Some(i);
             if hovered || pressed {
                 let opacity = if pressed {
-                    state::PRESSED
+                    design.state.pressed
                 } else {
-                    state::HOVER
+                    design.state.hover
                 };
                 s.circle(
                     cx,
                     cy,
-                    icon_size / 2.0 + 4.0,
+                    icon_size / 2.0 + design.dock.feedback_padding,
                     theme.state_layer(theme.on_surface, opacity),
                 );
             }
             let mut cb = PathBuilder::new();
-            cb.push_circle(cx, cy, icon_size / 2.0 + 4.0);
+            cb.push_circle(cx, cy, icon_size / 2.0 + design.dock.feedback_padding);
             if let Some(clip) = cb.finish() {
                 self.draw_ripple(&mut s, key, &clip, theme.on_surface);
             }

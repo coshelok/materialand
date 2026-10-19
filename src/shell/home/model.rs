@@ -37,7 +37,7 @@ impl Shell {
         } else {
             self.home.apps.retain(|a| a.identity() != id);
         }
-        self.home.cache = None;
+        self.home.cache.clear();
         Ok(())
     }
     pub fn reveal_home(&mut self) {
@@ -47,7 +47,14 @@ impl Shell {
         self.home.reveal.set_target(1.0);
     }
     pub fn home_offset(&self) -> f32 {
-        18.0 * (1.0 - self.home.reveal.value().clamp(0.0, 1.06))
+        let design = crate::config::design();
+        design.motion.home_offset
+            * (1.0
+                - self
+                    .home
+                    .reveal
+                    .value()
+                    .clamp(0.0, design.motion.overshoot_limit))
     }
     pub fn turn_home_page(&mut self, w: f32, h: f32, delta: i32) {
         self.home.page = (self.home.page as i64 + i64::from(delta))

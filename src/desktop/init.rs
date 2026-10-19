@@ -101,7 +101,7 @@ impl State {
         ViewporterState::new::<Self>(&dh);
         let activation_state = XdgActivationState::new::<Self>(&dh);
 
-        let theme = if std::env::var("MATERIALAND_THEME").is_ok_and(|v| v == "dark") {
+        let theme = if config::design().appearance.theme == "dark" {
             spec.dark()
         } else {
             spec.light()

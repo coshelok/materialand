@@ -84,12 +84,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
                 shell::HomeHit::App(i) => {
                     if let Some(app) = state.shell.home.apps.get(i).cloned() {
                         let tile = state.shell.home_tile_rect(w, h, i);
-                        let icon = shell::RectF {
-                            x: tile.x + 22.0,
-                            y: tile.y + 2.0,
-                            w: 68.0,
-                            h: 68.0,
-                        };
+                        let icon = shell::app_icon_rect(tile);
                         launch_or_focus(state, &app, Some(icon));
                     }
                 }
@@ -307,8 +302,7 @@ pub(super) fn perform_quick_action(state: &mut State, action: QuickAction) {
             }
         }
         QuickAction::ReduceMotion => {
-            let enabled = !state.shell.reduce_motion;
-            state.shell.set_reduce_motion(enabled);
+            state.toggle_reduce_motion();
         }
         QuickAction::Brightness => {
             state.shell.set_quick_settings_open(false);

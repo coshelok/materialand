@@ -34,8 +34,8 @@ impl Shell {
             progress: Tween::new(
                 0.0,
                 1.0,
-                duration::MEDIUM3,
-                CubicBezier::STANDARD_DECELERATE,
+                crate::config::design().motion.ripple_duration,
+                CubicBezier::standard_decelerate(),
             ),
         });
     }
@@ -78,7 +78,7 @@ impl Shell {
             return None;
         }
         let t = ripple.progress.value().clamp(0.0, 1.0);
-        let alpha = 0.12 * (1.0 - t) * (1.0 - t);
+        let alpha = crate::config::design().state.ripple * (1.0 - t) * (1.0 - t);
         Some((ripple.cx, ripple.cy, ripple.max_r * t, alpha))
     }
 

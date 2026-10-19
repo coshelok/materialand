@@ -157,8 +157,8 @@ impl Shell {
             progress: Tween::new(
                 0.0,
                 1.0,
-                duration::LONG1,
-                CubicBezier::EMPHASIZED_DECELERATE,
+                crate::config::design().motion.reveal_duration,
+                CubicBezier::emphasized_decelerate(),
             ),
         });
     }

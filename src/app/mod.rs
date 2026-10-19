@@ -7,10 +7,10 @@ pub mod session_bus;
 mod tick;
 use crate::{backend, config, desktop::State, graphics::text::Fonts, theme::ThemeSpec, Result};
 use smithay::{backend::allocator::Format, reexports::wayland_server::Display};
-pub use tick::Ticker;
+pub use tick::{frame_interval, Ticker};
 pub fn create(formats: Vec<Format>) -> Result<(Display<State>, State)> {
     let mut display = Display::new()?;
-    let (spec, source) = ThemeSpec::from_env();
+    let (spec, source) = ThemeSpec::from_config();
     tracing::info!(source=%source.describe(),"material palette");
     let mut state = State::new(
         &mut display,
@@ -36,6 +36,25 @@ pub fn run() -> Result<()> {
         cli::help();
         return Ok(());
     }
+    if mode == cli::Mode::PrintConfig {
+        print!("{}", config::DEFAULT_CONFIG);
+        return Ok(());
+    }
+    if mode == cli::Mode::CheckConfig {
+        config::check_design_file()?;
+        return Ok(());
+    }
+    if mode == cli::Mode::InitConfig {
+        config::initialize_design_file()?;
+        return Ok(());
+    }
+    if mode == cli::Mode::CompactConfig {
+        config::compact_config_file()?;
+        return Ok(());
+    }
+    if matches!(mode, cli::Mode::Direct | cli::Mode::Nested) {
+        config::initialize_design();
+    }
     runtime::prepare()?;
     match mode {
         cli::Mode::Nested => backend::nested::run(),
@@ -51,6 +70,10 @@ pub fn run() -> Result<()> {
             let ticker = Ticker::new(&mut state);
             backend::drm::run(event_loop, display, state, listener, ticker, backend)
         }
-        cli::Mode::Help => unreachable!(),
+        cli::Mode::Help
+        | cli::Mode::PrintConfig
+        | cli::Mode::CheckConfig
+        | cli::Mode::InitConfig
+        | cli::Mode::CompactConfig => unreachable!(),
     }
 }

@@ -12,29 +12,30 @@ impl Shell {
         y: f32,
         scale: f32,
     ) {
+        let design = crate::config::design();
         let icon_name = config::icon_for_key(&app.icon);
         let (fill, on) = app_colors(theme, &app.icon);
         s.circle(
-            x + config::LAUNCHER_TILE / 2.0,
-            y + 36.0,
-            34.0 * scale,
+            x + design.launcher.tile_size / 2.0,
+            y + design.apps.icon_center_y,
+            design.apps.medallion_radius * scale,
             fill,
         );
         fonts.draw_icon_centered(
             s,
-            x + config::LAUNCHER_TILE / 2.0,
-            y + 36.0,
+            x + design.launcher.tile_size / 2.0,
+            y + design.apps.icon_center_y,
             icon_name,
-            30.0 * scale,
+            design.apps.glyph_size * scale,
             on,
         );
-        let label = truncate(&app.name, 14);
-        let label_style = TextStyle::BODY_MEDIUM;
+        let label = truncate(&app.name, design.apps.label_max_chars);
+        let label_style = TextStyle::body_medium();
         let lw = fonts.text_width_styled(label_style, &label);
         fonts.draw_text_role(
             s,
-            x + config::LAUNCHER_TILE / 2.0 - lw / 2.0,
-            y + 76.0,
+            x + design.launcher.tile_size / 2.0 - lw / 2.0,
+            y + design.apps.label_y,
             label_style,
             &label,
             theme.on_surface,

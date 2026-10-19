@@ -2,14 +2,14 @@ use super::*;
 
 #[test]
 fn curve_has_correct_endpoints() {
-    let c = CubicBezier::EMPHASIZED_DECELERATE;
+    let c = CubicBezier::emphasized_decelerate();
     assert!((c.eval(0.0)).abs() < 1e-3, "f(0) must be 0");
     assert!((c.eval(1.0) - 1.0).abs() < 1e-3, "f(1) must be 1");
 }
 
 #[test]
 fn curve_is_monotonic() {
-    let c = CubicBezier::EMPHASIZED_DECELERATE;
+    let c = CubicBezier::emphasized_decelerate();
     let mut last = c.eval(0.0);
     for i in 1..=100 {
         let v = c.eval(i as f32 / 100.0);
@@ -78,7 +78,7 @@ fn effects_springs_never_overshoot() {
 
 #[test]
 fn tween_reaches_endpoints() {
-    let mut t = Tween::new(0.0, 1.0, 0.2, CubicBezier::EMPHASIZED_DECELERATE);
+    let mut t = Tween::new(0.0, 1.0, 0.2, CubicBezier::emphasized_decelerate());
     assert!(t.step(0.0), "tween is active before the duration elapses");
     assert!(!t.step(0.2), "tween must finish at its duration");
     assert!((t.value() - 1.0).abs() < 1e-3);
@@ -86,7 +86,7 @@ fn tween_reaches_endpoints() {
 
 #[test]
 fn tween_is_monotonic_for_decelerate() {
-    let mut t = Tween::new(0.0, 10.0, 0.5, CubicBezier::EMPHASIZED_DECELERATE);
+    let mut t = Tween::new(0.0, 10.0, 0.5, CubicBezier::emphasized_decelerate());
     let mut last = t.value();
     while t.step(1.0 / 120.0) {
         let v = t.value();
@@ -108,6 +108,9 @@ fn expressive_motion_bounces_while_effects_stay_bounded() {
         peak = peak.max(spatial.value());
         assert!((0.0..=1.0).contains(&effects.value()));
     }
-    assert!(peak > 1.025 && peak < 1.06, "controlled overshoot: {peak}");
+    assert!(
+        peak > 1.025 && peak < crate::config::design().motion.overshoot_limit,
+        "controlled overshoot: {peak}"
+    );
     assert!(spatial.settled() && effects.settled());
 }

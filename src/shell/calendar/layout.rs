@@ -1,25 +1,42 @@
 //! Clock sheet geometry, shared by rendering and pointer handling.
 use super::*;
 pub fn calendar_rect(w: f32, h: f32) -> RectF {
+    let design = crate::config::design();
     let bar = topbar_rect(w);
     RectF {
-        x: bar.x + 8.0,
-        y: bar.bottom() + 8.0,
-        w: 360.0_f32.min((bar.w - 16.0).max(1.0)),
-        h: 456.0_f32.min((h - bar.bottom() - 20.0).max(1.0)),
+        x: bar.x + design.panels.edge_inset,
+        y: bar.bottom() + design.panels.edge_inset,
+        w: design
+            .calendar
+            .width
+            .min((bar.w - 2.0 * design.panels.edge_inset).max(1.0)),
+        h: design
+            .calendar
+            .height
+            .min((h - bar.bottom() - design.panels.bottom_gap).max(1.0)),
     }
 }
 pub(super) fn nav_rect(card: RectF, action: CalendarAction) -> Option<RectF> {
+    let design = crate::config::design();
     let (x, w) = match action {
-        CalendarAction::Previous => (card.w - 104.0, 40.0),
-        CalendarAction::Next => (card.w - 56.0, 40.0),
+        CalendarAction::Previous => (
+            card.w
+                - design.calendar.nav_right
+                - 2.0 * design.calendar.nav_width
+                - design.calendar.nav_gap,
+            design.calendar.nav_width,
+        ),
+        CalendarAction::Next => (
+            card.w - design.calendar.nav_right - design.calendar.nav_width,
+            design.calendar.nav_width,
+        ),
         CalendarAction::Today => return None,
     };
     Some(RectF {
         x: card.x + x,
-        y: card.y + 150.0,
+        y: card.y + design.calendar.nav_y,
         w,
-        h: 36.0,
+        h: design.calendar.nav_height,
     })
 }
 pub fn calendar_hit(w: f32, h: f32, pos: Point<f64, Logical>) -> Option<CalendarAction> {

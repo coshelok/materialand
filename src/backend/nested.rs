@@ -10,7 +10,7 @@ use smithay::{
     output::Mode,
     utils::{Physical, Size, Transform},
 };
-use std::time::{Duration, Instant};
+use std::time::Instant;
 pub fn run() -> Result<()> {
     let (mut backend, mut events) = winit::init::<GlesRenderer>()?;
     backend.window().set_cursor_visible(false);
@@ -25,16 +25,18 @@ pub fn run() -> Result<()> {
     let listener = app::runtime::socket()?;
     let _bus = app::session_bus::SessionBus::start();
     let mut size = backend.window_size();
-    resize(&mut state, size);
+    let mut refresh = host_refresh(backend.window());
+    resize(&mut state, size, refresh);
     let mut tracker = OutputDamageTracker::new(size, 1.0, Transform::Flipped180);
     let mut ticker = app::Ticker::new(&mut state);
-    let budget = Duration::from_micros(16_667);
+    let mut animating = false;
     let mut dirty = true;
     while state.running {
         let started = Instant::now();
         let mut resize_to = None;
         let status = events.dispatch_new_events(|event| match event {
             WinitEvent::Resized { size, .. } => resize_to = Some(size),
+            WinitEvent::Redraw => dirty = true,
             WinitEvent::CloseRequested => state.running = false,
             WinitEvent::Input(event) => {
                 dirty = true;
@@ -58,15 +60,24 @@ pub fn run() -> Result<()> {
         if !state.running || matches!(status, PumpStatus::Exit(_)) {
             break;
         }
+        let next_refresh = host_refresh(backend.window());
+        if next_refresh != refresh {
+            refresh = next_refresh;
+            resize(&mut state, size, refresh);
+            dirty = true;
+        }
+        let budget = app::frame_interval(Some(refresh));
         if let Some(next) = resize_to.filter(|next| next.w > 0 && next.h > 0 && *next != size) {
             size = next;
-            resize(&mut state, size);
+            resize(&mut state, size, refresh);
             tracker = OutputDamageTracker::new(size, 1.0, Transform::Flipped180);
             dirty = true;
         }
         app::clients::accept(&mut display, &listener)?;
         dirty |= app::clients::dispatch(&mut display, &mut state)? > 0;
-        dirty |= ticker.tick(&mut state);
+        let was_animating = animating;
+        animating = ticker.tick(&mut state, budget);
+        dirty |= was_animating || animating;
         if dirty && size.w > 0 && size.h > 0 {
             // Bind errors leave the scene dirty; a later event/tick can retry safely.
             let rendered = match backend.bind() {
@@ -96,11 +107,16 @@ pub fn run() -> Result<()> {
     }
     Ok(())
 }
-fn resize(state: &mut crate::desktop::State, size: Size<i32, Physical>) {
+fn host_refresh(window: &::winit::window::Window) -> i32 {
+    window
+        .current_monitor()
+        .and_then(|monitor| monitor.refresh_rate_millihertz())
+        .and_then(|refresh| i32::try_from(refresh).ok())
+        .filter(|refresh| *refresh > 0)
+        .unwrap_or(60_000)
+}
+fn resize(state: &mut crate::desktop::State, size: Size<i32, Physical>, refresh: i32) {
     if size.w > 0 && size.h > 0 {
-        state.set_output_mode(Mode {
-            size,
-            refresh: 60_000,
-        });
+        state.set_output_mode(Mode { size, refresh });
     }
 }

@@ -11,7 +11,7 @@ impl Theme {
         } else {
             built.schemes.light
         };
-        Self {
+        let mut theme = Self {
             is_dark: dark,
             primary: role(s.primary),
             on_primary: role(s.on_primary),
@@ -62,7 +62,9 @@ impl Theme {
             scrim: role(s.scrim),
             inverse_surface: role(s.inverse_surface),
             inverse_on_surface: role(s.inverse_on_surface),
-        }
+        };
+        theme.apply_configured_colors();
+        theme
     }
 
     /// Surface tone for a Material 3 elevation level (0..=5).

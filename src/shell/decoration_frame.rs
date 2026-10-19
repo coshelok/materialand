@@ -7,31 +7,37 @@ pub(super) fn paint_frame(
     theme: &Theme,
     focused: bool,
 ) {
+    let design = crate::config::design();
     surface.shadow_round_rect(
-        SHADOW_PAD,
-        SHADOW_PAD,
+        design.shadow.padding,
+        design.shadow.padding,
         layout.frame.w,
         layout.frame.h,
-        config::FRAME_RADIUS,
-        SHADOW_SPREAD,
+        design.shape.extra_large,
+        design.shadow.spread,
+        theme.shadow,
     );
     let fill = Theme::mix(
         theme.surface_for_elevation(1),
         theme.secondary_container,
-        if focused { 0.55 } else { 0.1 },
+        if focused {
+            design.window.focused_tint
+        } else {
+            design.window.inactive_tint
+        },
     );
     // Clip the rounded outer shape to its titlebar. No body fill or outline is
     // painted underneath translucent terminals or client-owned rounded edges.
     let shape = round_rect_path(
-        SHADOW_PAD,
-        SHADOW_PAD,
+        design.shadow.padding,
+        design.shadow.padding,
         layout.frame.w,
         layout.frame.h,
-        config::FRAME_RADIUS,
+        design.shape.extra_large,
     );
     let titlebar = round_rect_path(
-        SHADOW_PAD,
-        SHADOW_PAD,
+        design.shadow.padding,
+        design.shadow.padding,
         layout.titlebar.w,
         layout.titlebar.h,
         0.0,
@@ -40,8 +46,8 @@ pub(super) fn paint_frame(
     // The shadow primitive includes its interior; punch out the whole client
     // rectangle so even its translucent pixels see the scene below the window.
     let client = tiny_skia::Rect::from_xywh(
-        SHADOW_PAD + layout.content.x - layout.frame.x,
-        SHADOW_PAD + layout.content.y - layout.frame.y,
+        design.shadow.padding + layout.content.x - layout.frame.x,
+        design.shadow.padding + layout.content.y - layout.frame.y,
         layout.content.w,
         layout.content.h,
     );
@@ -63,16 +69,17 @@ mod tests {
 
     #[test]
     fn transparent_client_has_no_system_backdrop_or_light_outline() {
+        let design = crate::config::design();
         let layout = decor_layout(Rectangle::new((100, 100).into(), (320, 240).into()));
-        for theme in [ThemeSpec::DEFAULT.light(), ThemeSpec::DEFAULT.dark()] {
+        for theme in [ThemeSpec::default().light(), ThemeSpec::default().dark()] {
             for focused in [false, true] {
                 let mut surface = Surface::new(
-                    (layout.frame.w + 2.0 * SHADOW_PAD) as u32,
-                    (layout.frame.h + 2.0 * SHADOW_PAD) as u32,
+                    (layout.frame.w + 2.0 * design.shadow.padding) as u32,
+                    (layout.frame.h + 2.0 * design.shadow.padding) as u32,
                 );
                 paint_frame(&mut surface, &layout, &theme, focused);
-                let x0 = (SHADOW_PAD + layout.content.x - layout.frame.x) as u32;
-                let y0 = (SHADOW_PAD + layout.content.y - layout.frame.y) as u32;
+                let x0 = (design.shadow.padding + layout.content.x - layout.frame.x) as u32;
+                let y0 = (design.shadow.padding + layout.content.y - layout.frame.y) as u32;
                 for y in y0..y0 + 240 {
                     for x in x0..x0 + 320 {
                         assert_eq!(
@@ -85,7 +92,7 @@ mod tests {
                 assert_eq!(
                     surface
                         .pixmap
-                        .pixel(x0 + 160, SHADOW_PAD as u32 + 22)
+                        .pixel(x0 + 160, design.shadow.padding as u32 + 22)
                         .unwrap()
                         .alpha(),
                     255

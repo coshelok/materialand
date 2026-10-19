@@ -16,6 +16,7 @@ impl State {
                 } else {
                     self.theme_spec.light()
                 };
+                self.shell.set_reduce_motion(appearance.reduce_motion);
                 self.shell.set_theme_switch(appearance.dark);
             }
             Err(error) => {
@@ -29,6 +30,7 @@ impl State {
         config::Appearance {
             dark: self.theme.is_dark,
             variant: self.theme_spec.variant,
+            reduce_motion: self.shell.reduce_motion,
         }
     }
 
@@ -36,6 +38,11 @@ impl State {
         if let Err(error) = self.appearance_store.save(self.current_appearance()) {
             tracing::warn!(%error, "could not save appearance");
         }
+    }
+
+    pub fn toggle_reduce_motion(&mut self) {
+        self.shell.set_reduce_motion(!self.shell.reduce_motion);
+        self.save_appearance();
     }
 
     pub fn toggle_theme(&mut self, origin: Point<f64, Logical>) {

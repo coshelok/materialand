@@ -246,3 +246,32 @@ pub struct DecorParams<'a> {
     pub focused: bool,
     pub maximized: bool,
 }
+
+/// Keep both transition endpoints resident. Selecting a palette only swaps
+/// handles; it does not copy pixels, upload a new texture or repaint text.
+#[derive(Default)]
+pub(super) struct LayerCache {
+    current: Option<CachedLayer>,
+    previous: Option<CachedLayer>,
+}
+impl LayerCache {
+    pub fn select(&mut self, key: u64) -> bool {
+        if self.current.as_ref().is_some_and(|layer| layer.key == key) {
+            return true;
+        }
+        if self.previous.as_ref().is_some_and(|layer| layer.key == key) {
+            std::mem::swap(&mut self.current, &mut self.previous);
+            return true;
+        }
+        false
+    }
+    pub fn store(&mut self, layer: CachedLayer) {
+        self.previous = self.current.replace(layer);
+    }
+    pub fn as_ref(&self) -> Option<&CachedLayer> {
+        self.current.as_ref()
+    }
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+}

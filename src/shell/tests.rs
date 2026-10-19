@@ -17,11 +17,11 @@ fn app(name: &str) -> AppEntry {
 
 #[test]
 fn pinned_has_exactly_one_terminal() {
-    let s = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let s = Shell::new(vec![], ThemeSpec::default());
     assert_eq!(s.pinned.len(), 1);
     let s = Shell::new(
         vec![app("Foot Terminal"), app("Firefox")],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     assert_eq!(s.pinned.len(), 1);
     assert_eq!(s.pinned[0].name, "Foot Terminal");
@@ -31,10 +31,10 @@ fn pinned_has_exactly_one_terminal() {
 fn terminal_command_follows_discovered_app() {
     let s = Shell::new(
         vec![app("Kitty Terminal"), app("Firefox")],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     assert_eq!(s.terminal, vec!["/bin/true".to_string()]);
-    let s = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let s = Shell::new(vec![], ThemeSpec::default());
     assert!(!s.terminal.is_empty());
 }
 
@@ -42,12 +42,12 @@ fn terminal_command_follows_discovered_app() {
 fn kitty_wins_over_other_terminals() {
     let s = Shell::new(
         vec![app("Foot Terminal"), app("kitty"), app("Firefox")],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     assert_eq!(s.pinned[0].name, "kitty");
     let s = Shell::new(
         vec![app("Foot Terminal"), app("Alacritty"), app("Firefox")],
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     assert_eq!(s.pinned[0].name, "Alacritty");
 }
@@ -79,7 +79,7 @@ fn session_menu_sits_below_the_user_button() {
         (card.right() - button.right()).abs() < 0.5,
         "right edge follows the button"
     );
-    assert!(card.h >= POWER_ACTIONS.len() as f32 * POWER_ROW_H);
+    assert!(card.h >= POWER_ACTIONS.len() as f32 * crate::config::design().power.row_height);
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn palette_chips_map_to_variants() {
 fn quick_settings_sheet_fits_palette_grid() {
     let (w, h) = (1000.0, 800.0);
     let rect = quick_settings_rect(w, h);
-    assert!(rect.h >= QS_SHEET_HEIGHT - 1.0);
+    assert!(rect.h >= crate::config::design().quick_settings.height - 1.0);
     let last = palette_chip_rect(w, h, VARIANTS.len() - 1).expect("last chip fits");
     assert!(last.bottom() <= rect.bottom());
 }
@@ -218,7 +218,7 @@ fn decor_hit_regions() {
 
 #[test]
 fn press_visuals_animate_and_settle() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     let key = PressKey::Top(TopAction::Theme);
     shell.press_begin(key, (10.0, 10.0), 12.0, 0.86);
     // The scale spring is already aiming at the pressed value, so one tick
@@ -239,7 +239,7 @@ fn press_visuals_animate_and_settle() {
 
 #[test]
 fn toggle_night_light_animates_the_switch() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     assert!(shell.switch_spring(QuickAction::NightLight) < 0.5);
     shell.toggle_night_light();
     for _ in 0..180 {
@@ -250,7 +250,7 @@ fn toggle_night_light_animates_the_switch() {
 
 #[test]
 fn reduce_motion_snaps_the_switch() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     shell.set_reduce_motion(true);
     shell.toggle_night_light();
     assert_eq!(shell.switch_spring(QuickAction::NightLight), 1.0);
@@ -259,7 +259,7 @@ fn reduce_motion_snaps_the_switch() {
 
 #[test]
 fn reduce_motion_engages_its_own_switch() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     assert!(shell.switch_spring(QuickAction::ReduceMotion) < 0.5);
     shell.set_reduce_motion(true);
     assert_eq!(
@@ -279,8 +279,8 @@ fn reduce_motion_engages_its_own_switch() {
 
 #[test]
 fn theme_fade_returns_both_endpoints_only_while_running() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
-    let old = crate::theme::ThemeSpec::DEFAULT.dark();
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
+    let old = crate::theme::ThemeSpec::default().dark();
     assert!(shell.theme_fade().is_none(), "no fade when idle");
     shell.begin_theme_change(old);
     let (base, alpha) = shell.theme_fade().expect("fade while running");
@@ -307,9 +307,9 @@ fn launcher_columns_positive() {
 
 #[test]
 fn launcher_layer_caches_across_the_animation() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     let mut fonts = crate::graphics::text::Fonts::load().expect("test system font");
-    let theme = crate::theme::ThemeSpec::DEFAULT.dark();
+    let theme = crate::theme::ThemeSpec::default().dark();
     let (w, h) = (1280.0, 800.0);
     let _ = shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
     let key = shell
@@ -330,9 +330,9 @@ fn launcher_layer_caches_across_the_animation() {
 
 #[test]
 fn launcher_frame_scales_and_scrims_on_the_gpu_path() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     let mut fonts = crate::graphics::text::Fonts::load().expect("test system font");
-    let theme = crate::theme::ThemeSpec::DEFAULT.dark();
+    let theme = crate::theme::ThemeSpec::default().dark();
     let (w, h) = (1280.0, 800.0);
     let frame = shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
     // Scrim (stretched over the output) plus the scaled card layer.
@@ -367,7 +367,7 @@ fn floating_dock_fits_small_outputs_and_large_window_lists() {
 
 #[test]
 fn reduced_motion_finishes_all_open_panels() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     shell.launcher_open = true;
     shell.set_launcher_open(true);
     shell.set_power_open(true);
@@ -410,7 +410,7 @@ fn theme_reveal_uses_local_coordinates_for_floating_chrome() {
 
 #[test]
 fn dock_grows_shrinks_and_retargets_without_jumping() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     let entry = |name: &str| {
         DockItem::Launch(AppEntry {
             name: name.into(),
@@ -464,11 +464,11 @@ fn dock_grows_shrinks_and_retargets_without_jumping() {
 #[test]
 fn launcher_scroll_reaches_last_app_and_does_not_scroll_the_search_field() {
     let apps = (0..100).map(|i| app(&format!("App {i:03}"))).collect();
-    let mut shell = Shell::new(apps, ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(apps, ThemeSpec::default());
     shell.set_reduce_motion(true);
     let (w, h) = (1000.0, 700.0);
     let mut fonts = Fonts::load().unwrap();
-    let theme = ThemeSpec::DEFAULT.light();
+    let theme = ThemeSpec::default().light();
     shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
     let before = shell.launcher_layer.as_ref().unwrap().surface.duplicate();
     shell.scroll_launcher(w, h, 100000.0);
@@ -515,27 +515,27 @@ fn launcher_scroll_reaches_last_app_and_does_not_scroll_the_search_field() {
 fn feedback_for_a_partially_visible_tile_is_clipped_to_the_grid() {
     let mut shell = Shell::new(
         (0..60).map(|i| app(&format!("App {i}"))).collect(),
-        ThemeSpec::DEFAULT,
+        ThemeSpec::default(),
     );
     shell.set_reduce_motion(true);
     let (w, h) = (1000.0, 700.0);
     shell.scroll_launcher(w, h, 84.0);
     shell.press_begin(PressKey::Launcher(0), (56.0, 36.0), 64.0, 0.9);
     let mut fonts = Fonts::load().unwrap();
-    let pieces = shell.launcher_press_surfaces(&mut fonts, &ThemeSpec::DEFAULT.light(), w, h);
+    let pieces = shell.launcher_press_surfaces(&mut fonts, &ThemeSpec::default().light(), w, h);
     assert_eq!(pieces.len(), 1);
     let viewport = launcher_viewport(w, h);
     for (surface, (x, y)) in pieces {
         assert!(x >= viewport.x && y >= viewport.y);
         assert!(x + surface.width() as f32 <= viewport.right());
         assert!(y + surface.pixmap.height() as f32 <= viewport.bottom());
-        assert!(surface.pixmap.height() < config::LAUNCHER_TILE as u32);
+        assert!(surface.pixmap.height() < crate::config::design().launcher.tile_size as u32);
     }
 }
 
 #[test]
 fn manual_unpinning_including_the_last_pin_keeps_terminal_shortcuts() {
-    let mut shell = Shell::new(vec![], ThemeSpec::DEFAULT);
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
     let terminal = shell.terminal.clone();
     let initial = shell.pinned[0].clone();
     shell.toggle_pin(initial.clone()).unwrap();
@@ -543,4 +543,56 @@ fn manual_unpinning_including_the_last_pin_keeps_terminal_shortcuts() {
     assert_eq!(shell.terminal, terminal);
     shell.toggle_pin(initial).unwrap();
     assert_eq!(shell.pinned.len(), 1);
+}
+
+#[test]
+fn theme_transition_reuses_both_raster_endpoints_for_every_cached_sheet() {
+    let spec = ThemeSpec::default();
+    let mut shell = Shell::new(vec![], spec);
+    let mut fonts = Fonts::load().expect("test system font");
+    fn paint(sheet: usize, shell: &mut Shell, fonts: &mut Fonts, theme: &Theme) -> usize {
+        match sheet {
+            0 => {
+                shell.render_launcher(theme, fonts, 1280.0, 800.0, 1.0, None);
+            }
+            1 => {
+                shell.render_quick_settings(
+                    theme,
+                    fonts,
+                    1280.0,
+                    800.0,
+                    1.0,
+                    0.5,
+                    ColorVariant::Neutral,
+                    None,
+                );
+            }
+            2 => {
+                shell.render_brightness(theme, fonts, 1280.0, 0.5, 1.0, None);
+            }
+            3 => {
+                shell.render_power_menu(theme, fonts, 1280.0, 1.0, None);
+            }
+            _ => {
+                shell.render_calendar(theme, fonts, 1280.0, 800.0, None);
+            }
+        }
+        let cache = match sheet {
+            0 => &shell.launcher_layer,
+            1 => &shell.qs_layer,
+            2 => &shell.brightness_layer,
+            3 => &shell.power_layer,
+            _ => &shell.calendar_layer,
+        };
+        cache.as_ref().unwrap().surface.pixmap.data().as_ptr() as usize
+    }
+    for sheet in 0..5 {
+        let light = paint(sheet, &mut shell, &mut fonts, &spec.light());
+        let dark = paint(sheet, &mut shell, &mut fonts, &spec.dark());
+        assert_ne!(light, dark);
+        for _ in 0..3 {
+            assert_eq!(paint(sheet, &mut shell, &mut fonts, &spec.light()), light);
+            assert_eq!(paint(sheet, &mut shell, &mut fonts, &spec.dark()), dark);
+        }
+    }
 }

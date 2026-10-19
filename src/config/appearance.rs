@@ -1,73 +1,54 @@
-//! Remember the last light/dark mode and Material palette chosen in the UI.
-use super::storage::{atomic_write, config_path};
+//! UI preferences live in the same TOML document as layout and animation tokens.
+use super::{
+    design::{load_document, parse_document, write_preferences},
+    storage::config_path,
+    DEFAULT_CONFIG,
+};
 use crate::theme::ColorVariant;
-use std::{fs, io, path::PathBuf};
+use std::{io, path::PathBuf};
+use toml_edit::{value, DocumentMut};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Appearance {
     pub dark: bool,
     pub variant: ColorVariant,
+    pub reduce_motion: bool,
 }
-
 #[derive(Default)]
 pub struct AppearanceStore {
     path: Option<PathBuf>,
 }
-
 impl AppearanceStore {
     pub fn at(path: Option<PathBuf>) -> Self {
         Self { path }
     }
-
     pub fn load(&self, defaults: Appearance) -> io::Result<Appearance> {
         let Some(path) = &self.path else {
             return Ok(defaults);
         };
-        let contents = match fs::read_to_string(path) {
-            Ok(contents) => contents,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(defaults),
-            Err(error) => return Err(error),
-        };
-        let mut appearance = defaults;
-        for line in contents.lines() {
-            let Some((key, value)) = line.trim().split_once('=') else {
-                continue;
-            };
-            match key.trim() {
-                "theme" => match value.trim() {
-                    "dark" => appearance.dark = true,
-                    "light" => appearance.dark = false,
-                    _ => {}
-                },
-                "variant" => {
-                    if let Some(variant) = ColorVariant::from_name(value) {
-                        appearance.variant = variant;
-                    }
-                }
-                _ => {}
-            }
-        }
-        Ok(appearance)
+        let mut doc = DEFAULT_CONFIG
+            .parse::<DocumentMut>()
+            .expect("built-in TOML");
+        doc["appearance"]["theme"] = value(if defaults.dark { "dark" } else { "light" });
+        doc["appearance"]["variant"] = value(defaults.variant.name());
+        doc["appearance"]["reduce_motion"] = value(defaults.reduce_motion);
+        let design = parse_document(&load_document(path, doc)?)?;
+        Ok(Appearance {
+            dark: design.appearance.theme == "dark",
+            variant: ColorVariant::from_name(&design.appearance.variant)
+                .expect("validated variant"),
+            reduce_motion: design.appearance.reduce_motion,
+        })
     }
-
     pub fn save(&self, appearance: Appearance) -> io::Result<()> {
-        let Some(path) = &self.path else {
-            return Ok(());
-        };
-        atomic_write(
-            path,
-            &format!(
-                "# Materialand appearance\ntheme={}\nvariant={}\n",
-                if appearance.dark { "dark" } else { "light" },
-                appearance.variant.name(),
-            ),
-        )
+        if let Some(path) = &self.path {
+            write_preferences(path, appearance)?;
+        }
+        Ok(())
     }
 }
-
 pub fn appearance_path() -> Option<PathBuf> {
-    config_path("appearance")
+    config_path("config.toml")
 }
-
 #[cfg(test)]
 mod tests;

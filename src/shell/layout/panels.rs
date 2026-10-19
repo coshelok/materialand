@@ -1,33 +1,36 @@
 //! Panels geometry.
 use super::*;
 pub fn brightness_popup(win_w: f32) -> RectF {
+    let design = crate::config::design();
     let rect = topbar_rect(win_w);
-    let w = 320.0_f32.min((rect.w - 16.0).max(1.0));
-    let h = 88.0;
+    let w = design
+        .brightness
+        .width
+        .min((rect.w - 2.0 * design.panels.edge_inset).max(1.0));
+    let h = design.brightness.height;
     RectF {
-        x: rect.right() - 8.0 - w,
-        y: rect.bottom() + 8.0,
+        x: rect.right() - design.panels.edge_inset - w,
+        y: rect.bottom() + design.panels.edge_inset,
         w,
         h,
     }
 }
 
-/// Height of one session-menu row.
-pub const POWER_ROW_H: f32 = 56.0;
-/// Gap between session-menu rows.
-pub const POWER_ROW_GAP: f32 = 4.0;
-/// Padding between the session-menu card edge and its rows.
-pub const POWER_MENU_PAD: f32 = 12.0;
-
 /// Card of the session menu, anchored under the top-bar user button.
 pub fn power_menu_rect(win_w: f32) -> RectF {
+    let design = crate::config::design();
     let bar = topbar_rect(win_w);
-    let w = 260.0_f32.min((bar.w - 16.0).max(1.0));
+    let w = design
+        .power
+        .width
+        .min((bar.w - 2.0 * design.panels.edge_inset).max(1.0));
     let rows = POWER_ACTIONS.len() as f32;
-    let h = 2.0 * POWER_MENU_PAD + rows * POWER_ROW_H + (rows - 1.0) * POWER_ROW_GAP;
+    let h = 2.0 * design.power.padding
+        + rows * design.power.row_height
+        + (rows - 1.0) * design.power.row_gap;
     RectF {
-        x: bar.right() - 8.0 - w,
-        y: bar.bottom() + 8.0,
+        x: bar.right() - design.panels.edge_inset - w,
+        y: bar.bottom() + design.panels.edge_inset,
         w,
         h,
     }
@@ -35,12 +38,15 @@ pub fn power_menu_rect(win_w: f32) -> RectF {
 
 /// Screen rectangle of one session-menu row.
 pub fn power_row_rect(win_w: f32, index: usize) -> RectF {
+    let design = crate::config::design();
     let card = power_menu_rect(win_w);
     RectF {
-        x: card.x + POWER_MENU_PAD,
-        y: card.y + POWER_MENU_PAD + index as f32 * (POWER_ROW_H + POWER_ROW_GAP),
-        w: card.w - 2.0 * POWER_MENU_PAD,
-        h: POWER_ROW_H,
+        x: card.x + design.power.padding,
+        y: card.y
+            + design.power.padding
+            + index as f32 * (design.power.row_height + design.power.row_gap),
+        w: card.w - 2.0 * design.power.padding,
+        h: design.power.row_height,
     }
 }
 
@@ -50,28 +56,41 @@ pub fn power_row_at(win_w: f32, pos: Point<f64, Logical>) -> Option<usize> {
 }
 
 pub fn quick_settings_rect(win_w: f32, win_h: f32) -> RectF {
+    let design = crate::config::design();
     let bar = topbar_rect(win_w);
-    let w = (bar.w - 16.0).clamp(1.0, 432.0);
-    let h = QS_SHEET_HEIGHT.min((win_h - bar.bottom() - 20.0).max(120.0));
+    let w = (bar.w - 2.0 * design.panels.edge_inset).clamp(1.0, design.quick_settings.width);
+    let h = design.quick_settings.height.min(
+        (win_h - bar.bottom() - design.panels.bottom_gap).max(design.quick_settings.min_height),
+    );
     RectF {
-        x: (bar.right() - 8.0 - w).max(12.0),
-        y: (bar.bottom() + 8.0).min((win_h - h - 12.0).max(12.0)),
+        x: (bar.right() - design.panels.edge_inset - w).max(design.panels.viewport_margin),
+        y: (bar.bottom() + design.panels.edge_inset)
+            .min((win_h - h - design.panels.viewport_margin).max(design.panels.viewport_margin)),
         w,
         h,
     }
 }
 
 pub fn quick_setting_tile(rect: RectF, index: usize, progress: f32) -> RectF {
+    let design = crate::config::design();
     let _ = progress;
-    let tile_w = ((rect.w - 52.0) / 2.0).max(1.0);
-    let tile_h = 92.0;
+    let tile_w = ((rect.w - 2.0 * design.quick_settings.padding - design.quick_settings.tile_gap)
+        / 2.0)
+        .max(1.0);
+    let tile_h = design.quick_settings.tile_height;
     let x = rect.x
         + if index.is_multiple_of(2) {
-            20.0
+            design.quick_settings.padding
         } else {
-            20.0 + tile_w + 12.0
+            design.quick_settings.padding + tile_w + design.quick_settings.tile_gap
         };
-    let y = rect.y + 76.0 + if index < 2 { 0.0 } else { tile_h + 12.0 };
+    let y = rect.y
+        + design.quick_settings.tile_top
+        + if index < 2 {
+            0.0
+        } else {
+            tile_h + design.quick_settings.tile_gap
+        };
     RectF {
         x,
         y,
@@ -107,14 +126,21 @@ pub fn quick_settings_hit(
 
 /// Palette chip rectangle inside the sheet.
 pub fn palette_chip_rect_in(rect: RectF, index: usize) -> RectF {
-    let cw = (rect.w - 2.0 * QS_CHIP_MARGIN - 2.0 * QS_CHIP_GAP) / 3.0;
+    let design = crate::config::design();
+    let cw =
+        (rect.w - 2.0 * design.quick_settings.chip_margin - 2.0 * design.quick_settings.chip_gap)
+            / 3.0;
     let col = index % 3;
     let row = index / 3;
     RectF {
-        x: rect.x + QS_CHIP_MARGIN + col as f32 * (cw + QS_CHIP_GAP),
-        y: rect.y + QS_CHIPS_Y + row as f32 * (QS_CHIP_H + QS_CHIP_GAP),
+        x: rect.x
+            + design.quick_settings.chip_margin
+            + col as f32 * (cw + design.quick_settings.chip_gap),
+        y: rect.y
+            + design.quick_settings.chips_y
+            + row as f32 * (design.quick_settings.chip_height + design.quick_settings.chip_gap),
         w: cw,
-        h: QS_CHIP_H,
+        h: design.quick_settings.chip_height,
     }
 }
 
@@ -123,7 +149,8 @@ pub fn palette_chip_rect_in(rect: RectF, index: usize) -> RectF {
 pub fn palette_chip_rect(win_w: f32, win_h: f32, index: usize) -> Option<RectF> {
     let rect = quick_settings_rect(win_w, win_h);
     let chip = palette_chip_rect_in(rect, index);
-    (chip.bottom() <= rect.bottom() - 6.0).then_some(chip)
+    (chip.bottom() <= rect.bottom() - crate::config::design().quick_settings.chip_bottom_gap)
+        .then_some(chip)
 }
 
 pub fn palette_chip_hit(win_w: f32, win_h: f32, pos: Point<f64, Logical>) -> Option<usize> {
@@ -133,9 +160,10 @@ pub fn palette_chip_hit(win_w: f32, win_h: f32, pos: Point<f64, Logical>) -> Opt
 
 /// Draw a Material 3 switch whose handle is driven by a spring (`t` may
 pub fn brightness_track(win_w: f32) -> RectF {
+    let design = crate::config::design();
     let card = brightness_popup(win_w);
-    let left = card.x + 56.0;
-    let right = card.right() - 20.0;
+    let left = card.x + design.brightness.track_left;
+    let right = card.right() - design.brightness.track_right;
     RectF {
         x: left,
         y: card.y,

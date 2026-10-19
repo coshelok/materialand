@@ -2,7 +2,7 @@
 use super::*;
 fn title_inset(server_decorated: bool) -> i32 {
     if server_decorated {
-        config::FRAME_TITLEBAR as i32
+        crate::config::design().window.titlebar_height as i32
     } else {
         0
     }
@@ -12,7 +12,7 @@ pub(super) fn content_area(
     server_decorated: bool,
 ) -> Rectangle<i32, Logical> {
     if server_decorated {
-        let border = config::FRAME_BORDER as i32;
+        let border = crate::config::design().window.border as i32;
         let title = title_inset(true);
         area.loc.x += border;
         area.loc.y += title;

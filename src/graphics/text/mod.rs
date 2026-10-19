@@ -5,7 +5,8 @@ use fontdue::{Font, FontSettings};
 
 use crate::style::TextStyle;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FontKind {
     Regular,
     Medium,

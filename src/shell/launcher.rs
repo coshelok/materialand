@@ -23,29 +23,24 @@ impl Shell {
         progress: f32,
         mask: Option<CircleMask>,
     ) -> OverlayFrame {
+        let design = crate::config::design();
         let p = progress.clamp(0.0, 1.0);
         let card = launcher_card(win_w, win_h);
-        const LAUNCHER_SHADOW: f32 = 18.0;
-        let pad = LAUNCHER_SHADOW + 2.0;
+        let pad = design.launcher.shadow_spread + design.launcher.shadow_extra_padding;
         // Top-left of the content layer in screen space.
         let ox = card.x - pad;
         let oy = card.y - pad;
 
         // Content layer: laid out at its final geometry, cached across frames.
         let layer_key = self.launcher_layer_key(win_w, win_h, theme);
-        if self
-            .launcher_layer
-            .as_ref()
-            .map(|l| l.key != layer_key)
-            .unwrap_or(true)
-        {
+        if !self.launcher_layer.select(layer_key) {
             let mut layer = Surface::new(
                 (card.w + 2.0 * pad).ceil() as u32,
                 (card.h + 2.0 * pad).ceil() as u32,
             );
             self.paint_launcher_layer(&mut layer, fonts, theme, win_w, win_h);
             let buffer = layer.to_memory_buffer();
-            self.launcher_layer = Some(CachedLayer {
+            self.launcher_layer.store(CachedLayer {
                 key: layer_key,
                 surface: layer,
                 buffer,
@@ -55,8 +50,8 @@ impl Shell {
         // Container transform: the card morphs from the control that opened it
         // into its final rectangle while it fades in.
         let anim = self.launcher_placement(win_w, win_h, progress).target;
-        let sx = (anim.w / card.w).clamp(0.01, 1.06);
-        let sy = (anim.h / card.h).clamp(0.01, 1.06);
+        let sx = (anim.w / card.w).clamp(0.01, design.motion.overshoot_limit);
+        let sy = (anim.h / card.h).clamp(0.01, design.motion.overshoot_limit);
 
         if let Some(mask) = mask {
             // Radial reveal: the circular clip is applied on the CPU, so the
@@ -72,7 +67,10 @@ impl Shell {
                 );
             }
             let mut s = Surface::new(win_w as u32, win_h as u32);
-            s.clear(Theme::with_alpha(theme.scrim, 0.30 * p));
+            s.clear(Theme::with_alpha(
+                theme.scrim,
+                design.launcher.scrim_alpha * p,
+            ));
             let transform = SkTransform::from_scale(sx, sy)
                 .post_translate(anim.x - pad * sx, anim.y - pad * sy);
             s.blit(&content, transform, p, None);
@@ -95,7 +93,7 @@ impl Shell {
                     loc: Point::from((0.0, 0.0)),
                     size: Some(Size::from((win_w.round() as i32, win_h.round() as i32))),
                 },
-                0.30 * p,
+                design.launcher.scrim_alpha * p,
             ));
         }
         {
@@ -157,11 +155,11 @@ impl Shell {
         win_w: f32,
         win_h: f32,
     ) {
+        let design = crate::config::design();
         let card = launcher_card(win_w, win_h);
         // The elevation shadow is baked in: it scales with the container, so
         // it must not be redrawn on every animation frame.
-        const LAUNCHER_SHADOW: f32 = 18.0;
-        let pad = LAUNCHER_SHADOW + 2.0;
+        let pad = design.launcher.shadow_spread + design.launcher.shadow_extra_padding;
         let ox = card.x - pad;
         let oy = card.y - pad;
         layer.shadow_round_rect(
@@ -169,34 +167,35 @@ impl Shell {
             card.y - oy,
             card.w,
             card.h,
-            config::LAUNCHER_RADIUS,
-            LAUNCHER_SHADOW,
+            design.shape.extra_extra_large,
+            design.launcher.shadow_spread,
+            theme.shadow,
         );
         layer.fill_round_rect(
             card.x - ox,
             card.y - oy,
             card.w,
             card.h,
-            config::LAUNCHER_RADIUS,
+            design.shape.extra_extra_large,
             theme.surface_container_low,
         );
         layer.stroke_round_rect(
-            card.x - ox + 0.5,
-            card.y - oy + 0.5,
-            card.w - 1.0,
-            card.h - 1.0,
-            config::LAUNCHER_RADIUS,
-            1.0,
-            Theme::with_alpha(theme.outline, 0.1),
+            card.x - ox + design.launcher.outline_width / 2.0,
+            card.y - oy + design.launcher.outline_width / 2.0,
+            card.w - design.launcher.outline_width,
+            card.h - design.launcher.outline_width,
+            design.shape.extra_extra_large,
+            design.launcher.outline_width,
+            Theme::with_alpha(theme.outline, design.launcher.outline_alpha),
         );
 
         // Drag handle (Android-style).
         layer.fill_round_rect(
-            card.x - ox + card.w / 2.0 - 16.0,
-            card.y - oy + 12.0,
-            32.0,
-            4.0,
-            2.0,
+            card.x - ox + card.w / 2.0 - design.launcher.handle_width / 2.0,
+            card.y - oy + design.launcher.handle_y,
+            design.launcher.handle_width,
+            design.launcher.handle_height,
+            design.launcher.handle_height / 2.0,
             theme.surface_container_highest,
         );
 
@@ -214,10 +213,10 @@ impl Shell {
         );
         fonts.draw_icon_centered(
             layer,
-            spx + 24.0,
+            spx + design.launcher.search_icon_x,
             spy + sp.h / 2.0,
             "search",
-            24.0,
+            design.launcher.search_icon_size,
             theme.on_surface_variant,
         );
         let query = if self.launcher_query.is_empty() {
@@ -225,10 +224,10 @@ impl Shell {
         } else {
             &self.launcher_query
         };
-        let search_style = TextStyle::BODY_LARGE;
+        let search_style = TextStyle::body_large();
         fonts.draw_text_role(
             layer,
-            spx + 52.0,
+            spx + design.launcher.search_label_x,
             spy + sp.h / 2.0 - search_style.line_height / 2.0,
             search_style,
             query,
@@ -241,9 +240,9 @@ impl Shell {
 
         fonts.draw_text_role(
             layer,
-            spx + 12.0,
-            spy + sp.h + 14.0,
-            TextStyle::LABEL_LARGE,
+            spx + design.launcher.section_label_x,
+            spy + sp.h + design.launcher.section_label_y,
+            TextStyle::label_large(),
             if self.launcher_query.is_empty() {
                 "All apps"
             } else {
@@ -262,7 +261,7 @@ impl Shell {
             if ty >= viewport.bottom() {
                 break;
             }
-            if ty + config::LAUNCHER_TILE <= viewport.y {
+            if ty + design.launcher.tile_size <= viewport.y {
                 continue;
             }
             self.draw_launcher_tile(
@@ -284,28 +283,28 @@ impl Shell {
         let max = launcher_scroll_max(win_w, win_h, filtered.len());
         if max > 0.0 {
             let thumb = (viewport.h * viewport.h / (viewport.h + max))
-                .max(24.0)
+                .max(design.launcher.scrollbar_min_height)
                 .min(viewport.h);
             let y =
                 viewport.y + (viewport.h - thumb) * (self.launcher_scroll() / max).clamp(0.0, 1.0);
             layer.fill_round_rect(
-                card.right() - ox - 11.0,
+                card.right() - ox - design.launcher.scrollbar_right,
                 y - oy,
-                4.0,
+                design.launcher.scrollbar_width,
                 thumb,
-                2.0,
-                Theme::with_alpha(theme.on_surface_variant, 0.35),
+                design.launcher.scrollbar_width / 2.0,
+                Theme::with_alpha(theme.on_surface_variant, design.launcher.scrollbar_alpha),
             );
         }
 
         if filtered.is_empty() {
             let msg = "No apps found";
-            let msg_style = TextStyle::BODY_LARGE;
+            let msg_style = TextStyle::body_large();
             let mw = fonts.text_width_styled(msg_style, msg);
             fonts.draw_text_role(
                 layer,
                 card.x - ox + card.w / 2.0 - mw / 2.0,
-                card.y - oy + 180.0,
+                card.y - oy + design.launcher.empty_label_y,
                 msg_style,
                 msg,
                 theme.on_surface_variant,
@@ -319,6 +318,7 @@ impl Shell {
         win_w: f32,
         win_h: f32,
     ) -> Vec<(Surface, (f32, f32))> {
+        let design = crate::config::design();
         let mut out = Vec::new();
         let card = launcher_card(win_w, win_h);
         let cols = launcher_columns(card.w);
@@ -339,10 +339,13 @@ impl Shell {
             if ty >= viewport.bottom() {
                 break;
             }
-            if ty + config::LAUNCHER_TILE <= viewport.y {
+            if ty + design.launcher.tile_size <= viewport.y {
                 continue;
             }
-            let mut s = Surface::new(config::LAUNCHER_TILE as u32, config::LAUNCHER_TILE as u32);
+            let mut s = Surface::new(
+                design.launcher.tile_size as u32,
+                design.launcher.tile_size as u32,
+            );
             // Erase the resting tile underneath before drawing the squeezed one.
             s.clear(theme.surface_container_low);
             let scale = anim.scale.value();
@@ -350,15 +353,19 @@ impl Shell {
             let clip = round_rect_path(
                 0.0,
                 0.0,
-                config::LAUNCHER_TILE,
-                config::LAUNCHER_TILE,
-                shape::LARGE,
+                design.launcher.tile_size,
+                design.launcher.tile_size,
+                design.shape.large,
             );
             self.draw_ripple(&mut s, key, &clip, theme.on_surface);
             let left = (viewport.x - tx).max(0.0).ceil();
             let top = (viewport.y - ty).max(0.0).ceil();
-            let right = (viewport.right() - tx).min(config::LAUNCHER_TILE).floor();
-            let bottom = (viewport.bottom() - ty).min(config::LAUNCHER_TILE).floor();
+            let right = (viewport.right() - tx)
+                .min(design.launcher.tile_size)
+                .floor();
+            let bottom = (viewport.bottom() - ty)
+                .min(design.launcher.tile_size)
+                .floor();
             if right <= left || bottom <= top {
                 continue;
             }

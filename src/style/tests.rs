@@ -4,17 +4,17 @@ use super::*;
 
 #[test]
 fn label_and_body_styles_are_distinct_weights() {
-    assert_eq!(TextStyle::LABEL_LARGE.kind, FontKind::Medium);
-    assert_eq!(TextStyle::BODY_LARGE.kind, FontKind::Regular);
+    assert_eq!(TextStyle::label_large().kind, FontKind::Medium);
+    assert_eq!(TextStyle::body_large().kind, FontKind::Regular);
 }
 
 #[test]
 fn title_medium_matches_m3_spec() {
-    assert_eq!(TextStyle::TITLE_MEDIUM.size, 16.0);
-    assert_eq!(TextStyle::TITLE_MEDIUM.line_height, 24.0);
+    assert_eq!(TextStyle::title_medium().size, 16.0);
+    assert_eq!(TextStyle::title_medium().line_height, 24.0);
 }
 
 #[test]
 fn shape_scale_is_monotonic() {
-    const { assert!(shape::EXTRA_LARGE > shape::LARGE) };
+    assert!(crate::config::design().shape.extra_large > crate::config::design().shape.large);
 }

@@ -3,6 +3,7 @@ use super::*;
 
 impl State {
     pub(super) fn set_maximized(&mut self, window: &Window, maximized: bool) {
+        let design = crate::config::design();
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State as XdgState;
 
         let props = self.window_props(window);
@@ -36,7 +37,10 @@ impl State {
                 return;
             }
             let restore = props.saved.unwrap_or_else(|| {
-                Rectangle::new((0, 0).into(), config::DEFAULT_WINDOW_SIZE.into())
+                Rectangle::new(
+                    (0, 0).into(),
+                    (design.window.width as i32, design.window.height as i32).into(),
+                )
             });
             {
                 let p = self.props_mut(window);
@@ -59,6 +63,7 @@ impl State {
     }
 
     pub(super) fn set_fullscreen(&mut self, window: &Window, fullscreen: bool) {
+        let design = crate::config::design();
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State as XdgState;
 
         let props = self.window_props(window);
@@ -96,7 +101,10 @@ impl State {
             self.place_mapped_window(window, output.loc);
         } else if props.restore_maximized {
             let normal = props.saved.unwrap_or_else(|| {
-                Rectangle::new((0, 0).into(), config::DEFAULT_WINDOW_SIZE.into())
+                Rectangle::new(
+                    (0, 0).into(),
+                    (design.window.width as i32, design.window.height as i32).into(),
+                )
             });
             let area = self.window_available_area(window);
             {
@@ -117,7 +125,10 @@ impl State {
             self.place_mapped_window(window, area.loc);
         } else {
             let restore = props.saved.unwrap_or_else(|| {
-                Rectangle::new((0, 0).into(), config::DEFAULT_WINDOW_SIZE.into())
+                Rectangle::new(
+                    (0, 0).into(),
+                    (design.window.width as i32, design.window.height as i32).into(),
+                )
             });
             {
                 let p = self.props_mut(window);
