@@ -51,6 +51,27 @@ impl Surface {
         Self { pixmap }
     }
 
+    pub fn blit_intersection(&mut self, src: &Surface, clips: &[&Path]) {
+        let Some(mut mask) = Mask::new(self.pixmap.width(), self.pixmap.height()) else {
+            return;
+        };
+        for (i, path) in clips.iter().enumerate() {
+            if i == 0 {
+                mask.fill_path(path, FillRule::Winding, true, SkTransform::identity());
+            } else {
+                mask.intersect_path(path, FillRule::Winding, true, SkTransform::identity());
+            }
+        }
+        self.pixmap.draw_pixmap(
+            0,
+            0,
+            src.pixmap.as_ref(),
+            &PixmapPaint::default(),
+            SkTransform::identity(),
+            Some(&mask),
+        );
+    }
+
     pub fn blit(
         &mut self,
         src: &Surface,

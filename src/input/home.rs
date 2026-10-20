@@ -1,6 +1,8 @@
 //! Returning home suspends windows; opening an existing app restores its slot.
 use super::*;
 pub fn show_home(state: &mut State) {
+    super::prepare_shell_overlay(state);
+    state.overview.close(state.shell.reduce_motion);
     state.shell.cancel_presses();
     if let Some(button) = state.interaction.button() {
         state.finish_interaction(button);

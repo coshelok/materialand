@@ -11,7 +11,7 @@ use smithay::{
     backend::renderer::{element::surface::WaylandSurfaceRenderElement, gles::GlesRenderer},
     utils::{Physical, Size},
 };
-smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=super::uploads::ShellElement, Wl=WaylandSurfaceRenderElement<GlesRenderer>, Window=RelocateRenderElement<RescaleRenderElement<windows::WindowElement>>, }
+smithay::render_elements! { pub UiElement<=GlesRenderer>; Memory=super::uploads::ShellElement, Wl=WaylandSurfaceRenderElement<GlesRenderer>, Window=RelocateRenderElement<RescaleRenderElement<windows::WindowElement>>, Rounded=super::rounded::RoundedElement<RelocateRenderElement<RescaleRenderElement<windows::WindowElement>>>, }
 pub fn build_ui(
     state: &mut State,
     renderer: &mut GlesRenderer,
@@ -64,7 +64,18 @@ pub fn build_ui(
             .shell
             .render_home(&theme, &mut state.fonts, size.w as f32, size.h as f32, None);
     let mut home = Vec::new();
-    push_buffer(&mut home, renderer, &buffer, (loc.x, loc.y), None);
+    let home_alpha = if state.overview.visible() {
+        1.0 - state.overview.progress()
+    } else {
+        1.0
+    };
+    push_buffer(
+        &mut home,
+        renderer,
+        &buffer,
+        (loc.x, loc.y),
+        Some(home_alpha),
+    );
     if let Some((next, mask, alpha)) = second {
         let (buffer, loc) =
             state
@@ -75,16 +86,34 @@ pub fn build_ui(
             renderer,
             &buffer,
             (loc.x, loc.y),
-            Some(alpha),
+            Some(alpha * home_alpha),
             mask,
         );
     }
     for element in home {
         scene.single(element);
     }
-    let opening_windows = windows::paint(state, renderer, &mut scene, theme, second);
+    let opening_windows = if state.overview.visible() {
+        for element in super::overview::paint(state, renderer, size) {
+            scene.single(element);
+        }
+        Vec::new()
+    } else {
+        windows::paint(state, renderer, &mut scene, theme, second)
+    };
     for element in chrome::paint(state, renderer, size, theme, second, opening_windows) {
         scene.single(element);
+    }
+    if let Some(drag) = state.shortcut_drag.as_ref().filter(|drag| drag.active) {
+        let (buffer, loc) =
+            state
+                .shell
+                .render_shortcut_drag(&target, &mut state.fonts, &drag.app, state.cursor);
+        let mut elements = Vec::new();
+        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), Some(0.94));
+        for element in elements {
+            scene.single(element);
+        }
     }
     scene.group(super::cursor::paint(state, renderer, &theme));
     scene.finish()

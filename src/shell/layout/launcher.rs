@@ -2,19 +2,33 @@
 use super::*;
 pub fn launcher_card(win_w: f32, win_h: f32) -> RectF {
     let design = crate::config::design();
+    if tablet_mode() && design.launcher.fullscreen {
+        return RectF {
+            x: 0.0,
+            y: top_inset(),
+            w: win_w.max(1.0),
+            h: (win_h - top_inset() - bottom_inset()).max(1.0),
+        };
+    }
+    let available_w = (win_w - 2.0 * design.launcher.margin_x).max(1.0);
+    let top = if tablet_mode() { top_inset() } else { 0.0 };
+    let bottom = if tablet_mode() { bottom_inset() } else { 0.0 };
+    let area_h = (win_h - top - bottom).max(1.0);
+    let available_h = (area_h - 2.0 * design.launcher.margin_y).max(1.0);
     let w = design
         .launcher
         .width
-        .min(win_w - 2.0 * design.launcher.margin_x)
-        .max(design.launcher.min_width);
+        .min(available_w)
+        .max(design.launcher.min_width.min(available_w));
     let h = design
         .launcher
         .max_height
-        .min(win_h - 2.0 * design.launcher.margin_y)
-        .max(design.launcher.min_height);
+        .min(available_h)
+        .max(design.launcher.min_height.min(available_h));
     RectF {
         x: (win_w - w) / 2.0,
-        y: (win_h - h) / 2.0 + design.launcher.offset_y,
+        y: (top + (area_h - h) / 2.0 + design.launcher.offset_y)
+            .clamp(top, top + (area_h - h).max(0.0)),
         w,
         h,
     }
@@ -34,7 +48,9 @@ pub fn search_rect(win_w: f32, win_h: f32) -> RectF {
 pub fn launcher_columns(card_w: f32) -> usize {
     let design = crate::config::design();
     let usable = card_w - 2.0 * design.launcher.grid_padding + design.launcher.grid_gap;
-    ((usable / (design.launcher.tile_size + design.launcher.grid_gap)).floor() as usize).max(1)
+    ((usable / (design.launcher.tile_size + design.launcher.grid_gap)).floor() as usize)
+        .max(1)
+        .min(design.launcher.max_columns)
 }
 
 pub fn launcher_grid_origin(win_w: f32, win_h: f32) -> (f32, f32) {

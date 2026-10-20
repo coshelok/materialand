@@ -19,10 +19,19 @@ impl State {
             if !self.window_has_content(window) || self.shell.is_closing(window) {
                 continue;
             }
-            if self.shell.is_opening(window) {
+            let split_pose = self
+                .window_frame_rect(window)
+                .and_then(|frame| self.split_pose(window, frame));
+            let split_transforming = split_pose.is_some_and(|pose| {
+                (pose.source.x - pose.target.x).abs() > 1.0
+                    || (pose.source.y - pose.target.y).abs() > 1.0
+                    || (pose.source.w - pose.target.w).abs() > 1.0
+                    || (pose.source.h - pose.target.h).abs() > 1.0
+            });
+            if self.shell.is_opening(window) || split_transforming {
                 if self.window_frame_rect(window).is_some_and(|frame| {
-                    self.shell
-                        .window_presentation(window, frame)
+                    split_pose
+                        .unwrap_or_else(|| self.shell.window_presentation(window, frame))
                         .target
                         .contains(point)
                 }) {

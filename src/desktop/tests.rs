@@ -20,15 +20,14 @@ fn cascade_stays_within_output() {
         crate::config::design().window.width as i32,
         crate::config::design().window.height as i32,
     );
-    let dock =
-        crate::config::design().dock.height as i32 + crate::config::design().dock.margin as i32;
+    let reserved_bottom = crate::shell::bottom_inset() as i32;
     for _ in 0..30 {
         let p = s.next_location();
         assert!(p.x >= 0 && p.y >= 0);
         assert!(p.x + ww <= s.display.size.w, "window spills right: {p:?}");
         assert!(
-            p.y + wh <= s.display.size.h - dock,
-            "window hits dock: {p:?}"
+            p.y + wh <= s.display.size.h - reserved_bottom,
+            "window hits navigation: {p:?}"
         );
     }
 }

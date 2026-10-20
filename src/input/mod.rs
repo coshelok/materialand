@@ -39,9 +39,17 @@ pub(crate) use axis::on_pointer_axis;
 
 mod reset;
 pub(crate) use reset::cancel;
+pub(crate) use reset::prepare_shell_overlay;
 mod home;
 pub(crate) use home::show_home;
 use home::{launch_or_focus, launcher_launch_origin};
 
 mod gestures;
 pub(crate) use gestures::{swipe_begin, swipe_end, LauncherSwipe};
+
+mod navigation;
+
+mod shortcut_drag;
+pub(crate) use shortcut_drag::ShortcutDrag;
+
+pub(crate) use shortcut_drag::tick as tick_shortcut_drag;

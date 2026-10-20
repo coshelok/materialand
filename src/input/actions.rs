@@ -1,6 +1,8 @@
 //! Actions.
 use super::*;
 pub fn open_launcher(state: &mut State, origin: shell::RectF) {
+    super::prepare_shell_overlay(state);
+    state.overview.close(state.shell.reduce_motion);
     state.shell.close_app_menu();
     state.shell.set_calendar_open(false);
     state.shell.launcher_open = true;
@@ -41,10 +43,37 @@ pub(super) fn launch_first_filtered(state: &mut State) {
 }
 
 pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical>) {
-    let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     if std::mem::take(&mut state.shell.consume_menu_release) {
         return;
     }
+    if super::shortcut_drag::release(state, pos) {
+        return;
+    }
+    if state.overview.open {
+        if let Some(mut hit) = state.overview.pressed.take() {
+            if state.overview.drag_y < -config::design().overview.dismiss_threshold {
+                hit.action = crate::desktop::overview::OverviewAction::Close;
+                state.overview_action(hit);
+            } else if state.overview.drag_y.abs() < config::design().drag.threshold
+                && state.overview.hit(
+                    state.display.size.w as f32,
+                    state.display.size.h as f32,
+                    pos,
+                ) == Some(hit)
+            {
+                state.overview_action(hit);
+            } else {
+                state
+                    .overview
+                    .cancel_drag(hit.index, state.shell.reduce_motion);
+            }
+        } else if std::mem::take(&mut state.overview.background_pressed) {
+            state.overview.close(state.shell.reduce_motion);
+        }
+        state.overview.drag_y = 0.0;
+        return;
+    }
+    let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     if state.shell.app_menu.is_some() {
         let pressed = std::mem::take(&mut state.shell.press_pin);
         let home_pressed = state
@@ -90,12 +119,15 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
                 }
                 shell::HomeHit::Previous => state.shell.turn_home_page(w, h, -1),
                 shell::HomeHit::Next => state.shell.turn_home_page(w, h, 1),
+                shell::HomeHit::Search => {
+                    open_launcher(state, shell::home_layout(w, h).search);
+                }
             }
         }
         return;
     }
     let mut consumed = false;
-    let qs_pos = state
+    let mut qs_pos = state
         .shell
         .quick_settings_placement(w, h, state.shell.quick_settings_progress())
         .unmap(pos);
@@ -103,6 +135,10 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         .shell
         .launcher_placement(w, h, state.shell.launcher_progress())
         .unmap(pos);
+    let qs_body_contains = qs_pos.y
+        >= f64::from(shell::quick_settings_rect(w, h).y + shell::quick_tiles_top())
+        && shell::quick_settings_rect(w, h).contains(qs_pos);
+    qs_pos.y += f64::from(state.shell.shade_scroll);
     let power_pos = state
         .shell
         .power_placement(w, state.shell.power_progress())
@@ -153,6 +189,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         let i = shell::quick_action_index(action);
         state.shell.press_end(PressKey::Tile(i));
         if state.shell.quick_settings_open
+            && qs_body_contains
             && shell::quick_settings_hit(w, h, qs_pos, 1.0) == Some(action)
         {
             perform_quick_action(state, action);
@@ -162,7 +199,10 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
     if let Some(i) = state.shell.press_chip.take() {
         consumed = true;
         state.shell.press_end(PressKey::Chip(i));
-        if state.shell.quick_settings_open && shell::palette_chip_hit(w, h, qs_pos) == Some(i) {
+        if state.shell.quick_settings_open
+            && qs_body_contains
+            && shell::palette_chip_rect_in(shell::quick_settings_rect(w, h), i).contains(qs_pos)
+        {
             state.set_variant(VARIANTS[i]);
         }
     }
@@ -287,10 +327,31 @@ pub(crate) fn perform_power_action(state: &mut State, action: shell::PowerAction
 
 pub(super) fn perform_quick_action(state: &mut State, action: QuickAction) {
     match action {
+        QuickAction::Wifi => {
+            if state.services.status.wifi.available && !state.services.status.wifi.busy {
+                state.services.request(crate::system::Action::Wifi(
+                    !state.services.status.wifi.enabled,
+                ));
+                state.shell.set_system_status(state.services.status.clone());
+            }
+        }
+        QuickAction::Bluetooth => {
+            if state.services.status.bluetooth.available && !state.services.status.bluetooth.busy {
+                state.services.request(crate::system::Action::Bluetooth(
+                    !state.services.status.bluetooth.enabled,
+                ));
+                state.shell.set_system_status(state.services.status.clone());
+            }
+        }
         QuickAction::Theme => {
             // Radial reveal grows out of the tile the user pressed.
             let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
-            let tile = shell::quick_setting_tile_rect(w, h, shell::quick_action_index(action));
+            let mut tile = shell::quick_setting_tile_rect(w, h, shell::quick_action_index(action));
+            tile.y -= state.shell.shade_scroll;
+            let tile = state
+                .shell
+                .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+                .map_rect(tile);
             state.toggle_theme(Point::from((
                 tile.x as f64 + tile.w as f64 / 2.0,
                 tile.y as f64 + tile.h as f64 / 2.0,

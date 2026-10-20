@@ -46,6 +46,19 @@ impl Pins {
     pub fn contains(&self, id: &str) -> bool {
         self.ids.iter().any(|key| key == id)
     }
+    pub fn place_before(&mut self, id: String, before: Option<&str>) -> io::Result<()> {
+        let mut next = self.ids.clone();
+        next.retain(|key| key != &id);
+        let index = before
+            .and_then(|target| next.iter().position(|key| key == target))
+            .unwrap_or(next.len());
+        next.insert(index, id);
+        if let Some(path) = &self.path {
+            save(path, &next)?;
+        }
+        self.ids = next;
+        Ok(())
+    }
     pub fn toggle(&mut self, id: String) -> io::Result<()> {
         let mut next = self.ids.clone();
         if next.contains(&id) {

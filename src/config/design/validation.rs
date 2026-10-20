@@ -13,6 +13,22 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
     }
     require(d.schema_version == 1, "unsupported design schema_version")?;
     require(
+        (2..=6).contains(&d.shade.wide_columns),
+        "shade.wide_columns must be in 2..=6",
+    )?;
+    require(
+        (1..=16).contains(&d.home.max_columns) && (1..=16).contains(&d.launcher.max_columns),
+        "home and launcher max_columns must be in 1..=16",
+    )?;
+    require(
+        (0.5..=1.0).contains(&d.overview.side_scale),
+        "overview.side_scale must be in 0.5..=1",
+    )?;
+    require(
+        d.home.page_dot_gap >= 2.0 * d.home.page_dot_radius,
+        "home page dots must not overlap",
+    )?;
+    require(
         matches!(d.appearance.theme.as_str(), "light" | "dark"),
         "appearance.theme must be light or dark",
     )?;
@@ -24,6 +40,44 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
         d.appearance.seed.is_empty() || parse_seed(&d.appearance.seed).is_some(),
         "invalid appearance.seed",
     )?;
+    require(
+        matches!(d.navigation.mode.as_str(), "tablet" | "desktop"),
+        "navigation.mode must be tablet or desktop",
+    )?;
+    require(
+        d.navigation.width >= 4.0 * d.navigation.height,
+        "navigation.width must fit four controls",
+    )?;
+    require(
+        d.split.handle_width <= d.split.divider_width,
+        "split.handle_width must fit the divider",
+    )?;
+    require(
+        d.split.divider_hit_width >= d.split.divider_width,
+        "split.divider_hit_width must cover the divider",
+    )?;
+    require(
+        d.overview.dismiss_damping >= 1.0,
+        "overview.dismiss_damping must be at least 1 to prevent a dismissal rebound",
+    )?;
+    require(
+        (0.1..=30.0).contains(&d.overview.close_response_timeout),
+        "overview.close_response_timeout must be in 0.1..=30 seconds",
+    )?;
+    require(
+        d.drag.threshold >= 1.0 && (0.1..=5.0).contains(&d.drag.page_delay),
+        "invalid drag threshold or page delay",
+    )?;
+    require(
+        d.statusbar.icon_size <= d.statusbar.height
+            && d.statusbar.icon_size <= d.statusbar.item_width
+            && d.statusbar.icon_size <= d.statusbar.battery_width,
+        "statusbar icons must fit the strip and their hit areas",
+    )?;
+    require(
+        d.shade.clock_line_height >= d.shade.clock_size,
+        "shade.clock_line_height must cover clock_size",
+    )?;
     numbers(doc.as_item(), "")?;
     require(
         d.dock.icon_size <= d.dock.height,
@@ -32,6 +86,10 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
     require(
         d.shadow.padding >= d.shadow.spread,
         "shadow.padding must cover shadow.spread",
+    )?;
+    require(
+        d.floating_dock.shadow_padding >= d.floating_dock.shadow_spread,
+        "floating_dock.shadow_padding must cover shadow_spread",
     )?;
     require(
         d.launcher.min_width <= d.launcher.width && d.launcher.min_height <= d.launcher.max_height,
@@ -140,7 +198,10 @@ fn numbers(item: &Item, path: &str) -> io::Result<()> {
         let signed = path.ends_with(".offset_y")
             || path.ends_with("_offset_y")
             || path.ends_with(".tracking");
-        let (min, max) = if path.starts_with(".motion.") {
+        let (min, max) = if path.starts_with(".motion.")
+            || (path.starts_with(".overview.")
+                && (path.ends_with("_stiffness") || path.ends_with("_damping")))
+        {
             if path.ends_with("_damping") {
                 (0.3, 2.0)
             } else if path.ends_with("_stiffness") {

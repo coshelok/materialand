@@ -38,10 +38,23 @@ pub(super) fn reachable_location(
 }
 impl State {
     pub(super) fn normal_restore_geometry(&mut self, window: &Window) -> Rectangle<i32, Logical> {
-        self.windows
-            .space
-            .element_geometry(window)
-            .unwrap_or_else(|| Rectangle::new(self.next_location(), self.initial_window_size()))
+        let props = self.window_props(window);
+        if let Some(saved) = props.saved {
+            return saved;
+        }
+        if let Some(geometry) = self.windows.space.element_geometry(window) {
+            return geometry;
+        }
+        let size = window.geometry().size;
+        let size = if size.w > 0 && size.h > 0 {
+            size
+        } else {
+            self.initial_window_size()
+        };
+        let location = props
+            .minimized_location
+            .unwrap_or_else(|| self.next_location());
+        Rectangle::new(location, size)
     }
     /// A configure may precede the first buffer: only buffer commits map/focus
     /// a new window. Mode requests can reposition windows already in the scene.
@@ -76,6 +89,8 @@ impl State {
         };
         let area = if props.fullscreen {
             Some(self.output_rect())
+        } else if let Some(area) = self.split_area_for(window) {
+            Some(area)
         } else if props.maximized {
             Some(self.window_available_area(window))
         } else {

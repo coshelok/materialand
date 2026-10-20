@@ -123,3 +123,56 @@ fn home_keeps_both_theme_textures_without_rasterizing_on_each_transition_frame()
     assert_eq!(pointers[0], pointers[2]);
     assert_eq!(pointers[1], pointers[3]);
 }
+
+#[test]
+fn reorder_preserves_uninstalled_identities_and_animates_without_changing_saved_order_on_failure() {
+    let dir = std::env::temp_dir().join(format!("materialand-home-reorder-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("home-apps");
+    std::fs::write(
+        &path,
+        "desktop:app-0.desktop\ndesktop:missing.desktop\ndesktop:app-1.desktop\n",
+    )
+    .unwrap();
+    let mut shell = Shell::new((0..4).map(app).collect(), ThemeSpec::default());
+    shell.load_home_at(path.clone()).unwrap();
+    let before = shell.home_reorder_snapshot(1280.0, 800.0);
+    shell.place_home_app(app(1), 0).unwrap();
+    shell.animate_home_reorder(1280.0, 800.0, before.clone());
+    assert_eq!(
+        shell
+            .home
+            .apps
+            .iter()
+            .map(AppEntry::identity)
+            .collect::<Vec<_>>(),
+        [app(1).identity(), app(0).identity()]
+    );
+    assert!(std::fs::read_to_string(&path)
+        .unwrap()
+        .contains("desktop:missing.desktop"));
+    let moving = shell.home_tile_rect(1280.0, 800.0, 0);
+    assert!((moving.x - before[&app(1).identity()].x).abs() < 0.01);
+    for _ in 0..240 {
+        shell.home.tick(1.0 / 144.0);
+    }
+    assert!(shell.home.icon_motion.is_empty());
+    shell.home.pins.set_path("/dev/null/home-apps".into());
+    let saved = shell
+        .home
+        .apps
+        .iter()
+        .map(AppEntry::identity)
+        .collect::<Vec<_>>();
+    assert!(shell.place_home_app(app(3), 0).is_err());
+    assert_eq!(
+        shell
+            .home
+            .apps
+            .iter()
+            .map(AppEntry::identity)
+            .collect::<Vec<_>>(),
+        saved
+    );
+    std::fs::remove_dir_all(dir).unwrap();
+}

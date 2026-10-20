@@ -67,6 +67,7 @@ pub struct ResizeEdges {
 #[derive(Clone, Debug)]
 pub enum Interaction {
     None,
+    SplitDivider,
     Move {
         button: u32,
         window: Window,
@@ -82,13 +83,14 @@ pub enum Interaction {
     },
     /// Dragging the brightness slider in the top-bar popup.
     Brightness,
+    ShadeBrightness,
 }
 
 impl Interaction {
     pub fn button(&self) -> Option<u32> {
         match self {
             Self::Move { button, .. } | Self::Resize { button, .. } => Some(*button),
-            Self::Brightness => Some(0x110),
+            Self::Brightness | Self::ShadeBrightness | Self::SplitDivider => Some(0x110),
             Self::None => None,
         }
     }
@@ -97,7 +99,10 @@ impl Interaction {
     pub fn window(&self) -> Option<&Window> {
         match self {
             Interaction::Move { window, .. } | Interaction::Resize { window, .. } => Some(window),
-            Interaction::None | Interaction::Brightness => None,
+            Interaction::None
+            | Interaction::Brightness
+            | Interaction::ShadeBrightness
+            | Interaction::SplitDivider => None,
         }
     }
 }
@@ -130,6 +135,11 @@ pub struct State {
     advertised_formats: Vec<Format>,
     retired_dmabuf_globals: Vec<DmabufGlobal>,
     pub windows: WindowManager,
+    pub overview: overview::Overview,
+    pub services: crate::system::Services,
+    pub notifications: crate::notifications::Notifications,
+    pub shortcut_drag: Option<crate::input::ShortcutDrag>,
+    pub split: Option<split::Split>,
     pub display: DisplayModel,
     pub session_mode: bool,
     pub display_handle: smithay::reexports::wayland_server::DisplayHandle,
@@ -223,3 +233,9 @@ mod buffers;
 mod coordinates;
 
 mod placement;
+
+pub mod overview;
+pub mod split;
+
+#[cfg(test)]
+mod integration_tests;

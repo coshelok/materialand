@@ -42,6 +42,7 @@ impl CompositorHandler for State {
             if self.window_has_content(&window) {
                 if !self.window_props(&window).minimized {
                     if self.windows.space.element_location(&window).is_none() {
+                        self.overview.close(self.shell.reduce_motion);
                         let location = self.next_location();
                         self.windows
                             .space

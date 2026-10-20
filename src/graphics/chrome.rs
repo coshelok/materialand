@@ -22,7 +22,7 @@ pub(super) fn paint(
     let (win_w, win_h) = (size.w as f32, size.h as f32);
     let fullscreen = state.has_fullscreen_window();
     // Dock.
-    if !fullscreen {
+    if !fullscreen && !crate::shell::tablet_mode() {
         let items = input::dock_items(state);
         let focused = state.windows.focused.clone();
         let (dock, dock_loc) = state.shell.render_dock(
@@ -93,9 +93,68 @@ pub(super) fn paint(
         }
     }
 
+    if (!fullscreen || state.overview.visible()) && crate::shell::tablet_mode() {
+        let (buffer, loc) = state
+            .shell
+            .render_navigation(&theme, &mut state.fonts, win_w, win_h);
+        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), None);
+        if let Some((target, mask, alpha)) = second {
+            let (buffer, loc) =
+                state
+                    .shell
+                    .render_navigation(&target, &mut state.fonts, win_w, win_h);
+            push_masked_buffer(
+                &mut elements,
+                renderer,
+                &buffer,
+                (loc.x, loc.y),
+                Some(alpha),
+                mask,
+            );
+        }
+    }
+
+    if state
+        .shell
+        .statusbar_visible(fullscreen, state.overview.visible())
+    {
+        let (buffer, loc) = state
+            .shell
+            .render_statusbar(&theme, &mut state.fonts, win_w);
+        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), None);
+        if let Some((target, mask, alpha)) = second {
+            let (buffer, loc) = state
+                .shell
+                .render_statusbar(&target, &mut state.fonts, win_w);
+            push_masked_buffer(
+                &mut elements,
+                renderer,
+                &buffer,
+                (loc.x, loc.y),
+                Some(alpha),
+                mask,
+            );
+        }
+    }
+
+    let shade_p = state.shell.quick_settings_progress().clamp(0.0, 1.0);
+    if shade_p > 0.001 {
+        let layer = crate::shell::LayerFrame {
+            buffer: state.shell.scrim_buffer(&theme),
+            loc: (0.0, 0.0).into(),
+            size: Some((win_w as i32, win_h as i32).into()),
+        };
+        push_layer(
+            &mut elements,
+            renderer,
+            &layer,
+            Some(shade_p * crate::config::design().launcher.scrim_alpha),
+            None,
+        );
+    }
     // Compact quick-settings sheet, anchored below the top bar.
     let quick_settings_p = state.shell.quick_settings_progress();
-    if !fullscreen && (state.shell.quick_settings_open || quick_settings_p > 0.001) {
+    if state.shell.quick_settings_open || quick_settings_p > 0.001 {
         let variant = state.theme_spec.variant;
         let frame = state.shell.render_quick_settings(
             &theme,
@@ -153,10 +212,11 @@ pub(super) fn paint(
 
     // Brightness popup, drawn above every other surface.
     let brightness_p = state.shell.brightness_progress();
-    state
-        .shell
-        .set_slider_active(matches!(state.interaction, Interaction::Brightness));
-    if !fullscreen && (state.shell.brightness_open || brightness_p > 0.001) {
+    state.shell.set_slider_active(matches!(
+        state.interaction,
+        Interaction::Brightness | Interaction::ShadeBrightness
+    ));
+    if state.shell.brightness_open || brightness_p > 0.001 {
         let frame = state.shell.render_brightness(
             &theme,
             &mut state.fonts,
@@ -181,7 +241,7 @@ pub(super) fn paint(
 
     // Session menu, drawn above every other surface.
     let power_p = state.shell.power_progress();
-    if !fullscreen && (state.shell.power_open || power_p > 0.001) {
+    if state.shell.power_open || power_p > 0.001 {
         let frame = state
             .shell
             .render_power_menu(&theme, &mut state.fonts, win_w, power_p, None);
@@ -195,7 +255,7 @@ pub(super) fn paint(
         }
     }
 
-    if !fullscreen && (state.shell.calendar.open || state.shell.calendar_progress() > 0.001) {
+    if state.shell.calendar.open || state.shell.calendar_progress() > 0.001 {
         let frame = state
             .shell
             .render_calendar(&theme, &mut state.fonts, win_w, win_h, None);

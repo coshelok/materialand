@@ -170,7 +170,12 @@ pub fn icon_for_key(key: &str) -> &'static str {
         || has("konsole")
     {
         "terminal"
-    } else if has("firefox") || has("chrome") || has("chromium") || has("browser") || has("webkit")
+    } else if has("firefox")
+        || has("chrome")
+        || has("chromium")
+        || has("browser")
+        || has("webkit")
+        || k == "public"
     {
         "public"
     } else if has("code") || has("editor") || has("nvim") || has("vim") || has("emacs") {

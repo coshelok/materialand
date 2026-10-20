@@ -97,24 +97,18 @@ fn topbar_hit_buttons() {
 #[test]
 fn quick_settings_tiles_have_actionable_hit_regions() {
     let (w, h) = (1000.0, 800.0);
-    let card = quick_settings_rect(w, h);
-    let tile_w = (card.w - 44.0) / 2.0;
-    let theme_center = pt(
-        (card.x + 16.0 + tile_w / 2.0) as f64,
-        (card.y + 48.0 + 36.0) as f64,
-    );
-    let night_center = pt(
-        (card.x + 16.0 + tile_w + 12.0 + tile_w / 2.0) as f64,
-        (card.y + 48.0 + 36.0) as f64,
-    );
-    assert_eq!(
-        quick_settings_hit(w, h, theme_center, 1.0),
-        Some(QuickAction::Theme)
-    );
-    assert_eq!(
-        quick_settings_hit(w, h, night_center, 1.0),
-        Some(QuickAction::NightLight)
-    );
+    for action in [
+        QuickAction::Theme,
+        QuickAction::NightLight,
+        QuickAction::ReduceMotion,
+        QuickAction::Brightness,
+        QuickAction::Wifi,
+        QuickAction::Bluetooth,
+    ] {
+        let r = quick_setting_tile_rect(w, h, quick_action_index(action));
+        let center = pt((r.x + r.w / 2.0) as f64, (r.y + r.h / 2.0) as f64);
+        assert_eq!(quick_settings_hit(w, h, center, 1.0), Some(action));
+    }
 }
 
 #[test]
@@ -186,18 +180,38 @@ fn launcher_hit_regions() {
         launcher_hit(w, h, 30, 0.0, pt(10.0, 10.0)),
         LauncherHit::Scrim
     );
+    let search = search_rect(w, h);
     assert_eq!(
-        launcher_hit(w, h, 30, 0.0, pt(500.0, 90.0)),
+        launcher_hit(
+            w,
+            h,
+            30,
+            0.0,
+            pt(
+                f64::from(search.x + search.w / 2.0),
+                f64::from(search.y + search.h / 2.0)
+            )
+        ),
         LauncherHit::Input
     );
-    assert_eq!(
-        launcher_hit(w, h, 1, 0.0, pt(200.0, 190.0)),
-        LauncherHit::Tile(0)
-    );
-    assert_eq!(
-        launcher_hit(w, h, 30, 0.0, pt(200.0, 590.0)),
-        LauncherHit::Tile(18)
-    );
+    let origin = launcher_grid_origin(w, h);
+    let columns = launcher_columns(launcher_card(w, h).w);
+    for slot in [0, columns * 2 + 1] {
+        let (x, y) = launcher_tile_pos(origin, slot, columns);
+        assert_eq!(
+            launcher_hit(w, h, 30, 0.0, pt(f64::from(x + 20.0), f64::from(y + 20.0))),
+            LauncherHit::Tile(slot)
+        );
+    }
+}
+
+#[test]
+fn tablet_drawer_stays_between_the_status_strip_and_floating_navigation() {
+    for (w, h) in [(320.0, 240.0), (640.0, 480.0), (1280.0, 800.0)] {
+        let r = launcher_card(w, h);
+        assert!(r.x >= 0.0 && r.right() <= w);
+        assert!(r.y >= top_inset() && r.bottom() <= h - bottom_inset());
+    }
 }
 
 #[test]

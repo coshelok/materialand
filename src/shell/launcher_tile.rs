@@ -29,8 +29,9 @@ impl Shell {
             design.apps.glyph_size * scale,
             on,
         );
-        let label = truncate(&app.name, design.apps.label_max_chars);
         let label_style = TextStyle::body_medium();
+        let caption = truncate(&app.name, design.apps.label_max_chars);
+        let label = fit_text(fonts, label_style, &caption, design.launcher.tile_size);
         let lw = fonts.text_width_styled(label_style, &label);
         fonts.draw_text_role(
             s,

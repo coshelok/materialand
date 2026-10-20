@@ -19,6 +19,7 @@ pub fn create(formats: Vec<Format>) -> Result<(Display<State>, State)> {
         formats,
         spec,
     );
+    state.services = crate::system::Services::start();
     state.load_appearance();
     state.shell.load_pins();
     state.shell.load_home();
@@ -67,6 +68,7 @@ pub fn run() -> Result<()> {
             state.session_mode = true;
             let listener = runtime::socket()?;
             let _bus = session_bus::SessionBus::start();
+            state.notifications = crate::notifications::Notifications::start();
             let ticker = Ticker::new(&mut state);
             backend::drm::run(event_loop, display, state, listener, ticker, backend)
         }

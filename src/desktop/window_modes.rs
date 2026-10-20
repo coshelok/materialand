@@ -6,6 +6,7 @@ impl State {
         let design = crate::config::design();
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State as XdgState;
 
+        self.end_split_if_contains(window);
         let props = self.window_props(window);
         if props.maximized == maximized && (!maximized || !props.fullscreen) {
             return;
@@ -66,6 +67,7 @@ impl State {
         let design = crate::config::design();
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State as XdgState;
 
+        self.end_split_if_contains(window);
         let props = self.window_props(window);
         if props.fullscreen == fullscreen {
             return;
@@ -154,6 +156,7 @@ impl State {
     pub(super) fn set_minimized(&mut self, window: &Window, minimized: bool) {
         use smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State as XdgState;
 
+        self.end_split_if_contains(window);
         let props = self.window_props(window);
         if props.minimized == minimized {
             return;

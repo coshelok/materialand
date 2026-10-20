@@ -20,17 +20,31 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             .clamp(0.0, f64::from((state.display.size.h - 1).max(0))),
     ));
     state.cursor = location;
+    if super::shortcut_drag::motion(state, location) {
+        return;
+    }
+    if state.overview.open && state.overview.pressed.is_some() {
+        state.overview.drag_to(
+            (location.y - state.overview.drag_start.y).min(0.0) as f32,
+            time,
+        );
+        return;
+    }
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
-    state.shell.set_hover_top(if state.shell.launcher_open {
-        None
-    } else {
-        shell::topbar_hit(w, location)
-    });
-    state.shell.set_hover_dock(if state.shell.launcher_open {
-        None
-    } else {
-        state.shell.dock_hit(w, h, dock_item_count(state), location)
-    });
+    state
+        .shell
+        .set_hover_top(if state.shell.launcher_open || shell::tablet_mode() {
+            None
+        } else {
+            shell::topbar_hit(w, location)
+        });
+    state
+        .shell
+        .set_hover_dock(if state.shell.launcher_open || shell::tablet_mode() {
+            None
+        } else {
+            state.shell.dock_hit(w, h, dock_item_count(state), location)
+        });
     state.shell.set_hover_power(if state.shell.power_open {
         shell::power_row_at(
             w,
@@ -89,6 +103,14 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             }
             return;
         }
+        Interaction::ShadeBrightness => {
+            let local = state
+                .shell
+                .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+                .unmap(location);
+            state.brightness = shell::shade_brightness_value(w, h, local.x as f32);
+            return;
+        }
         Interaction::Brightness => {
             if let Some(value) = shell::brightness_hit(
                 w,
@@ -99,6 +121,10 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             ) {
                 state.brightness = value;
             }
+            return;
+        }
+        Interaction::SplitDivider => {
+            state.move_split_divider(location.x as f32);
             return;
         }
         Interaction::None => {}
@@ -181,6 +207,29 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             return;
         }
     }
+    if state.shell.quick_settings_open
+        && !state.shell.calendar.open
+        && !state.shell.power_open
+        && !state.shell.brightness_open
+    {
+        let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+        let pos = state
+            .shell
+            .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+            .unmap(state.cursor);
+        if !shell::quick_settings_rect(w, h).contains(pos)
+            && shell::navigation_hit(w, h, state.cursor).is_none()
+            && !(state
+                .shell
+                .statusbar_visible(state.has_fullscreen_window(), state.overview.visible())
+                && shell::statusbar_hit(w, state.cursor).is_some())
+        {
+            state.shell.set_quick_settings_open(false);
+            state.shell.consume_menu_release = button == BTN_LEFT;
+            state.swallowed_buttons.insert(button);
+            return;
+        }
+    }
     super::target::dismiss_outside(state, state.cursor);
     let serial = state.next_serial();
     state.last_interactive_press = None;
@@ -233,6 +282,12 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 DecorHit::Minimize => state.minimize_window(&window),
                 DecorHit::Maximize => state.toggle_maximize(&window),
                 DecorHit::Move => {
+                    state.end_split_if_contains(&window);
+                    let geometry = state
+                        .windows
+                        .space
+                        .element_geometry(&window)
+                        .unwrap_or(geometry);
                     state.interaction = Interaction::Move {
                         button: BTN_LEFT,
                         window,
@@ -251,6 +306,10 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             if button == BTN_LEFT {
                 super::target::press(state, control, state.cursor);
             } else if button == 0x111 {
+                if matches!(control, super::target::Control::SplitDivider) {
+                    state.end_split();
+                    return;
+                }
                 super::app_menu::open(state, control, state.cursor);
             }
         }

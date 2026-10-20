@@ -6,6 +6,50 @@ use smithay::{
 };
 pub fn on_pointer_axis<B: InputBackend>(state: &mut State, event: B::PointerAxisEvent) {
     let invert = crate::config::design().input.touchpad.invert_scroll;
+    if state.overview.open {
+        let axis = if event
+            .amount(Axis::Horizontal)
+            .is_some_and(|v| v.abs() > 0.01)
+        {
+            Axis::Horizontal
+        } else {
+            Axis::Vertical
+        };
+        let delta = launcher_delta(
+            event.source(),
+            event.amount(axis),
+            event.amount_v120(axis),
+            invert,
+        );
+        state.overview.scroll(delta, state.shell.reduce_motion);
+        return;
+    }
+    if state.shell.quick_settings_open && !state.pointer.is_grabbed() {
+        let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
+        let delta = launcher_delta(
+            event.source(),
+            event.amount(Axis::Vertical),
+            event.amount_v120(Axis::Vertical),
+            invert,
+        ) as f32;
+        let max = if state.shell.notifications_open {
+            state.shell.notification_scroll_max(w, h)
+        } else if let Some(page) = state.shell.connection_page {
+            let count = if page == QuickAction::Wifi {
+                state.services.status.networks.len()
+            } else {
+                state.services.status.devices.len()
+            };
+            (shell::quick_tiles_top() + 48.0 + count as f32 * config::design().power.row_height
+                - shell::quick_settings_rect(w, h).h
+                + 24.0)
+                .max(0.0)
+        } else {
+            shell::shade_scroll_max(w, h)
+        };
+        state.shell.shade_scroll = (state.shell.shade_scroll + delta).clamp(0.0, max);
+        return;
+    }
     if state.shell.app_menu.is_some() {
         return;
     }

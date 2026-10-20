@@ -59,6 +59,7 @@ impl State {
             .cursor
             .y
             .clamp(0.0, f64::from((self.display.size.h - 1).max(0)));
+        self.reflow_split();
         self.windows.pending_resize.clear();
         let windows: Vec<_> = self.windows.props.keys().cloned().collect();
         for window in windows {

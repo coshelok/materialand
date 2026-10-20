@@ -54,3 +54,17 @@ Light/dark mode, palette and reduced motion save to the same TOML document. Pref
 ## Boundaries retained from the original implementation
 
 Smithay continues to own protocol validation, buffer/surface-tree handling, keyboard state and low-level device APIs. Material color computation, raster drawing and widget appearance were split into dedicated components rather than replaced with another graphics toolkit. Existing visual and utility tests were retained alongside new contract tests.
+
+## Tablet shell and system services
+
+`desktop::overview` owns recent-window selection and transition springs; its `card_motion` module keeps per-window row positions and vertical drag velocity across pointer release and list removal. A dismissed card leaves the output before sending one normal close request; the surviving cards retain their drawn positions while springs move them into the gap. An ignored or canceled close returns the card after the configured timeout. `graphics::overview` composites existing live client buffers, including minimized clients. Frame callbacks resume while those previews are visible. Recent windows are actual Wayland clients, not a separate background-task model.
+
+`desktop::split` owns a two-window pair, saved normal geometry, divider ratio and entry motion. It configures real client sizes and tiled/resizing states, while GPU transforms bridge the transition until buffers catch up. Divider input takes priority over the paired clients' overlapping CSD/borders; unrelated windows and client popups retain priority. Inner-edge resize requests adjust the pair, and an off-center grab preserves its pointer offset. Both panes and the visible divider use shared clamped boundaries. Client input is consumed while displayed geometry differs from committed geometry. Ending the pair restores the normal sizes and locations; output changes reflow it when minimum sizes still fit.
+
+`input::shortcut_drag` owns pointer thresholds, edge dwell and drops. Home order writes atomically before the in-memory model changes; each displaced icon has spatial springs. Overlay entry releases pointer grabs without re-entering keyboard dispatch. Shared geometry is used by rendering and hit testing.
+
+`system` owns a bounded worker channel, periodic Linux battery reads, NetworkManager queries and BlueZ ObjectManager calls. Rendering only consumes snapshots and queues actions. Sequence numbers keep stale polling results from completing a newer action; real service state controls switches. Individual battery/network/Bluetooth modules and command timeouts remain separate from shell painting.
+
+`input::gestures` snapshots the active shell layer at swipe begin. Inverse gestures dismiss their owner; blocked transitions and unrelated panels cannot fall through to global navigation. Libinput device-add events apply the configured tapping preferences, including hotplugged touchpads.
+
+`shell::statusbar` shares cached palette endpoints and hit geometry for the compact tablet status strip. Its height feeds the common work-area inset. `notifications` registers a session-local D-Bus server after the private bus starts; a background worker owns socket I/O and close signals. The compositor consumes revisioned snapshots and renders the shade list without making synchronous D-Bus calls.

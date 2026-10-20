@@ -29,7 +29,9 @@ Set this in the existing `[input.touchpad]` section of `config.toml`, then resta
 invert_scroll = true
 ```
 
-This reverses horizontal and vertical touchpad scrolling in apps and the launcher. Mouse-wheel direction is independent. Set `false` to restore the original direction.
+`tap_to_click = true` and `tap_drag = true` in the same section enable tapping and tap-and-drag in direct sessions. They are enabled by default and apply to newly connected devices as well. Nested sessions inherit the host desktop's tapping settings.
+
+`invert_scroll` reverses horizontal and vertical touchpad scrolling in apps and the launcher. Mouse-wheel direction is independent. Set `false` to restore the original direction.
 
 ## Keyboard
 
@@ -54,7 +56,7 @@ Use `materialand --check` to inspect connected outputs, modes and reported physi
 
 Direct sessions select the highest advertised progressive refresh rate at the display's preferred resolution. The initialized output log includes `refresh_hz`. Animation frames follow KMS page flips; there is no fixed 60 Hz animation cap. Nested mode follows the host monitor's reported refresh rate, including when the window moves between displays; 60 Hz is used only when the host reports no valid rate. Actual presentation speed still depends on the renderer and, in nested mode, the host compositor.
 
-Brightness controls the backlight associated with the active connector, with a 2% minimum. It uses direct access when permitted, otherwise `busctl` and logind. Night light adjusts the output's color channels through its gamma ramps. Both controls show **Unavailable** in nested mode or when the required output support is missing. Three-finger launcher gestures use libinput in direct sessions.
+Brightness controls the backlight associated with the active connector, with a 2% minimum. It uses direct access when permitted, otherwise `busctl` and logind. Night light adjusts the output's color channels through its gamma ramps. Both controls show **Unavailable** in nested mode or when the required output support is missing. Three-finger launcher gestures and four-finger overview/shade gestures use libinput in direct sessions. All three overlays also have mouse controls and keyboard shortcuts.
 
 ## Saved applications
 
@@ -65,4 +67,10 @@ Files live in `$XDG_CONFIG_HOME/materialand/`, or `~/.config/materialand/` when 
 | `home-apps` | Home screen shortcut identities, in display order |
 | `pinned-apps` | Dock pin identities, in display order |
 
-Manage these through an application's context menu. Home shortcuts and dock pins are independent; empty files preserve an intentionally empty selection. Missing application identities remain saved for reinstalls. Unpinning the terminal leaves `Super+Enter` available.
+Manage these through an application's context menu. Drag home shortcuts to reorder them or hold an icon near a screen edge to change pages. The dock pin action is available in `navigation.mode = "desktop"`. Home shortcuts and dock pins are independent; empty files preserve an intentionally empty selection. Missing application identities remain saved for reinstalls. Unpinning the terminal leaves `Super+Enter` available.
+
+## Navigation and system services
+
+The default `[navigation] mode = "tablet"` uses a home screen, app grid, recent-app overview and system shade, plus compact mouse controls. Set `mode = "desktop"` to restore the topbar and app dock. See the [controls table](../README.md#controls) for gestures and keyboard shortcuts.
+
+Battery, Wi-Fi and Bluetooth readings come from Linux power-supply attributes, NetworkManager and BlueZ respectively. [System controls](SYSTEM_CONTROLS.md) documents runtime dependencies and connection setup. No radio state is stored in the design configuration.

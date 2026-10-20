@@ -83,6 +83,20 @@ impl State {
         geometry: Rectangle<i32, Logical>,
         button: u32,
     ) {
+        if self.split_inner_edge(&window, edges) {
+            self.begin_split_drag();
+            return;
+        }
+        let was_split = self.split_area_for(&window).is_some();
+        self.end_split_if_contains(&window);
+        let geometry = if was_split {
+            self.windows
+                .space
+                .element_geometry(&window)
+                .unwrap_or(geometry)
+        } else {
+            geometry
+        };
         let props = self.window_props(&window);
         if props.fullscreen || props.maximized {
             return;
@@ -108,6 +122,12 @@ impl State {
                 top.with_pending_state(|s|s.states.unset(smithay::reexports::wayland_protocols::xdg::shell::server::xdg_toplevel::State::Resizing));
                 top.send_configure();
             }
+        }
+        if matches!(self.interaction, Interaction::SplitDivider) {
+            if let Some(split) = &mut self.split {
+                split.dragging = false;
+            }
+            self.configure_split();
         }
         self.interaction = Interaction::None;
         self.shell.set_slider_active(false);

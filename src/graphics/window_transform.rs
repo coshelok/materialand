@@ -17,7 +17,14 @@ pub(super) fn transform<E: Element>(
         (pose.target.y - pose.source.y).round() as i32,
     );
     RelocateRenderElement::from_element(
-        RescaleRenderElement::from_element(element, anchor, pose.scale()),
+        RescaleRenderElement::from_element(
+            element,
+            anchor,
+            (
+                pose.scale(),
+                f64::from(pose.target.h / pose.source.h.max(1.0)),
+            ),
+        ),
         offset,
         Relocate::Relative,
     )

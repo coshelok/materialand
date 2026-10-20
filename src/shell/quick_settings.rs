@@ -35,11 +35,21 @@ impl Shell {
             .u32(layer_w)
             .u32(layer_h)
             .u64(theme.cache_key())
+            .str(&self.clock)
+            .str(&self.calendar.now.date_text())
+            .str(&format!("{:?}", self.system_status))
+            .u32(self.shade_scroll.to_bits())
+            .u64(self.notifications.revision)
+            .bool(self.notifications_open)
+            .u32(
+                self.connection_page
+                    .map_or(0, |page| if page == QuickAction::Wifi { 1 } else { 2 }),
+            )
             .str(variant.name())
             .bool(self.brightness_available)
             .bool(self.brightness_error)
             .bool(self.night_light_available)
-            .u32((brightness.clamp(0.0, 1.0) * 100.0).round() as u32);
+            .f32(brightness.clamp(0.0, 1.0));
         for s in &self.switches {
             key = key.f32(s.value());
         }
@@ -108,51 +118,136 @@ impl Shell {
     ) {
         let design = crate::config::design();
         let pad = design.shadow.padding;
-        layer.shadow_round_rect(
-            pad,
-            pad,
-            rect.w,
-            rect.h,
-            design.shape.extra_large,
-            design.shadow.spread,
-            theme.shadow,
-        );
+        if !(tablet_mode() && design.shade.fullscreen) {
+            layer.shadow_round_rect(
+                pad,
+                pad,
+                rect.w,
+                rect.h,
+                design.shape.extra_large,
+                design.shadow.spread,
+                theme.shadow,
+            );
+        }
         layer.fill_round_rect(
             pad,
             pad,
             rect.w,
             rect.h,
-            design.shape.extra_large,
+            if tablet_mode() && design.shade.fullscreen {
+                0.0
+            } else {
+                design.shape.extra_large
+            },
             theme.surface_container_low,
+        );
+        let clock_style =
+            if tablet_mode() && !self.notifications_open && self.connection_page.is_none() {
+                TextStyle {
+                    size: design.shade.clock_size,
+                    line_height: design.shade.clock_line_height,
+                    ..TextStyle::headline_small()
+                }
+            } else {
+                TextStyle::headline_small()
+            };
+        let heading = fit_text(
+            fonts,
+            clock_style,
+            if self.notifications_open {
+                "Notifications"
+            } else if tablet_mode() && self.connection_page.is_none() {
+                &self.clock
+            } else {
+                "Quick settings"
+            },
+            rect.w - 2.0 * design.quick_settings.padding - 112.0,
         );
         fonts.draw_text_role(
             layer,
             pad + design.quick_settings.padding,
             pad + design.quick_settings.title_y,
-            TextStyle::headline_small(),
-            "Quick settings",
+            clock_style,
+            &heading,
             theme.on_surface,
         );
+        let date = self.calendar.now.date_text();
         fonts.draw_text_role(
             layer,
             pad + design.quick_settings.padding,
             pad + design.quick_settings.subtitle_y,
             TextStyle::body_small(),
-            "Appearance & display",
+            if self.notifications_open {
+                "App updates"
+            } else if tablet_mode() && self.connection_page.is_none() {
+                &date
+            } else {
+                "Connections, appearance & display"
+            },
             theme.on_surface_variant,
         );
 
+        fonts.draw_icon_centered(
+            layer,
+            pad + rect.w - 28.0,
+            pad + 32.0,
+            "power_settings_new",
+            22.0,
+            theme.on_surface,
+        );
+        fonts.draw_icon_centered(
+            layer,
+            pad + rect.w - 84.0,
+            pad + 32.0,
+            "schedule",
+            22.0,
+            theme.on_surface,
+        );
+
+        let mut body = Surface::new(layer.pixmap.width(), layer.pixmap.height());
+        if self.notifications_open {
+            self.paint_notifications(layer, fonts, theme, rect, pad);
+            return;
+        }
+        if self.connection_page.is_some() {
+            self.paint_connections(layer, fonts, theme, rect, pad);
+            return;
+        }
+        if tablet_mode() {
+            self.paint_shade_brightness(layer, fonts, theme, rect, pad, brightness);
+        }
         let tiles = [
             ("dark_mode", "Dark theme", QuickAction::Theme),
             ("nightlight", "Night light", QuickAction::NightLight),
             ("reduce_motion", "Reduce motion", QuickAction::ReduceMotion),
             ("brightness_6", "Brightness", QuickAction::Brightness),
+            ("wifi", "Wi-Fi", QuickAction::Wifi),
+            ("bluetooth", "Bluetooth", QuickAction::Bluetooth),
         ];
         for (i, (icon, label, action)) in tiles.iter().enumerate() {
             let tile = quick_setting_tile(rect, i, 1.0);
             // The painter and input share the final tile geometry.
             let x = tile.x - rect.x + pad;
-            let y = tile.y - rect.y + pad;
+            let y = tile.y - rect.y + pad - self.shade_scroll;
+            if tablet_mode() {
+                self.paint_android_tile(
+                    &mut body,
+                    fonts,
+                    theme,
+                    RectF {
+                        x,
+                        y,
+                        w: tile.w,
+                        h: tile.h,
+                    },
+                    *action,
+                    label,
+                    icon,
+                    i,
+                    brightness,
+                );
+                continue;
+            }
             let key = PressKey::Tile(i);
             let squeeze = self.press_scale(key);
             let tw = tile.w * squeeze;
@@ -175,15 +270,15 @@ impl Shell {
             let radius = design.quick_settings.tile_radius
                 + design.quick_settings.tile_active_radius_growth * t
                 + design.quick_settings.tile_press_radius_growth * (1.0 - squeeze);
-            layer.fill_round_rect(tx, ty, tw, th, radius, fill);
-            layer.circle(
+            body.fill_round_rect(tx, ty, tw, th, radius, fill);
+            body.circle(
                 x + design.quick_settings.icon_x,
                 y + design.quick_settings.icon_y,
                 design.quick_settings.icon_radius,
                 Theme::with_alpha(on, design.quick_settings.icon_alpha),
             );
             fonts.draw_icon_centered(
-                layer,
+                &mut body,
                 x + design.quick_settings.icon_x,
                 y + design.quick_settings.icon_y,
                 icon,
@@ -197,14 +292,27 @@ impl Shell {
                 tile.w - 2.0 * design.quick_settings.label_x,
             );
             fonts.draw_text_role(
-                layer,
+                &mut body,
                 x + design.quick_settings.label_x,
                 y + design.quick_settings.label_y,
                 TextStyle::label_large(),
                 &label,
                 on,
             );
-            let status = if (*action == QuickAction::Brightness && !self.brightness_available)
+            let radio = match action {
+                QuickAction::Wifi => Some(&self.system_status.wifi),
+                QuickAction::Bluetooth => Some(&self.system_status.bluetooth),
+                _ => None,
+            };
+            let status: String = if let Some(radio) = radio {
+                if radio.busy {
+                    "Working…".into()
+                } else if !radio.available {
+                    "Unavailable".into()
+                } else {
+                    radio.label.clone()
+                }
+            } else if (*action == QuickAction::Brightness && !self.brightness_available)
                 || (*action == QuickAction::NightLight && !self.night_light_available)
             {
                 "Unavailable".into()
@@ -217,8 +325,14 @@ impl Shell {
             } else {
                 "Off".into()
             };
+            let status = fit_text(
+                fonts,
+                TextStyle::label_medium(),
+                &status,
+                tile.w - 2.0 * design.quick_settings.label_x,
+            );
             fonts.draw_text_role(
-                layer,
+                &mut body,
                 x + design.quick_settings.label_x,
                 y + design.quick_settings.status_y,
                 TextStyle::label_medium(),
@@ -227,7 +341,7 @@ impl Shell {
             );
             if *action != QuickAction::Brightness {
                 draw_m3_switch(
-                    layer,
+                    &mut body,
                     x + tile.w - design.switch.width - design.quick_settings.label_x,
                     y + design.quick_settings.switch_y,
                     self.switch_spring(*action),
@@ -235,7 +349,7 @@ impl Shell {
                 );
             }
             if self.press_tile == Some(*action) {
-                layer.fill_round_rect(
+                body.fill_round_rect(
                     tx,
                     ty,
                     tw,
@@ -244,14 +358,24 @@ impl Shell {
                     theme.state_layer(on, design.state.pressed),
                 );
             }
+            if matches!(action, QuickAction::Wifi | QuickAction::Bluetooth) {
+                fonts.draw_icon_centered(
+                    &mut body,
+                    x + tile.w - 24.0,
+                    y + design.quick_settings.status_y + 8.0,
+                    "chevron_right",
+                    20.0,
+                    on,
+                );
+            }
             let clip = round_rect_path(tx, ty, tw, th, radius);
-            self.draw_ripple(layer, key, &clip, on);
+            self.draw_ripple(&mut body, key, &clip, on);
         }
 
         fonts.draw_text_role(
-            layer,
+            &mut body,
             pad + design.quick_settings.padding,
-            pad + design.quick_settings.chips_y - design.quick_settings.palette_title_gap,
+            pad + palette_top(rect.w) - design.quick_settings.palette_title_gap - self.shade_scroll,
             TextStyle::title_medium(),
             "Color palette",
             theme.on_surface,
@@ -259,24 +383,22 @@ impl Shell {
         let swatches = *self.swatches(theme.is_dark);
         for (i, variant_i) in VARIANTS.iter().enumerate() {
             let chip = palette_chip_rect_in(rect, i);
-            if chip.bottom() > rect.bottom() - design.quick_settings.chip_bottom_gap {
-                break;
-            }
+
             let key = PressKey::Chip(i);
             let scale = self.press_scale(key);
             let cw = chip.w * scale;
             let ch = chip.h * scale;
             let x = chip.x - rect.x + pad + (chip.w - cw) / 2.0;
-            let y = chip.y - rect.y + pad + (chip.h - ch) / 2.0;
+            let y = chip.y - rect.y + pad + (chip.h - ch) / 2.0 - self.shade_scroll;
             let selected = *variant_i == variant;
             let (fill, on) = if selected {
                 (theme.secondary_container, theme.on_secondary_container)
             } else {
                 (theme.surface_container_high, theme.on_surface_variant)
             };
-            layer.fill_round_rect(x, y, cw, ch, ch / 2.0, fill);
+            body.fill_round_rect(x, y, cw, ch, ch / 2.0, fill);
             if selected {
-                layer.stroke_round_rect(
+                body.stroke_round_rect(
                     x + 1.0,
                     y + 1.0,
                     cw - 2.0,
@@ -288,19 +410,19 @@ impl Shell {
             }
             let (a, b, c) = swatches[i];
             let cy = y + ch / 2.0;
-            layer.circle(
+            body.circle(
                 x + design.quick_settings.swatch_first_x,
                 cy,
                 design.quick_settings.swatch_radius,
                 a,
             );
-            layer.circle(
+            body.circle(
                 x + design.quick_settings.swatch_first_x + design.quick_settings.swatch_gap,
                 cy,
                 design.quick_settings.swatch_radius,
                 b,
             );
-            layer.circle(
+            body.circle(
                 x + design.quick_settings.swatch_first_x + 2.0 * design.quick_settings.swatch_gap,
                 cy,
                 design.quick_settings.swatch_radius,
@@ -313,7 +435,7 @@ impl Shell {
                 cw - design.quick_settings.chip_label_x - design.quick_settings.chip_label_padding,
             );
             fonts.draw_text_role(
-                layer,
+                &mut body,
                 x + design.quick_settings.chip_label_x,
                 cy - TextStyle::label_small().line_height / 2.0,
                 TextStyle::label_small(),
@@ -321,7 +443,60 @@ impl Shell {
                 on,
             );
             let clip = round_rect_path(x, y, cw, ch, ch / 2.0);
-            self.draw_ripple(layer, key, &clip, on);
+            self.draw_ripple(&mut body, key, &clip, on);
+        }
+        let viewport = round_rect_path(
+            pad,
+            pad + quick_tiles_top(),
+            rect.w,
+            (rect.h - quick_tiles_top()).max(1.0),
+            0.0,
+        );
+        let rounded = round_rect_path(pad, pad, rect.w, rect.h, config::design().shape.extra_large);
+        layer.blit_intersection(&body, &[&viewport, &rounded]);
+        let battery = self
+            .system_status
+            .battery
+            .as_ref()
+            .map(|b| {
+                format!(
+                    "{}% · {}",
+                    b.percent,
+                    if b.charging {
+                        "Charging"
+                    } else if b.plugged {
+                        "Plugged in"
+                    } else {
+                        "On battery"
+                    }
+                )
+            })
+            .unwrap_or_else(|| "Battery unavailable".into());
+        if tablet_mode() {
+            fonts.draw_text_role(
+                layer,
+                pad + design.quick_settings.padding,
+                pad + 78.0,
+                TextStyle::label_medium(),
+                &battery,
+                theme.on_surface_variant,
+            );
+        }
+        if let Some(error) = &self.system_status.error {
+            let text = fit_text(
+                fonts,
+                TextStyle::body_small(),
+                error,
+                rect.w - 2.0 * design.quick_settings.padding,
+            );
+            fonts.draw_text_role(
+                layer,
+                pad + design.quick_settings.padding,
+                pad + rect.h - 22.0,
+                TextStyle::body_small(),
+                &text,
+                theme.error,
+            );
         }
     }
 }

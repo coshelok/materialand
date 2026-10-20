@@ -62,6 +62,16 @@ impl Shell {
     pub fn quick_settings_placement(&self, w: f32, h: f32, progress: f32) -> CardPlacement {
         let design = crate::config::design();
         let source = quick_settings_rect(w, h);
+        if tablet_mode() {
+            let t = progress.clamp(0.0, design.motion.overshoot_limit);
+            return CardPlacement {
+                source,
+                target: RectF {
+                    y: source.y - (source.bottom() + design.shade.margin) * (1.0 - t),
+                    ..source
+                },
+            };
+        }
         let origin = self
             .qs_origin
             .unwrap_or_else(|| topbar_button_rect(w, TopAction::QuickSettings));

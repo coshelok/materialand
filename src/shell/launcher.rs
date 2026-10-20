@@ -1,7 +1,7 @@
 //! Launcher layer and GPU animation.
 use super::*;
 impl Shell {
-    pub(super) fn scrim_buffer(&mut self, theme: &Theme) -> MemoryRenderBuffer {
+    pub(crate) fn scrim_buffer(&mut self, theme: &Theme) -> MemoryRenderBuffer {
         let key = theme.cache_key();
         if let Some((k, buf)) = &self.scrim_cache {
             if *k == key {

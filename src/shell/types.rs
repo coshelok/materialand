@@ -74,6 +74,8 @@ pub enum QuickAction {
     NightLight,
     ReduceMotion,
     Brightness,
+    Wifi,
+    Bluetooth,
 }
 
 /// Index of a quick-settings tile, also used by the motion state.
@@ -83,6 +85,8 @@ pub fn quick_action_index(action: QuickAction) -> usize {
         QuickAction::NightLight => 1,
         QuickAction::ReduceMotion => 2,
         QuickAction::Brightness => 3,
+        QuickAction::Wifi => 4,
+        QuickAction::Bluetooth => 5,
     }
 }
 

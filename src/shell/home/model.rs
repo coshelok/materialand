@@ -40,6 +40,56 @@ impl Shell {
         self.home.cache.clear();
         Ok(())
     }
+    pub fn place_home_app(&mut self, app: AppEntry, index: usize) -> std::io::Result<()> {
+        let mut apps = self.home.apps.clone();
+        let identity = app.identity();
+        apps.retain(|a| a.identity() != identity);
+        let index = index.min(apps.len());
+        let before = apps.get(index).map(AppEntry::identity);
+        self.home.pins.place_before(identity, before.as_deref())?;
+        apps.insert(index, app);
+        self.home.apps = apps;
+        self.home.cache.clear();
+        Ok(())
+    }
+    pub fn home_reorder_snapshot(&self, w: f32, h: f32) -> HashMap<String, RectF> {
+        self.home
+            .apps
+            .iter()
+            .enumerate()
+            .map(|(i, app)| (app.identity(), self.home_tile_rect(w, h, i)))
+            .collect()
+    }
+    pub fn animate_home_reorder(&mut self, w: f32, h: f32, before: HashMap<String, RectF>) {
+        self.home.icon_motion.clear();
+        if self.reduce_motion {
+            return;
+        }
+        for (i, app) in self.home.apps.iter().enumerate() {
+            if let Some(from) = before.get(&app.identity()) {
+                let target = self.home_tile_rect(w, h, i);
+                let mut x = Spring::spatial(from.x - target.x);
+                let mut y = Spring::spatial(from.y - target.y);
+                x.set_target(0.0);
+                y.set_target(0.0);
+                self.home.icon_motion.insert(app.identity(), (x, y));
+            }
+        }
+    }
+    pub fn home_drop_index(&self, w: f32, h: f32, pos: Point<f64, Logical>) -> Option<usize> {
+        let layout = home_layout(w, h);
+        if !layout.grid.contains(pos) {
+            return None;
+        }
+        let col = ((pos.x as f32 - layout.grid.x) / (layout.grid.w / layout.columns as f32)).floor()
+            as usize;
+        let row =
+            ((pos.y as f32 - layout.grid.y) / config::design().home.cell_height).floor() as usize;
+        Some(
+            (self.home.page * layout.per_page + row * layout.columns + col.min(layout.columns - 1))
+                .min(self.home.apps.len()),
+        )
+    }
     pub fn reveal_home(&mut self) {
         self.home
             .reveal

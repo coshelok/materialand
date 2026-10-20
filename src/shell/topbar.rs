@@ -35,7 +35,7 @@ impl Shell {
             rect.w,
             rect.h,
             rect.h / 2.0,
-            theme.surface_container_low,
+            Theme::with_alpha(theme.surface_container_low, design.topbar.background_alpha),
         );
         let button = |action| {
             let mut b = topbar_button_rect(win_w, action);
@@ -53,24 +53,22 @@ impl Shell {
             TopAction::Home,
             "home",
             design.topbar.home_icon_size,
-            theme.on_primary_container,
-            Some(theme.primary_container),
+            theme.on_surface,
+            None,
         );
         let clock_style = TextStyle::label_large();
         let clock = button(TopAction::Clock);
         let clock_w = fonts.text_width_styled(clock_style, &self.clock);
-        s.fill_round_rect(
-            clock.x,
-            clock.y,
-            clock.w,
-            clock.h,
-            clock.h / 2.0,
-            if self.calendar.open || self.hover_top == Some(TopAction::Clock) {
-                theme.primary_container
-            } else {
-                theme.secondary_container
-            },
-        );
+        if self.calendar.open || self.hover_top == Some(TopAction::Clock) {
+            s.fill_round_rect(
+                clock.x,
+                clock.y,
+                clock.w,
+                clock.h,
+                clock.h / 2.0,
+                theme.primary_container,
+            );
+        }
         fonts.draw_text_role(
             &mut s,
             clock.x + (clock.w - clock_w) / 2.0,
@@ -90,7 +88,7 @@ impl Shell {
             "account_circle",
             design.topbar.status_icon_size,
             theme.on_surface,
-            Some(theme.surface_container_high),
+            None,
         );
         let theme_icon = if theme.is_dark {
             "light_mode"

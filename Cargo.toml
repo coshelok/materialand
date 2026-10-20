@@ -1,6 +1,6 @@
 [package]
 name = "materialand"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 description = "A modular Material 3 Wayland compositor for DRM/KMS and nested sessions"
 license = "MIT"
@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 libc = "0.2"
+serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 toml_edit = { version = "0.22", features = ["serde"] }
 smithay = { version = "0.7.0", default-features = false, features = [
@@ -35,8 +36,12 @@ calloop = { version = "0.14", features = ["signals"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 winit = "0.30"
+zbus = { version = "5.5.0", default-features = false, features = ["tokio", "blocking-api"] }
 
 [profile.release]
 opt-level = 3
 lto = "thin"
 codegen-units = 1
+
+[dev-dependencies]
+wayland-client = "0.31"

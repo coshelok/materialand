@@ -13,3 +13,6 @@ mod cursor;
 mod window_transform;
 
 mod reveal;
+
+mod overview;
+mod rounded;

@@ -61,9 +61,9 @@ impl State {
 
     pub fn available_area(&self) -> Rectangle<i32, Logical> {
         let design = crate::config::design();
-        let top = (design.topbar.height + 2.0 * design.topbar.margin) as i32;
-        let bottom = (design.dock.height + design.dock.margin) as i32
-            + design.window.workspace_bottom_gap as i32;
+        let top = crate::shell::top_inset() as i32;
+        let bottom =
+            crate::shell::bottom_inset() as i32 + design.window.workspace_bottom_gap as i32;
         let h = (self.display.size.h - top - bottom).max(1);
         Rectangle::new((0, top).into(), (self.display.size.w, h).into())
     }
@@ -120,15 +120,14 @@ impl State {
         self.windows.cascade = self.windows.cascade.wrapping_add(1);
         let step = design.window.cascade_step as i32;
         let base_x = design.topbar.margin as i32 + design.window.spawn_x as i32;
-        let base_y = (design.topbar.height
-            + 2.0 * design.topbar.margin
+        let base_y = (crate::shell::top_inset()
             + design.window.titlebar_height
             + design.window.spawn_gap) as i32;
         let (sw, sh) = (self.display.size.w, self.display.size.h);
         let Size { w: ww, h: wh, .. } = self.initial_window_size();
-        let dock = design.dock.height as i32 + design.dock.margin as i32;
+        let bottom = crate::shell::bottom_inset() as i32;
         let max_x = (sw - ww - design.window.edge_margin as i32).max(base_x);
-        let max_y = (sh - wh - dock - design.window.edge_margin as i32).max(base_y);
+        let max_y = (sh - wh - bottom - design.window.edge_margin as i32).max(base_y);
         Point::from((
             (base_x + n * step).min(max_x),
             (base_y + n * step).min(max_y),

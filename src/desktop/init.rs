@@ -109,6 +109,11 @@ impl State {
         let mut shell = Shell::new(apps, spec);
         shell.set_theme_switch(theme.is_dark);
         State {
+            services: Default::default(),
+            notifications: Default::default(),
+            shortcut_drag: None,
+            overview: Default::default(),
+            split: None,
             forwarded_buttons: HashSet::new(),
             cursor_status: smithay::input::pointer::CursorImageStatus::default_named(),
             pending_imports: Vec::new(),

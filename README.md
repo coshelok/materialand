@@ -1,11 +1,14 @@
 # Materialand
 
-An Android-inspired Wayland desktop for Linux, built with Rust and Smithay. Material 3 colors, pastel surfaces and spring animations shape a tablet-style home screen, app launcher and dock.
+An Android-inspired Wayland desktop for Linux, built with Rust and Smithay. Android 15-style home and app navigation meet Material 3 Expressive colors, shapes and spring motion: a clock widget and app search, a full-screen app grid, large rounded recent-app previews and a full system shade.
 
-- Add your favorite apps to the home screen and keep separate dock pins.
-- Search and scroll installed apps, or use three-finger swipes to open and close the launcher.
-- Use the clock/calendar, saved theme and palette choices, Night light, hardware brightness and reduced motion.
+- Drag apps onto the home screen, reorder shortcuts and move them between pages.
+- Open the app grid with three fingers up, recent apps with four fingers up, and the system shade with four fingers down.
+- Restore or close recent apps and pair two windows with a spring-animated, draggable split divider.
+- Monitor battery charge and control Wi-Fi, Bluetooth, appearance, Night light and hardware brightness from the shade.
 - Animate at the active display's refresh rate, with GPU window transforms and circular theme reveals.
+- Use a floating pastel dock and transparent Android-style status area in either theme.
+- Use Android-style quick-control capsules, a brightness slider in the shade, and optional Material-themed app icons.
 - Run as a desktop session from SDDM or a TTY, or inside another desktop with `--nested`.
 
 ## Build and run
@@ -40,15 +43,30 @@ Select **Materialand** in SDDM. After rebuilding, reinstall the binary to update
 
 | Input | Action |
 | --- | --- |
-| Home button or `Super+H` | Show the home screen and minimize open windows |
-| `Super+P` | Open the launcher; type to search, Enter to launch, Escape to close |
+| Home control or `Super+H` | Show home and minimize open windows |
+| Apps control or `Super+P` | Open the launcher; type to search, Enter to launch, Escape to close |
 | Three-finger swipe up / down | Open / close the launcher in a direct session |
+| Four-finger swipe up | Open recent apps; close the shade when it is open |
+| Four-finger swipe down | Open the system shade; close recent apps when the overview is open |
+| `Super+Tab` / `Super+S` | Toggle recent apps / system shade |
+| `Super+BackSpace` | Leave split screen and restore both windows |
 | `Super+Enter` | Open a terminal |
 | `Super+D` | Switch light/dark theme |
 | `Super+Q` | Close the focused window |
-| Click the clock | Open date, time and calendar |
+| Clock in the status strip or shade | Open date, time and calendar |
+| Bell / Wi-Fi / Bluetooth in the status strip | Open notifications / networks / paired devices |
 
-Right-click an app to add/remove its home shortcut or dock pin. Click a home shortcut to launch the app or restore its running window. Use the home page arrows to reach additional shortcuts; scroll the launcher with a mouse wheel or touchpad.
+The default tablet layout uses a compact Android-style status strip at the top (time, notifications, radios and battery), plus Home, Apps, Recents and Settings controls at the bottom. App windows reserve the status-strip height; ordinary fullscreen applications hide it. Escape dismisses the current overlay.
+
+Gestures belong to the current panel: four fingers up closes an open shade without opening recent apps, and four down closes recent apps without opening the shade. The launcher uses only its three-finger gestures; other panel gestures are ignored while it is open. A closing animation cannot turn the same action into another overlay.
+
+Touchpad tap-to-click and tap-and-drag are enabled by default in direct sessions. A brief one-finger tap activates the control under the pointer; tap, then hold a second touch to drag without pressing the touchpad. Nested mode uses the host desktop's input settings.
+
+In recent apps, scroll or use arrow keys, click a preview to restore it, and use its close button or drag it upward to close it. The card continues upward after release; once it leaves the screen, the app receives a normal close request and neighboring cards slide into the gap. A short drag returns smoothly. Applications may still ask to save work; a card returns if its app ignores or cancels closing. Click the split icon under one preview, then click another preview or its split icon to complete the pair. Click the first icon again to cancel. If the apps need more room, the first selection stays active so you can choose another app. Drag the divider or either adjacent inner window edge to resize both panes; right-click the divider or maximize either app to leave split screen.
+
+Right-click an app to add/remove its home shortcut. Drag an icon to reorder it, or drag it from the launcher onto home. Hold it near a screen edge to change pages before dropping. Shortcut order persists across sessions.
+
+Wi-Fi and Bluetooth tiles show actual service state. Click a tile to toggle the radio; its chevron opens available Wi-Fi networks or paired Bluetooth devices. The shade also shows battery percentage and charging state. The bell opens a session-local notification list with individual dismissal and Clear all. See [System controls](docs/SYSTEM_CONTROLS.md) for dependencies and connection setup.
 
 ## Configuration
 
@@ -56,10 +74,10 @@ Appearance, layout, typography and animation settings live in `~/.config/materia
 
 Edit the file and restart the session to apply design changes. Quick settings save theme, palette and reduced motion immediately, preserving comments and other settings. Set `[input.touchpad] invert_scroll = true` to reverse touchpad scrolling. Use `materialand --check-config` to validate edits. See [Design configuration](docs/DESIGN.md) and the commented [default configuration](config/default.toml).
 
-Home shortcuts and dock pins persist separately in the same directory. [Configuration](docs/CONFIGURATION.md) covers keyboard and display options.
+Set `[navigation] mode = "desktop"` to restore the topbar and application dock, including its separate pin menu. Home shortcuts and dock pins persist separately in the same directory. [Configuration](docs/CONFIGURATION.md) covers keyboard and display options.
 
 ## Project status
 
 Materialand is experimental. It currently drives one output at scale 1 and supports native Wayland applications. XWayland and multi-monitor layouts are not implemented. Hardware brightness, Night light and touchpad gestures require a direct session and compatible hardware.
 
-[Release notes](docs/RELEASE_NOTES_v0.3.0.md) · [Architecture](docs/ARCHITECTURE.md) · [Build checks and manual validation](docs/VALIDATION.md)
+[Release notes](docs/RELEASE_NOTES_v0.4.0.md) · [Architecture](docs/ARCHITECTURE.md) · [Build checks and manual validation](docs/VALIDATION.md)

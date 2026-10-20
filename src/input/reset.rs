@@ -1,7 +1,49 @@
 //! A seat pause releases transient input state before dropping its devices.
 use super::*;
+// Shell entry must release a client's pointer grab without re-entering the
+// keyboard filter that may have requested the overlay.
+pub(crate) fn prepare_shell_overlay(state: &mut State) {
+    state.overview.cancel_press(state.shell.reduce_motion);
+    super::shortcut_drag::cancel(state);
+    if let Some(button) = state.interaction.button() {
+        state.finish_interaction(button);
+    }
+    let time = smithay::utils::Clock::<smithay::utils::Monotonic>::new()
+        .now()
+        .as_millis();
+    let pointer = state.pointer.clone();
+    for button in state.forwarded_buttons.drain().collect::<Vec<_>>() {
+        state.swallowed_buttons.insert(button);
+        let serial = state.next_serial();
+        pointer.button(
+            state,
+            &ButtonEvent {
+                serial,
+                time,
+                button,
+                state: ButtonState::Released,
+            },
+        );
+    }
+    let serial = state.next_serial();
+    pointer.unset_grab(state, serial, time);
+    pointer.motion(
+        state,
+        None,
+        &MotionEvent {
+            location: state.cursor,
+            serial,
+            time,
+        },
+    );
+    pointer.frame(state);
+    state.last_interactive_press = None;
+    state.shell.cancel_presses();
+}
 pub fn cancel(state: &mut State) {
+    state.overview.cancel_press(state.shell.reduce_motion);
     state.launcher_swipe = Default::default();
+    super::shortcut_drag::cancel(state);
     let time = smithay::utils::Clock::<smithay::utils::Monotonic>::new()
         .now()
         .as_millis();

@@ -63,6 +63,11 @@ impl Spring {
         self.target = target;
     }
 
+    /// Carry measured drag velocity into the released spring (units per second).
+    pub fn set_velocity(&mut self, velocity: f32) {
+        self.velocity = if velocity.is_finite() { velocity } else { 0.0 };
+    }
+
     /// Set a stable value without simulating intermediate frames. Used when
     /// the user enables Material 3's reduced-motion accessibility preference.
     pub fn snap(&mut self, value: f32) {

@@ -24,6 +24,7 @@ pub fn run() -> Result<()> {
     // Connect to the host before publishing our own socket to children.
     let listener = app::runtime::socket()?;
     let _bus = app::session_bus::SessionBus::start();
+    state.notifications = crate::notifications::Notifications::start();
     let mut size = backend.window_size();
     let mut refresh = host_refresh(backend.window());
     resize(&mut state, size, refresh);

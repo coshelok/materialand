@@ -10,11 +10,20 @@ use smithay::{
 };
 pub fn send_frames_all(state: &State) {
     let time = state.start_time.elapsed().as_millis() as u32;
-    for window in state
+    let mut windows: Vec<_> = state
         .windows
         .space
         .elements_for_output(&state.display.handle)
-    {
+        .cloned()
+        .collect();
+    if state.overview.visible() {
+        for item in &state.overview.items {
+            if !windows.contains(&item.window) {
+                windows.push(item.window.clone());
+            }
+        }
+    }
+    for window in &windows {
         if !state.window_has_content(window) {
             continue;
         }

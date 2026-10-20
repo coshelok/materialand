@@ -14,10 +14,13 @@ pub fn app_menu_rect(w: f32, h: f32, point: Point<f64, Logical>) -> RectF {
         .app_menu
         .width
         .min((w - 2.0 * design.app_menu.margin).max(1.0));
-    let height = design
-        .app_menu
-        .height
-        .min((h - 2.0 * design.app_menu.margin).max(1.0));
+    let height = (design.app_menu.height
+        - if tablet_mode() {
+            design.app_menu.home_row_y - design.app_menu.row_y
+        } else {
+            0.0
+        })
+    .min((h - 2.0 * design.app_menu.margin).max(1.0));
     RectF {
         x: (point.x as f32 - width / 2.0).clamp(
             design.app_menu.margin,
@@ -42,7 +45,12 @@ pub fn app_menu_button(card: RectF) -> RectF {
 }
 pub fn app_menu_home_button(card: RectF) -> RectF {
     RectF {
-        y: card.y + crate::config::design().app_menu.home_row_y,
+        y: card.y
+            + if tablet_mode() {
+                config::design().app_menu.row_y
+            } else {
+                config::design().app_menu.home_row_y
+            },
         ..app_menu_button(card)
     }
 }
@@ -55,7 +63,7 @@ impl Shell {
             point,
             error: false,
             press_home: false,
-            selected: 0,
+            selected: usize::from(tablet_mode()),
         });
         self.press_pin = false;
     }
@@ -144,7 +152,7 @@ impl Shell {
             &title,
             theme.on_surface_variant,
         );
-        for row in 0..2 {
+        for row in usize::from(tablet_mode())..2 {
             let button = if row == 0 {
                 app_menu_button(rect)
             } else {

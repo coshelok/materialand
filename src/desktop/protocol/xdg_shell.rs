@@ -35,6 +35,7 @@ impl XdgShellHandler for State {
         if props.fullscreen {
             return;
         }
+        self.end_split_if_contains(&window);
         let geom = self
             .windows
             .space
@@ -249,6 +250,8 @@ impl XdgShellHandler for State {
             self.windows.meta.remove(w);
             self.windows.props.remove(w);
             self.windows.order.retain(|item| item != w);
+            self.windows.recent.retain(|item| item != w);
+            self.end_split_if_contains(w);
             self.windows.pending_resize.remove(w);
             if self.windows.focused.as_ref() == Some(w) {
                 focused_died = true;

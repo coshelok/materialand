@@ -19,6 +19,10 @@ impl State {
                     }
                 }
             }
+            if let Some(window) = &window {
+                self.windows.recent.retain(|item| item != window);
+                self.windows.recent.push(window.clone());
+            }
             self.windows.focused = window.clone();
         }
 

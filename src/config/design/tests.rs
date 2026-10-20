@@ -146,6 +146,21 @@ fn malformed_unknown_and_unsafe_values_are_rejected_without_panics() {
         "[colors.dark]\nunknown_role = '#112233'",
         "[colors.dark]\nprimary = '#xyzxyz'",
         "[typography.body_medium]\nline_height = 2",
+        "[navigation]\nmode = 'phone'",
+        "[navigation]\nwidth = 100\nheight = 44",
+        "[split]\nhandle_width = 30\ndivider_width = 12",
+        "[drag]\nthreshold = 0",
+        "[drag]\npage_delay = 0.01",
+        "[shade]\nwidth = 0",
+        "[statusbar]\nheight = 12\nicon_size = 18",
+        "[input.touchpad]\ntap_to_click = 'yes'",
+        "[overview]\ncard_width = nan",
+        "[overview]\ntransition_stiffness = 0",
+        "[overview]\ntransition_damping = 0.1",
+        "[overview]\ndismiss_damping = 0.8",
+        "[overview]\nreflow_stiffness = 0",
+        "[overview]\nclose_response_timeout = 0",
+        "[split]\ndivider_hit_width = 2",
         "[appearance]\ntheme = 'auto'",
         "[appearance]\nvariant = 'invalid'",
         "schema_version = 999",
@@ -231,12 +246,15 @@ fn configured_session_shares_geometry_pixels_and_preferences() {
 
 const CUSTOM: &str = r##"
 # Custom dimensions must affect both drawing and input.
+[navigation]
+mode = "desktop"
 [appearance]
 theme = "dark"
 variant = "Vibrant"
 reduce_motion = true
 seed = "#ab85df"
 [topbar]
+background_alpha = 1
 height = 64
 margin = 20
 [dock]

@@ -22,6 +22,8 @@ pub const BRIGHTNESS_MAX: f32 = 1.0;
 
 pub struct Shell {
     pub apps: Vec<AppEntry>,
+    overview_cards: HashMap<Window, Vec<Piece>>,
+    overview_header: Option<Piece>,
     pub home: home::Home,
     pub pinned: Vec<AppEntry>,
     pins: config::Pins,
@@ -35,6 +37,17 @@ pub struct Shell {
     pub launcher_open: bool,
     pub launcher_query: String,
     pub brightness_open: bool,
+    pub system_status: crate::system::Status,
+    pub notifications: crate::notifications::Snapshot,
+    pub notifications_open: bool,
+    statusbar_cache: LayerCache,
+    pub shade_scroll: f32,
+    pub dragged_identity: Option<String>,
+    pub shortcut_error: Option<String>,
+    drag_icon: Option<Piece>,
+    navigation_cache: Vec<Piece>,
+    split_handle: Vec<Piece>,
+    pub connection_page: Option<QuickAction>,
     pub brightness_available: bool,
     pub brightness_error: bool,
     pub night_light_available: bool,
@@ -92,7 +105,7 @@ pub struct Shell {
     /// Radial palette reveal, used for light/dark switches.
     reveal: Option<Reveal>,
     /// M3 switch positions, indexed by quick-settings tile.
-    switches: [Spring; 4],
+    switches: [Spring; 6],
     /// Brightness slider handle growth, `0` idle .. `1` grabbed.
     slider: Spring,
     /// Window entrance springs, `0` (hidden) .. `1` (rest).
@@ -129,6 +142,8 @@ mod cursor;
 mod decoration;
 mod decoration_frame;
 mod dock;
+mod floating_dock;
+pub use floating_dock::floating_dock_padding;
 mod dock_motion;
 mod feedback;
 mod launcher;
@@ -137,6 +152,7 @@ mod layout;
 mod model;
 mod pinning;
 pub use app_menu::{app_menu_button, app_menu_home_button, app_menu_rect, AppMenu};
+mod connections;
 mod motion;
 mod paint;
 mod power;
@@ -161,4 +177,21 @@ mod calendar;
 pub use calendar::{calendar_hit, calendar_rect, CalendarAction};
 
 mod home;
-pub use home::HomeHit;
+pub use home::{home_layout, HomeHit};
+
+pub(crate) mod android_shade;
+pub use android_shade::{shade_brightness_hit, shade_brightness_value};
+mod navigation;
+pub use navigation::*;
+
+mod overview;
+
+mod shortcut_drag;
+
+#[cfg(test)]
+mod previews;
+
+mod statusbar;
+pub use statusbar::*;
+mod notifications;
+pub use notifications::NotificationHit;

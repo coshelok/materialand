@@ -103,6 +103,9 @@ pub(super) fn truncate(s: &str, max: usize) -> String {
 pub(super) fn app_colors(theme: &Theme, key: &str) -> (Color, Color) {
     let icon = config::icon_for_key(key);
     let apps = &crate::config::design().apps;
+    if apps.themed_icons {
+        return (theme.primary_fixed, theme.on_primary_fixed);
+    }
     if apps.tertiary_icons.iter().any(|value| value == icon) {
         (theme.tertiary_fixed, theme.on_tertiary_fixed)
     } else if apps.secondary_icons.iter().any(|value| value == icon) {

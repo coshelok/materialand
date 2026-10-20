@@ -15,7 +15,8 @@ impl Shell {
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
         let design = crate::config::design();
         let rect = self.dock_rect(win_w, win_h, items.len());
-        let loc = Point::from((rect.x as f64, rect.y as f64));
+        let pad = floating_dock_padding();
+        let loc = Point::from(((rect.x - pad) as f64, (rect.y - pad) as f64));
         let mut key = KeyHash::new()
             .i32(win_w.round() as i32)
             .i32(win_h.round() as i32)
@@ -38,26 +39,18 @@ impl Shell {
                 return masked_from(&piece.surface, mask, &piece.buffer, loc);
             }
         }
-        let mut s = Surface::new(rect.w as u32, rect.h as u32);
-        // A floating Android-style taskbar, with generous outer rounding.
-        s.fill_round_rect(
-            0.0,
-            0.0,
-            rect.w,
-            rect.h,
-            rect.h / 2.0,
-            theme.surface_container,
-        );
+        let mut s = floating_dock::surface(theme, rect.w, rect.h);
+        let foreground = floating_dock::foreground(theme);
 
         for (i, item) in items.iter().enumerate() {
-            let cy = rect.h / 2.0;
+            let cy = pad + rect.h / 2.0;
             let item_rect = self.dock_item_rect(win_w, win_h, items.len(), i);
             let icon_size = item_rect.w;
             if icon_size < 0.5 {
                 continue;
             }
             let unit = icon_size / design.dock.icon_size;
-            let cx = item_rect.x - rect.x + icon_size / 2.0;
+            let cx = pad + item_rect.x - rect.x + icon_size / 2.0;
             let key = PressKey::Dock(i);
             let scale = self.press_scale(key);
 
@@ -122,7 +115,7 @@ impl Shell {
                         } else {
                             design.dock.indicator_width / 2.0
                         },
-                        rect.h - design.dock.indicator_bottom,
+                        pad + rect.h - design.dock.indicator_bottom,
                         if active {
                             design.dock.indicator_active_width
                         } else {
@@ -130,7 +123,7 @@ impl Shell {
                         },
                         design.dock.indicator_height,
                         design.dock.indicator_radius,
-                        theme.primary,
+                        theme.on_primary_fixed_variant,
                     );
                 }
             }
@@ -147,13 +140,13 @@ impl Shell {
                     cx,
                     cy,
                     icon_size / 2.0 + design.dock.feedback_padding,
-                    theme.state_layer(theme.on_surface, opacity),
+                    theme.state_layer(foreground, opacity),
                 );
             }
             let mut cb = PathBuilder::new();
             cb.push_circle(cx, cy, icon_size / 2.0 + design.dock.feedback_padding);
             if let Some(clip) = cb.finish() {
-                self.draw_ripple(&mut s, key, &clip, theme.on_surface);
+                self.draw_ripple(&mut s, key, &clip, foreground);
             }
         }
 

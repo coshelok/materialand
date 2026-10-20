@@ -80,6 +80,17 @@ pub(super) fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBacke
         return;
     }
     match event {
+        InputEvent::DeviceAdded { mut device } => {
+            if device.config_tap_finger_count() > 0 {
+                let options = &crate::config::design().input.touchpad;
+                if let Err(error) = device.config_tap_set_enabled(options.tap_to_click) {
+                    tracing::warn!(?error, device = %device.id(), "could not configure touchpad tapping");
+                }
+                if let Err(error) = device.config_tap_set_drag_enabled(options.tap_drag) {
+                    tracing::warn!(?error, device = %device.id(), "could not configure touchpad tap dragging");
+                }
+            }
+        }
         InputEvent::GestureSwipeBegin { event } => {
             input::swipe_begin(&mut app.state, event.device().id(), event.fingers())
         }

@@ -14,6 +14,7 @@ pub struct Design {
     pub window: Window,
     pub topbar: Topbar,
     pub dock: Dock,
+    pub floating_dock: FloatingDock,
     pub launcher: Launcher,
     pub apps: Apps,
     pub home: Home,
@@ -31,6 +32,12 @@ pub struct Design {
     pub app_menu: AppMenu,
     pub fonts: Fonts,
     pub input: Input,
+    pub navigation: Navigation,
+    pub statusbar: Statusbar,
+    pub shade: Shade,
+    pub overview: Overview,
+    pub split: Split,
+    pub drag: Drag,
 }
 
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -42,6 +49,8 @@ pub struct Input {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Touchpad {
+    pub tap_to_click: bool,
+    pub tap_drag: bool,
     pub invert_scroll: bool,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -134,6 +143,7 @@ pub struct Window {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Topbar {
+    pub background_alpha: f32,
     pub height: f32,
     pub margin: f32,
     pub icon_gap: f32,
@@ -164,7 +174,19 @@ pub struct Dock {
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct FloatingDock {
+    pub tint_mix: f32,
+    pub background_alpha: f32,
+    pub shadow_padding: f32,
+    pub shadow_spread: f32,
+    pub outline_alpha: f32,
+    pub outline_width: f32,
+}
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Launcher {
+    pub fullscreen: bool,
+    pub max_columns: usize,
     pub width: f32,
     pub max_height: f32,
     pub min_width: f32,
@@ -202,6 +224,7 @@ pub struct Launcher {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Apps {
+    pub themed_icons: bool,
     pub medallion_radius: f32,
     pub icon_center_y: f32,
     pub glyph_size: f32,
@@ -213,6 +236,17 @@ pub struct Apps {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Home {
+    pub max_columns: usize,
+    pub widget_width: f32,
+    pub widget_height: f32,
+    pub widget_top: f32,
+    pub widget_gap: f32,
+    pub widget_radius: f32,
+    pub search_width: f32,
+    pub search_height: f32,
+    pub search_bottom: f32,
+    pub page_dot_radius: f32,
+    pub page_dot_gap: f32,
     pub top_gap: f32,
     pub bottom_gap: f32,
     pub margin_x: f32,
@@ -424,4 +458,84 @@ pub struct AppMenu {
 #[serde(deny_unknown_fields)]
 pub struct Fonts {
     pub directory: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Navigation {
+    pub mode: String,
+    pub width: f32,
+    pub height: f32,
+    pub margin: f32,
+    pub icon_size: f32,
+}
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Shade {
+    pub fullscreen: bool,
+    pub wide_columns: usize,
+    pub wide_threshold: f32,
+    pub width: f32,
+    pub height: f32,
+    pub margin: f32,
+    pub header_height: f32,
+    pub clock_size: f32,
+    pub clock_line_height: f32,
+    pub brightness_y: f32,
+    pub brightness_height: f32,
+    pub brightness_icon_x: f32,
+    pub tile_label_x: f32,
+    pub tile_label_y: f32,
+    pub tile_status_y: f32,
+}
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Overview {
+    pub card_radius: f32,
+    pub app_header_height: f32,
+    pub side_scale: f32,
+    pub side_offset: f32,
+    pub scrim_alpha: f32,
+    pub transition_stiffness: f32,
+    pub transition_damping: f32,
+    pub reflow_stiffness: f32,
+    pub reflow_damping: f32,
+    pub dismiss_stiffness: f32,
+    pub dismiss_damping: f32,
+    pub dismiss_threshold: f32,
+    pub close_response_timeout: f32,
+    pub card_width: f32,
+    pub card_height: f32,
+    pub gap: f32,
+    pub margin: f32,
+    pub header_height: f32,
+    pub footer_height: f32,
+}
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Split {
+    pub divider_width: f32,
+    pub divider_hit_width: f32,
+    pub handle_width: f32,
+    pub handle_height: f32,
+    pub minimum_width: f32,
+}
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Drag {
+    pub threshold: f32,
+    pub page_edge: f32,
+    pub page_delay: f32,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Statusbar {
+    pub background_alpha: f32,
+    pub height: f32,
+    pub padding: f32,
+    pub icon_size: f32,
+    pub item_width: f32,
+    pub clock_width: f32,
+    pub battery_width: f32,
 }

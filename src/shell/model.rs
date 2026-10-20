@@ -9,6 +9,8 @@ impl Shell {
 
         Shell {
             apps,
+            overview_cards: HashMap::new(),
+            overview_header: None,
             home: home::Home::new(),
             pinned: vec![terminal_app.clone()],
             terminal_app,
@@ -21,6 +23,17 @@ impl Shell {
             launcher_open: false,
             launcher_query: String::new(),
             brightness_open: false,
+            system_status: Default::default(),
+            notifications: Default::default(),
+            notifications_open: false,
+            statusbar_cache: LayerCache::default(),
+            shade_scroll: 0.0,
+            dragged_identity: None,
+            shortcut_error: None,
+            drag_icon: None,
+            navigation_cache: Vec::new(),
+            split_handle: Vec::new(),
+            connection_page: None,
             brightness_available: false,
             brightness_error: false,
             night_light_available: false,
@@ -60,6 +73,8 @@ impl Shell {
             reveal: None,
             // Light surfaces make the pastel containers the default appearance.
             switches: [
+                Spring::spatial(0.0),
+                Spring::spatial(0.0),
                 Spring::spatial(0.0),
                 Spring::spatial(0.0),
                 Spring::spatial(0.0),

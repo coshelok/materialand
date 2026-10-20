@@ -34,7 +34,16 @@ impl Ticker {
             .shell
             .clamp_home_page(state.display.size.w as f32, state.display.size.h as f32);
         let items = crate::input::dock_items(state);
-        let mut dirty = state.shell.sync_dock(state.display.size.w as f32, &items);
+        state.sync_overview();
+        let mut dirty = state.services.poll();
+        if let Some(snapshot) = state.notifications.poll() {
+            state.shell.notifications = snapshot;
+            dirty = true;
+        }
+        if dirty {
+            state.shell.set_system_status(state.services.status.clone());
+        }
+        dirty |= state.shell.sync_dock(state.display.size.w as f32, &items);
         state
             .shell
             .clamp_launcher_scroll(state.display.size.w as f32, state.display.size.h as f32);
@@ -54,11 +63,15 @@ impl Ticker {
         let now = Instant::now();
         let dt = animation_step(now - self.last_frame, interval, self.animating);
         self.last_frame = now;
-        self.animating = state.shell.tick(dt);
+        self.animating = state.shell.tick(dt)
+            | state.tick_overview(dt)
+            | state.tick_split(dt)
+            | crate::input::tick_shortcut_drag(state, dt);
         if self.animating {
             dirty = true;
         }
-        let hover = if !state.shell.launcher_open
+        let hover = if !crate::shell::tablet_mode()
+            && !state.shell.launcher_open
             && state.shell.app_menu.is_none()
             && !state.has_fullscreen_window()
         {

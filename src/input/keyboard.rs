@@ -32,14 +32,55 @@ pub(super) fn on_key(
         if state.swallowed_keys.remove(&code) {
             return FilterResult::Intercept(());
         }
-        return if state.shell.launcher_open {
-            FilterResult::Intercept(())
-        } else {
-            FilterResult::Forward
-        };
+        return FilterResult::Forward;
     }
 
     let raw = handle.raw_latin_sym_or_raw_current_sym().unwrap_or(sym);
+    if mods.logo && raw == Keysym::BackSpace {
+        state.swallowed_keys.insert(code);
+        state.end_split();
+        return FilterResult::Intercept(());
+    }
+    if mods.logo && (raw == Keysym::Tab || raw == Keysym::s) {
+        state.swallowed_keys.insert(code);
+        super::navigation::perform(
+            state,
+            if raw == Keysym::Tab {
+                shell::NavAction::Overview
+            } else {
+                shell::NavAction::Shade
+            },
+        );
+        return FilterResult::Intercept(());
+    }
+    if mods.logo && raw == Keysym::p {
+        state.swallowed_keys.insert(code);
+        super::navigation::perform(state, shell::NavAction::Launcher);
+        return FilterResult::Intercept(());
+    }
+    if state.overview.open && !(mods.logo && raw == Keysym::h) {
+        state.swallowed_keys.insert(code);
+        match sym {
+            Keysym::Escape => {
+                state.overview.pending_split = None;
+                state.overview.close(state.shell.reduce_motion);
+            }
+            Keysym::Left => state.overview.navigate(-1, state.shell.reduce_motion),
+            Keysym::Right => state.overview.navigate(1, state.shell.reduce_motion),
+            Keysym::Return | Keysym::KP_Enter => {
+                state.overview_action(crate::desktop::overview::OverviewHit {
+                    index: state.overview.selected,
+                    action: crate::desktop::overview::OverviewAction::Select,
+                })
+            }
+            Keysym::Delete => state.overview_action(crate::desktop::overview::OverviewHit {
+                index: state.overview.selected,
+                action: crate::desktop::overview::OverviewAction::Close,
+            }),
+            _ => {}
+        }
+        return FilterResult::Intercept(());
+    }
     if mods.logo && raw == Keysym::h {
         state.swallowed_keys.insert(code);
         show_home(state);
@@ -60,7 +101,11 @@ pub(super) fn on_key(
             }
         } else if sym == Keysym::Up || sym == Keysym::Down {
             if let Some(menu) = &mut state.shell.app_menu {
-                menu.selected = usize::from(sym == Keysym::Down);
+                menu.selected = if shell::tablet_mode() {
+                    1
+                } else {
+                    usize::from(sym == Keysym::Down)
+                };
             }
         } else if sym == Keysym::Escape {
             state.shell.close_app_menu();
@@ -123,9 +168,21 @@ pub(super) fn on_key(
         }
         return FilterResult::Intercept(());
     }
+    if state.shell.brightness_open && sym == Keysym::Escape {
+        state.swallowed_keys.insert(code);
+        state.finish_interaction(BTN_LEFT);
+        state.shell.set_brightness_open(false);
+        return FilterResult::Intercept(());
+    }
     if state.shell.quick_settings_open && sym == Keysym::Escape {
         state.swallowed_keys.insert(code);
-        state.shell.set_quick_settings_open(false);
+        if std::mem::take(&mut state.shell.notifications_open)
+            || state.shell.connection_page.take().is_some()
+        {
+            state.shell.shade_scroll = 0.0;
+        } else {
+            state.shell.set_quick_settings_open(false);
+        }
         return FilterResult::Intercept(());
     }
 
@@ -178,5 +235,9 @@ pub(super) fn on_key(
         return FilterResult::Intercept(());
     }
 
+    if state.shell.quick_settings_open || state.shell.power_open || state.shell.brightness_open {
+        state.swallowed_keys.insert(code);
+        return FilterResult::Intercept(());
+    }
     FilterResult::Forward
 }
