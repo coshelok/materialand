@@ -47,7 +47,6 @@ Select **Materialand** in SDDM. After rebuilding, reinstall the binary to update
 | Home search or `Super+P` | Open the launcher; type to search, Enter to launch, Escape to close |
 | Three-finger swipe up | Open the launcher; close the shade when it is open |
 | Three-finger swipe down | Open the shade; close the launcher when it is open |
-| Two-finger horizontal scroll on home | Move one home page per gesture |
 | Four-finger swipe up | Open recent apps |
 | Four-finger swipe down | Close recent apps |
 | `Super+Tab` / `Super+S` | Toggle recent apps / system shade |
