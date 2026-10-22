@@ -27,6 +27,8 @@ pub use terminal::*;
 mod app_identity;
 mod pins;
 pub use pins::{pins_path, Pins};
+mod workspace;
+pub use workspace::{Anchor, Shortcut, Workspace};
 mod appearance;
 mod storage;
 pub use appearance::{appearance_path, Appearance, AppearanceStore};

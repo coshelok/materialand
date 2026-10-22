@@ -141,15 +141,10 @@ fn tablet_state() -> (smithay::reexports::wayland_server::Display<State>, State)
     (display, state)
 }
 #[test]
-fn navigation_press_release_keeps_overview_open_and_gestures_select_distinct_layers() {
+fn navigation_actions_and_gestures_select_distinct_layers() {
     let (_display, mut state) = tablet_state();
     state.shell.set_reduce_motion(true);
-    target::press(
-        &mut state,
-        target::Control::Nav(shell::NavAction::Overview),
-        (640.0, 760.0).into(),
-    );
-    actions::finish_compositor_press(&mut state, (640.0, 760.0).into());
+    navigation::perform(&mut state, shell::NavAction::Overview);
     assert!(state.overview.open);
     let swipe = |state: &mut State, fingers, dy| {
         swipe_begin(state, "pad".into(), fingers);
@@ -159,10 +154,12 @@ fn navigation_press_release_keeps_overview_open_and_gestures_select_distinct_lay
     swipe(&mut state, 4, 100.0); // Overview owns the downward dismissal.
     assert!(!state.overview.open && !state.shell.quick_settings_open);
     swipe(&mut state, 4, 100.0);
+    assert!(!state.shell.quick_settings_open);
+    swipe(&mut state, 3, 100.0);
     assert!(state.shell.quick_settings_open);
-    swipe(&mut state, 3, -100.0); // Other global gestures cannot replace the shade.
+    swipe(&mut state, 4, -100.0); // Recents cannot replace the shade.
     assert!(state.shell.quick_settings_open && !state.shell.launcher_open);
-    swipe(&mut state, 4, -100.0);
+    swipe(&mut state, 3, -100.0);
     assert!(!state.overview.open && !state.shell.quick_settings_open);
     swipe(&mut state, 4, -100.0);
     assert!(state.overview.open);
@@ -269,6 +266,7 @@ fn shortcut_drag_moves_icon_without_launching_on_release() {
         desktop_file: None,
     };
     state.shell.toggle_home_app(app.clone()).unwrap();
+    state.shell.set_reduce_motion(false);
     let from = state.shell.home_tile_rect(1280.0, 800.0, 0);
     let start = (f64::from(from.x + 20.0), f64::from(from.y + 30.0)).into();
     target::press(
@@ -278,6 +276,11 @@ fn shortcut_drag_moves_icon_without_launching_on_release() {
     );
     let moved = (start.x + 60.0, start.y + 20.0).into();
     assert!(super::shortcut_drag::motion(&mut state, moved));
+    assert_eq!(
+        state.shell.home_offset(),
+        0.0,
+        "dragging an existing home icon must not restart the whole home entrance"
+    );
     assert!(state.shortcut_drag.as_ref().unwrap().active);
     actions::finish_compositor_press(&mut state, moved);
     assert!(state.shortcut_drag.is_none());
@@ -286,18 +289,18 @@ fn shortcut_drag_moves_icon_without_launching_on_release() {
 }
 
 #[test]
-fn closing_shade_animation_does_not_become_a_new_overview_gesture() {
+fn closing_shade_animation_does_not_become_a_new_launcher_gesture() {
     let (_display, mut state) = tablet_state();
     state.shell.set_quick_settings_open(true);
     state.shell.tick(0.05);
-    swipe_begin(&mut state, "pad".into(), 4);
+    swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, -100.0);
     swipe_end(&mut state, "pad", false);
     assert!(!state.shell.quick_settings_open && state.shell.quick_settings_progress() > 0.001);
-    swipe_begin(&mut state, "pad".into(), 4);
+    swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, -100.0);
     swipe_end(&mut state, "pad", false);
-    assert!(!state.overview.open);
+    assert!(!state.overview.open && !state.shell.launcher_open);
 }
 #[test]
 fn status_strip_taps_open_matching_panels_and_clock_can_toggle_closed() {
@@ -328,4 +331,116 @@ fn status_strip_taps_open_matching_panels_and_clock_can_toggle_closed() {
     tap(&mut state, shell::StatusAction::Shade);
     assert!(state.shell.quick_settings_open && !state.shell.notifications_open);
     assert!(shell::quick_settings_rect(1280.0, 800.0).y >= shell::top_inset());
+}
+
+#[test]
+fn tablet_shade_routes_both_columns_without_dismissing_or_switching_pages() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(true);
+    state.shell.notifications_open = true;
+    state.shell.set_quick_settings_open(true);
+    let (w, h) = (1280.0, 800.0);
+    let tile =
+        shell::quick_setting_tile_rect(w, h, shell::quick_action_index(shell::QuickAction::Theme));
+    let pos = (
+        f64::from(tile.x + tile.w / 2.0),
+        f64::from(tile.y + tile.h / 2.0),
+    )
+        .into();
+    assert!(matches!(
+        target::target(&state, pos),
+        target::Target::Shell(target::Control::Quick(shell::QuickAction::Theme))
+    ));
+    let notices = shell::notification_panel(w, h);
+    let pos = (f64::from(notices.x + 20.0), f64::from(notices.y + 120.0)).into();
+    assert!(shell::shade_contains(w, h, pos));
+    assert!(matches!(
+        target::target(&state, pos),
+        target::Target::Shell(target::Control::Block)
+    ));
+    test_key(&mut state, 9, true);
+    test_key(&mut state, 9, false);
+    assert!(state.shell.quick_settings_open && !state.shell.notifications_open);
+    test_key(&mut state, 9, true);
+    test_key(&mut state, 9, false);
+    assert!(!state.shell.quick_settings_open && !state.overview.open);
+}
+
+// XKB keycodes (evdev + 8), exercising the real modifier/filter path.
+fn test_key(state: &mut State, key: u32, pressed: bool) {
+    let keyboard = state.keyboard.clone();
+    let serial = state.next_serial();
+    let code = key.into();
+    keyboard.input::<(), _>(
+        state,
+        code,
+        if pressed {
+            KeyState::Pressed
+        } else {
+            KeyState::Released
+        },
+        serial,
+        10,
+        |state, mods, handle| keyboard::on_key(state, mods, handle, pressed, code),
+    );
+}
+#[test]
+fn bare_super_returns_home_on_release_but_chords_do_not() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(true);
+    for key in [133, 134] {
+        state.shell.set_quick_settings_open(true);
+        test_key(&mut state, key, true);
+        assert!(
+            state.shell.quick_settings_open,
+            "press must wait for a possible chord"
+        );
+        test_key(&mut state, key, false);
+        assert!(!state.shell.quick_settings_open);
+    }
+    test_key(&mut state, 133, true);
+    test_key(&mut state, 33, true); // Super+P.
+    test_key(&mut state, 33, false);
+    test_key(&mut state, 133, false);
+    assert!(
+        state.shell.launcher_open,
+        "releasing a shortcut must not trigger Home"
+    );
+    close_launcher(&mut state);
+    test_key(&mut state, 133, true);
+    test_key(&mut state, 23, true); // Super+Tab.
+    test_key(&mut state, 133, false); // Reverse release order also cancels the tap.
+    test_key(&mut state, 23, false);
+    assert!(state.overview.open);
+    assert!(state.swallowed_keys.is_empty());
+    test_key(&mut state, 133, true);
+    test_key(&mut state, 133, false);
+    assert!(!state.overview.open);
+}
+#[test]
+fn modified_super_and_seat_pause_cannot_trigger_home() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(true);
+    state.shell.set_quick_settings_open(true);
+    test_key(&mut state, 50, true); // Shift held before Super.
+    test_key(&mut state, 133, true);
+    test_key(&mut state, 133, false);
+    test_key(&mut state, 50, false);
+    assert!(state.shell.quick_settings_open);
+    test_key(&mut state, 133, true);
+    cancel(&mut state);
+    test_key(&mut state, 133, false);
+    assert!(state.shell.quick_settings_open);
+}
+#[test]
+fn removed_navigation_does_not_reserve_space_or_intercept_bottom_clicks() {
+    let (_display, state) = tablet_state();
+    assert_eq!(shell::bottom_inset(), 0.0);
+    assert_eq!(shell::launcher_card(1280.0, 800.0).bottom(), 800.0);
+    for x in [560.0, 640.0, 720.0] {
+        assert!(matches!(
+            target::target(&state, (x, 790.0).into()),
+            target::Target::Desktop
+        ));
+    }
 }

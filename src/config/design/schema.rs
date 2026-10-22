@@ -51,6 +51,11 @@ pub struct Input {
 pub struct Touchpad {
     pub tap_to_click: bool,
     pub tap_drag: bool,
+    pub drag_lock: bool,
+    pub disable_while_typing: bool,
+    pub kinetic_scroll: bool,
+    pub scroll_friction: f32,
+    pub swipe_distance: f32,
     pub invert_scroll: bool,
 }
 #[derive(Clone, Debug, PartialEq, Deserialize)]
@@ -80,6 +85,8 @@ pub struct State {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Motion {
+    pub sheet_stiffness: f32,
+    pub sheet_damping: f32,
     pub spatial_stiffness: f32,
     pub spatial_damping: f32,
     pub responsive_stiffness: f32,
@@ -236,6 +243,7 @@ pub struct Apps {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Home {
+    pub max_rows: usize,
     pub max_columns: usize,
     pub widget_width: f32,
     pub widget_height: f32,
@@ -472,6 +480,7 @@ pub struct Navigation {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Shade {
+    pub header_button_width: f32,
     pub fullscreen: bool,
     pub wide_columns: usize,
     pub wide_threshold: f32,
@@ -491,6 +500,9 @@ pub struct Shade {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Overview {
+    pub grid_threshold: f32,
+    pub grid_columns: usize,
+    pub grid_rows: usize,
     pub card_radius: f32,
     pub app_header_height: f32,
     pub side_scale: f32,
@@ -531,6 +543,7 @@ pub struct Drag {
 #[derive(Clone, Debug, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Statusbar {
+    pub font_size: f32,
     pub background_alpha: f32,
     pub height: f32,
     pub padding: f32,

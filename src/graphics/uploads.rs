@@ -14,7 +14,7 @@ use smithay::{
         },
         gles::GlesRenderer,
     },
-    utils::{Point, Transform},
+    utils::{Point, Rectangle, Transform},
 };
 pub(super) fn push_buffer(
     elements: &mut Vec<UiElement>,
@@ -90,7 +90,7 @@ pub(super) fn push_layer(
     alpha: Option<f32>,
     mask: Option<shell::CircleMask>,
 ) {
-    let Ok(mut el) = MemoryRenderBufferRenderElement::from_buffer(
+    let Ok(native) = MemoryRenderBufferRenderElement::from_buffer(
         renderer,
         layer.loc.to_physical(1.0),
         &layer.buffer,
@@ -101,23 +101,30 @@ pub(super) fn push_layer(
     ) else {
         return;
     };
-    if let Some(size) = layer.size {
-        // Keep the full native source when scaling. Using the destination size
-        // as the source rectangle crops app drawers during their entrance.
-        let source = el.src().to_logical(1.0, Transform::Normal, &el.src().size);
-        let Ok(scaled) = MemoryRenderBufferRenderElement::from_buffer(
-            renderer,
-            layer.loc.to_physical(1.0),
-            &layer.buffer,
-            alpha,
-            Some(source),
-            Some(size),
-            Kind::Unspecified,
-        ) else {
-            return;
-        };
-        el = scaled;
-    }
+    let source = layer
+        .source
+        .map(|r| {
+            Rectangle::new(
+                (f64::from(r.x), f64::from(r.y)).into(),
+                (f64::from(r.w), f64::from(r.h)).into(),
+            )
+        })
+        .unwrap_or_else(|| {
+            native
+                .src()
+                .to_logical(1.0, Transform::Normal, &native.src().size)
+        });
+    let Ok(el) = MemoryRenderBufferRenderElement::from_buffer(
+        renderer,
+        layer.loc.to_physical(1.0),
+        &layer.buffer,
+        alpha,
+        Some(source),
+        layer.size,
+        Kind::Unspecified,
+    ) else {
+        return;
+    };
     elements.push(UiElement::Memory(apply_mask(renderer, el, mask)));
 }
 

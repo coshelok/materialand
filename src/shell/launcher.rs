@@ -25,6 +25,11 @@ impl Shell {
     ) -> OverlayFrame {
         let design = crate::config::design();
         let p = progress.clamp(0.0, 1.0);
+        let content_alpha = if tablet_mode() && design.launcher.fullscreen {
+            1.0
+        } else {
+            p
+        };
         let card = launcher_card(win_w, win_h);
         let pad = design.launcher.shadow_spread + design.launcher.shadow_extra_padding;
         // Top-left of the content layer in screen space.
@@ -58,6 +63,35 @@ impl Shell {
             // card and the press pieces are composited into one surface first.
             let cached = self.launcher_layer.as_ref().expect("just cached");
             let mut content = cached.surface.duplicate();
+            let viewport = launcher_viewport(win_w, win_h);
+            let mut grid = Surface::new(viewport.w.ceil() as u32, viewport.h.ceil() as u32);
+            let mut origin = launcher_grid_origin(win_w, win_h);
+            origin.1 -= self.launcher_scroll();
+            for (slot, idx) in self.filtered_apps().into_iter().enumerate() {
+                let (x, y) = launcher_tile_pos(origin, slot, launcher_columns(card.w));
+                if y >= viewport.bottom() {
+                    break;
+                }
+                if y + design.launcher.tile_size <= viewport.y {
+                    continue;
+                }
+                self.draw_launcher_tile(
+                    &mut grid,
+                    fonts,
+                    theme,
+                    &self.apps[idx],
+                    x - viewport.x,
+                    y - viewport.y,
+                    1.0,
+                );
+            }
+            content.blit(
+                &grid,
+                SkTransform::from_translate(viewport.x - ox, viewport.y - oy),
+                1.0,
+                None,
+            );
+
             for (press, (px, py)) in self.launcher_press_surfaces(fonts, theme, win_w, win_h) {
                 content.blit(
                     &press,
@@ -73,7 +107,7 @@ impl Shell {
             ));
             let transform = SkTransform::from_scale(sx, sy)
                 .post_translate(anim.x - pad * sx, anim.y - pad * sy);
-            s.blit(&content, transform, p, None);
+            s.blit(&content, transform, content_alpha, None);
             let (buffer, loc) = masked_from(
                 &s,
                 Some(mask),
@@ -89,6 +123,7 @@ impl Shell {
         if p > 0.001 {
             pieces.push((
                 LayerFrame {
+                    source: None,
                     buffer: self.scrim_buffer(theme),
                     loc: Point::from((0.0, 0.0)),
                     size: Some(Size::from((win_w.round() as i32, win_h.round() as i32))),
@@ -102,6 +137,7 @@ impl Shell {
             let layer_h = layer.surface.pixmap.height() as f32;
             pieces.push((
                 LayerFrame {
+                    source: None,
                     buffer: layer.buffer.clone(),
                     loc: Point::from(((anim.x - pad * sx) as f64, (anim.y - pad * sy) as f64)),
                     size: Some(Size::from((
@@ -109,8 +145,38 @@ impl Shell {
                         (layer_h * sy).round() as i32,
                     ))),
                 },
-                p,
+                content_alpha,
             ));
+        }
+        let viewport = launcher_viewport(win_w, win_h);
+        let cols = launcher_columns(card.w);
+        let mut origin = launcher_grid_origin(win_w, win_h);
+        origin.1 -= self.launcher_scroll();
+        let filtered = self.filtered_apps();
+        for (slot, idx) in filtered.iter().copied().enumerate() {
+            let (x, y) = launcher_tile_pos(origin, slot, cols);
+            if y >= viewport.bottom() {
+                break;
+            }
+            if y + design.launcher.tile_size <= viewport.y {
+                continue;
+            }
+            let app = self.apps[idx].clone();
+            let buffer = self.app_tile(fonts, theme, &app, 1.0, false);
+            let tile = RectF {
+                x,
+                y,
+                w: design.launcher.tile_size,
+                h: design.launcher.tile_size,
+            };
+            if let Some(layer) = LayerFrame::clipped(
+                buffer,
+                tile,
+                viewport,
+                self.launcher_placement(win_w, win_h, progress),
+            ) {
+                pieces.push((layer, content_alpha));
+            }
         }
         for (press, (px, py)) in self.launcher_press_surfaces(fonts, theme, win_w, win_h) {
             // Keep the feedback glued to the scaled card while it animates.
@@ -120,6 +186,7 @@ impl Shell {
             );
             pieces.push((
                 LayerFrame {
+                    source: None,
                     buffer: press.to_memory_buffer(),
                     loc: Point::from(loc),
                     size: Some(Size::from((
@@ -127,7 +194,54 @@ impl Shell {
                         (press.pixmap.height() as f32 * sy).round() as i32,
                     ))),
                 },
-                p,
+                content_alpha,
+            ));
+        }
+        let max = launcher_scroll_max(win_w, win_h, filtered.len());
+        if max > 0.0 {
+            let thumb = (viewport.h * viewport.h / (viewport.h + max))
+                .max(design.launcher.scrollbar_min_height)
+                .min(viewport.h);
+            let width = design.launcher.scrollbar_width;
+            let key = KeyHash::new()
+                .u64(theme.cache_key())
+                .f32(width)
+                .f32(thumb)
+                .finish();
+            if !self.launcher_scrollbar.select(key) {
+                let mut surface = Surface::new(width.ceil() as u32, thumb.ceil() as u32);
+                surface.fill_round_rect(
+                    0.0,
+                    0.0,
+                    width,
+                    thumb,
+                    width / 2.0,
+                    Theme::with_alpha(theme.on_surface_variant, design.launcher.scrollbar_alpha),
+                );
+                let buffer = surface.to_memory_buffer();
+                self.launcher_scrollbar.store(CachedLayer {
+                    key,
+                    surface,
+                    buffer,
+                });
+            }
+            let r = self
+                .launcher_placement(win_w, win_h, progress)
+                .map_rect(RectF {
+                    x: card.right() - design.launcher.scrollbar_right,
+                    y: viewport.y
+                        + (viewport.h - thumb) * (self.launcher_scroll() / max).clamp(0.0, 1.0),
+                    w: width,
+                    h: thumb,
+                });
+            pieces.push((
+                LayerFrame {
+                    buffer: self.launcher_scrollbar.as_ref().unwrap().buffer.clone(),
+                    source: None,
+                    loc: (f64::from(r.x), f64::from(r.y)).into(),
+                    size: Some((r.w.ceil() as i32, r.h.ceil() as i32).into()),
+                },
+                content_alpha,
             ));
         }
         OverlayFrame { pieces }
@@ -137,8 +251,7 @@ impl Shell {
             .i32(win_w.round() as i32)
             .i32(win_h.round() as i32)
             .u64(theme.cache_key())
-            .str(&self.launcher_query)
-            .f32(self.launcher_scroll());
+            .str(&self.launcher_query);
         let query = self.launcher_query.to_lowercase();
         for app in &self.apps {
             if query.is_empty() || app.name.to_lowercase().contains(&query) {
@@ -162,42 +275,40 @@ impl Shell {
         let pad = design.launcher.shadow_spread + design.launcher.shadow_extra_padding;
         let ox = card.x - pad;
         let oy = card.y - pad;
-        layer.shadow_round_rect(
-            card.x - ox,
-            card.y - oy,
-            card.w,
-            card.h,
-            design.shape.extra_extra_large,
-            design.launcher.shadow_spread,
-            theme.shadow,
-        );
+        let fullscreen = tablet_mode() && design.launcher.fullscreen;
+        if !fullscreen {
+            layer.shadow_round_rect(
+                pad,
+                pad,
+                card.w,
+                card.h,
+                design.shape.extra_extra_large,
+                design.launcher.shadow_spread,
+                theme.shadow,
+            );
+        }
         layer.fill_round_rect(
-            card.x - ox,
-            card.y - oy,
+            pad,
+            pad,
             card.w,
             card.h,
-            design.shape.extra_extra_large,
+            if fullscreen {
+                0.0
+            } else {
+                design.shape.extra_extra_large
+            },
             theme.surface_container_low,
         );
-        layer.stroke_round_rect(
-            card.x - ox + design.launcher.outline_width / 2.0,
-            card.y - oy + design.launcher.outline_width / 2.0,
-            card.w - design.launcher.outline_width,
-            card.h - design.launcher.outline_width,
-            design.shape.extra_extra_large,
-            design.launcher.outline_width,
-            Theme::with_alpha(theme.outline, design.launcher.outline_alpha),
-        );
-
-        // Drag handle (Android-style).
-        layer.fill_round_rect(
-            card.x - ox + card.w / 2.0 - design.launcher.handle_width / 2.0,
-            card.y - oy + design.launcher.handle_y,
-            design.launcher.handle_width,
-            design.launcher.handle_height,
-            design.launcher.handle_height / 2.0,
-            theme.surface_container_highest,
-        );
+        if !fullscreen {
+            layer.fill_round_rect(
+                pad + card.w / 2.0 - design.launcher.handle_width / 2.0,
+                pad + design.launcher.handle_y,
+                design.launcher.handle_width,
+                design.launcher.handle_height,
+                design.launcher.handle_height / 2.0,
+                theme.surface_container_highest,
+            );
+        }
 
         // Search pill.
         let sp = search_rect(win_w, win_h);
@@ -225,12 +336,18 @@ impl Shell {
             &self.launcher_query
         };
         let search_style = TextStyle::body_large();
+        let query = fit_text(
+            fonts,
+            search_style,
+            query,
+            (sp.w - design.launcher.search_label_x - design.launcher.search_icon_x).max(1.0),
+        );
         fonts.draw_text_role(
             layer,
             spx + design.launcher.search_label_x,
             spy + sp.h / 2.0 - search_style.line_height / 2.0,
             search_style,
-            query,
+            &query,
             if self.launcher_query.is_empty() {
                 theme.on_surface_variant
             } else {
@@ -250,53 +367,7 @@ impl Shell {
             },
             theme.on_surface_variant,
         );
-        let cols = launcher_columns(card.w);
-        let viewport = launcher_viewport(win_w, win_h);
-        let mut origin_g = launcher_grid_origin(win_w, win_h);
-        origin_g.1 -= self.launcher_scroll();
         let filtered = self.filtered_apps();
-        let mut grid = Surface::new(viewport.w.ceil() as u32, viewport.h.ceil() as u32);
-        for (slot, &idx) in filtered.iter().enumerate() {
-            let (tx, ty) = launcher_tile_pos(origin_g, slot, cols);
-            if ty >= viewport.bottom() {
-                break;
-            }
-            if ty + design.launcher.tile_size <= viewport.y {
-                continue;
-            }
-            self.draw_launcher_tile(
-                &mut grid,
-                fonts,
-                theme,
-                &self.apps[idx],
-                tx - viewport.x,
-                ty - viewport.y,
-                1.0,
-            );
-        }
-        layer.blit(
-            &grid,
-            SkTransform::from_translate(viewport.x - ox, viewport.y - oy),
-            1.0,
-            None,
-        );
-        let max = launcher_scroll_max(win_w, win_h, filtered.len());
-        if max > 0.0 {
-            let thumb = (viewport.h * viewport.h / (viewport.h + max))
-                .max(design.launcher.scrollbar_min_height)
-                .min(viewport.h);
-            let y =
-                viewport.y + (viewport.h - thumb) * (self.launcher_scroll() / max).clamp(0.0, 1.0);
-            layer.fill_round_rect(
-                card.right() - ox - design.launcher.scrollbar_right,
-                y - oy,
-                design.launcher.scrollbar_width,
-                thumb,
-                design.launcher.scrollbar_width / 2.0,
-                Theme::with_alpha(theme.on_surface_variant, design.launcher.scrollbar_alpha),
-            );
-        }
-
         if filtered.is_empty() {
             let msg = "No apps found";
             let msg_style = TextStyle::body_large();

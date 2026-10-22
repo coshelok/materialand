@@ -114,3 +114,32 @@ fn expressive_motion_bounces_while_effects_stay_bounded() {
     );
     assert!(spatial.settled() && effects.settled());
 }
+
+#[test]
+fn spring_trajectory_is_independent_of_refresh_and_frame_partitioning() {
+    fn advance(s: &mut Spring, duration: f32, hz: f32) {
+        let n = (duration * hz).floor() as usize;
+        for _ in 0..n {
+            s.step(1.0 / hz);
+        }
+        s.step((duration - n as f32 / hz).max(0.0));
+    }
+    for damping in [0.68, 1.0, 1.4] {
+        let mut reference = Spring::at(0.0, 300.0, damping);
+        reference.set_target(100.0);
+        advance(&mut reference, 0.17, 240.0);
+        reference.set_target(-40.0);
+        advance(&mut reference, 0.23, 240.0);
+        for hz in [30.0, 59.94, 60.0, 90.0, 120.0, 144.0, 165.0, 360.0] {
+            let mut actual = Spring::at(0.0, 300.0, damping);
+            actual.set_target(100.0);
+            advance(&mut actual, 0.17, hz);
+            actual.set_target(-40.0);
+            advance(&mut actual, 0.23, hz);
+            assert!(
+                (actual.value() - reference.value()).abs() < 0.002,
+                "different trajectory at {hz} Hz, damping {damping}"
+            );
+        }
+    }
+}

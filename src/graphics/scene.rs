@@ -2,7 +2,7 @@
 use super::{
     chrome,
     layers::Layers,
-    uploads::{push_buffer, push_masked_buffer},
+    uploads::{push_buffer, push_masked_buffer, push_masked_overlay, push_overlay},
     windows,
 };
 use crate::{desktop::State, shell::CircleMask};
@@ -59,42 +59,27 @@ pub fn build_ui(
     for element in background {
         scene.single(element);
     }
-    let (buffer, loc) =
-        state
-            .shell
-            .render_home(&theme, &mut state.fonts, size.w as f32, size.h as f32, None);
+    let frame = state
+        .shell
+        .render_home(&theme, &mut state.fonts, size.w as f32, size.h as f32);
     let mut home = Vec::new();
     let home_alpha = if state.overview.visible() {
         1.0 - state.overview.progress()
     } else {
         1.0
     };
-    push_buffer(
-        &mut home,
-        renderer,
-        &buffer,
-        (loc.x, loc.y),
-        Some(home_alpha),
-    );
+    push_overlay(&mut home, renderer, &frame, home_alpha);
     if let Some((next, mask, alpha)) = second {
-        let (buffer, loc) =
-            state
-                .shell
-                .render_home(&next, &mut state.fonts, size.w as f32, size.h as f32, None);
-        push_masked_buffer(
-            &mut home,
-            renderer,
-            &buffer,
-            (loc.x, loc.y),
-            Some(alpha * home_alpha),
-            mask,
-        );
+        let frame = state
+            .shell
+            .render_home(&next, &mut state.fonts, size.w as f32, size.h as f32);
+        push_masked_overlay(&mut home, renderer, &frame, alpha * home_alpha, mask);
     }
     for element in home {
         scene.single(element);
     }
     let opening_windows = if state.overview.visible() {
-        for element in super::overview::paint(state, renderer, size) {
+        for element in super::overview::paint(state, renderer, size, theme, second) {
             scene.single(element);
         }
         Vec::new()

@@ -6,6 +6,10 @@ pub fn on_keyboard<B: InputBackend, E: KeyboardKeyEvent<B>>(state: &mut State, e
     let keyboard = state.keyboard.clone();
     let time = event.time_msec();
     let pressed = event.state() == KeyState::Pressed;
+    if pressed {
+        super::stop_touchpad_scroll(state);
+        state.launcher_swipe = Default::default();
+    }
     let code = event.key_code();
     keyboard.input::<(), _>(
         state,
@@ -25,6 +29,26 @@ pub(super) fn on_key(
     code: Keycode,
 ) -> FilterResult<()> {
     let sym = handle.modified_sym();
+    let is_super = matches!(sym, Keysym::Super_L | Keysym::Super_R);
+    let alone = is_super
+        && !mods.ctrl
+        && !mods.alt
+        && !mods.shift
+        && state
+            .keyboard
+            .pressed_keys()
+            .iter()
+            .all(|held| *held == code)
+        && state.forwarded_buttons.is_empty()
+        && state.swallowed_buttons.is_empty()
+        && matches!(state.interaction, Interaction::None);
+    if state.super_tap.key(code, pressed, is_super, alone) {
+        super::navigation::perform(state, shell::NavAction::Home);
+    }
+    // Keep modifier delivery intact for client shortcuts and either Super key.
+    if is_super {
+        return FilterResult::Forward;
+    }
 
     // Pair consumed presses with consumed releases even if the shell closes
     // between them (for example, Escape closing a popup or Super+P opening it).
@@ -65,8 +89,25 @@ pub(super) fn on_key(
                 state.overview.pending_split = None;
                 state.overview.close(state.shell.reduce_motion);
             }
-            Keysym::Left => state.overview.navigate(-1, state.shell.reduce_motion),
-            Keysym::Right => state.overview.navigate(1, state.shell.reduce_motion),
+            Keysym::Left | Keysym::Right | Keysym::Up | Keysym::Down => {
+                let grid = crate::desktop::overview::Overview::grid_layout(
+                    state.display.size.w as f32,
+                    state.display.size.h as f32,
+                );
+                let step = if grid && matches!(sym, Keysym::Left | Keysym::Right) {
+                    config::design().overview.grid_rows as i32
+                } else {
+                    1
+                };
+                let sign = if matches!(sym, Keysym::Left | Keysym::Up) {
+                    -1
+                } else {
+                    1
+                };
+                state
+                    .overview
+                    .navigate(sign * step, state.shell.reduce_motion);
+            }
             Keysym::Return | Keysym::KP_Enter => {
                 state.overview_action(crate::desktop::overview::OverviewHit {
                     index: state.overview.selected,
@@ -179,7 +220,7 @@ pub(super) fn on_key(
         if std::mem::take(&mut state.shell.notifications_open)
             || state.shell.connection_page.take().is_some()
         {
-            state.shell.shade_scroll = 0.0;
+            state.shell.reset_shade_scroll();
         } else {
             state.shell.set_quick_settings_open(false);
         }

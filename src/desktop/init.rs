@@ -152,6 +152,8 @@ impl State {
             cursor: (640.0, 400.0).into(),
             interaction: Interaction::None,
             launcher_swipe: Default::default(),
+            super_tap: Default::default(),
+            touchpad_scroll: Default::default(),
             brightness: 1.0,
             last_interactive_press: None,
             swallowed_buttons: HashSet::new(),

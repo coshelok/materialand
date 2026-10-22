@@ -43,6 +43,16 @@ impl CardPlacement {
 impl Shell {
     pub fn launcher_placement(&self, w: f32, h: f32, progress: f32) -> CardPlacement {
         let source = launcher_card(w, h);
+        if tablet_mode() && config::design().launcher.fullscreen {
+            let t = progress.clamp(0.0, 1.0);
+            return CardPlacement {
+                source,
+                target: RectF {
+                    y: source.y + (h - source.y) * (1.0 - t),
+                    ..source
+                },
+            };
+        }
         let origin = self
             .launcher_origin
             .unwrap_or_else(|| topbar_button_rect(w, TopAction::Launcher));
@@ -63,7 +73,7 @@ impl Shell {
         let design = crate::config::design();
         let source = quick_settings_rect(w, h);
         if tablet_mode() {
-            let t = progress.clamp(0.0, design.motion.overshoot_limit);
+            let t = progress.clamp(0.0, 1.0);
             return CardPlacement {
                 source,
                 target: RectF {

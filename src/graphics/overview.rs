@@ -1,7 +1,7 @@
 //! Recent-app previews use the clients' existing buffers, including minimized ones.
 use super::{
     scene::UiElement,
-    uploads::{buffer_element, push_buffer},
+    uploads::{masked_buffer_element, push_buffer, push_masked_buffer},
     window_transform::transform,
     windows::{window_group, WindowElement},
 };
@@ -17,9 +17,10 @@ pub(super) fn paint(
     state: &mut State,
     renderer: &mut GlesRenderer,
     size: Size<i32, Physical>,
+    theme: crate::theme::Theme,
+    second: Option<(crate::theme::Theme, Option<crate::shell::CircleMask>, f32)>,
 ) -> Vec<UiElement> {
     let mut back_to_front = Vec::new();
-    let theme = state.theme;
     let t = state.overview.progress();
     let motion = state.overview.motion_progress();
     state.shell.begin_frame();
@@ -30,6 +31,7 @@ pub(super) fn paint(
     let design = &crate::config::design().overview;
     let rounded_shader = super::rounded::program(renderer);
     let layer = crate::shell::LayerFrame {
+        source: None,
         buffer: state.shell.scrim_buffer(&theme),
         loc: (0.0, 0.0).into(),
         size: Some((size.w, size.h).into()),
@@ -57,6 +59,20 @@ pub(super) fn paint(
         .shell
         .overview_header(&theme, &mut state.fonts, w, &label);
     push_buffer(&mut back_to_front, renderer, &header, (0.0, 0.0), Some(t));
+    if let Some((next, mask, alpha)) = second {
+        let header = state
+            .shell
+            .overview_header(&next, &mut state.fonts, w, &label);
+        push_masked_buffer(
+            &mut back_to_front,
+            renderer,
+            &header,
+            (0.0, 0.0),
+            Some(t * alpha),
+            mask,
+        );
+    }
+
     // Keep desktop stacking during the morph; MRU order determines card positions,
     // not which overlapping full-size window suddenly appears in front.
     let stacking: Vec<_> = state.windows.space.elements().cloned().collect();
@@ -81,6 +97,7 @@ pub(super) fn paint(
             &meta,
             card_size,
             selected,
+            i == state.overview.selected,
         );
         let geom = item.window.geometry();
         let loc = state
@@ -127,20 +144,36 @@ pub(super) fn paint(
         };
         let mut chrome_target = interpolate_frame(from, full_card, motion);
         chrome_target.y += offset;
-        if let Some(element) = buffer_element(
-            renderer,
-            &buffer,
-            (chrome_source.x as f64, chrome_source.y as f64),
-            Some(t),
-        ) {
-            back_to_front.push(UiElement::Window(transform(
-                WindowElement::Memory(element),
-                WindowPose {
-                    source: chrome_source,
-                    target: chrome_target,
-                    alpha: t,
-                },
-            )));
+        for (card_theme, mask, alpha) in std::iter::once((theme, None, 1.0)).chain(second) {
+            let buffer = if card_theme.cache_key() == theme.cache_key() {
+                buffer.clone()
+            } else {
+                state.shell.overview_card(
+                    &item.window,
+                    &card_theme,
+                    &mut state.fonts,
+                    &meta,
+                    card_size,
+                    selected,
+                    i == state.overview.selected,
+                )
+            };
+            if let Some(element) = masked_buffer_element(
+                renderer,
+                &buffer,
+                (chrome_source.x as f64, chrome_source.y as f64),
+                Some(t * alpha),
+                mask,
+            ) {
+                back_to_front.push(UiElement::Window(transform(
+                    WindowElement::Memory(element),
+                    WindowPose {
+                        source: chrome_source,
+                        target: chrome_target,
+                        alpha: t * alpha,
+                    },
+                )));
+            }
         }
         let alpha = if minimized {
             t

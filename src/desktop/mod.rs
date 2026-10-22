@@ -174,6 +174,8 @@ pub struct State {
 
     pub cursor: Point<f64, Logical>,
     pub interaction: Interaction,
+    pub(crate) touchpad_scroll: crate::input::TouchpadScroll,
+    pub(crate) super_tap: crate::input::SuperTap,
     pub(crate) launcher_swipe: crate::input::LauncherSwipe,
     /// Hardware backlight fraction, independent of the rendered scene.
     pub brightness: f32,

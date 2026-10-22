@@ -89,3 +89,31 @@ fn centered_icon_ink_is_centered() {
     assert!((mid_x - cx).abs() <= 2.0, "x center {mid_x} != {cx}");
     assert!((mid_y - cy).abs() <= 2.0, "y center {mid_y} != {cy}");
 }
+
+#[test]
+fn clock_numbers_are_centered_by_ink_not_ascent_or_line_height() {
+    let mut fonts = Fonts::load().unwrap();
+    for text in ["00:00", "11:11", "14:32", "23:59"] {
+        let mut surface = Surface::new(400, 180);
+        fonts.draw_text_centered(
+            &mut surface,
+            (200.0, 90.0),
+            TextStyle {
+                size: 84.0,
+                line_height: 110.0,
+                ..TextStyle::headline_small()
+            },
+            text,
+            tiny_skia::Color::WHITE,
+        );
+        let (x0, y0, x1, y1) = ink_bounds(&surface).unwrap();
+        assert!(
+            ((x0 + x1) as f32 / 2.0 - 200.0).abs() <= 1.5,
+            "horizontal centering: {text}"
+        );
+        assert!(
+            ((y0 + y1) as f32 / 2.0 - 90.0).abs() <= 1.5,
+            "vertical centering: {text}"
+        );
+    }
+}

@@ -10,7 +10,7 @@ jobs:
       - name: Native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends -y pkg-config libdrm-dev libegl1-mesa-dev libgbm-dev libgles2-mesa-dev libinput-dev libseat-dev libudev-dev libwayland-dev libxkbcommon-dev xkb-data
+          sudo apt-get install --no-install-recommends -y pkg-config libdrm-dev libegl1-mesa-dev libgbm-dev libgles2-mesa-dev libinput-dev libseat-dev libudev-dev libwayland-dev libxkbcommon-dev xkb-data libgdk-pixbuf-2.0-dev librsvg2-dev libcairo2-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

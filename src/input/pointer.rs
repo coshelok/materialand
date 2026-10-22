@@ -150,6 +150,11 @@ fn refresh_focus(state: &mut State, time: u32) {
 pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut State, event: &E) {
     let button = event.button_code();
     let pressed = event.state() == ButtonState::Pressed;
+    if pressed {
+        state.super_tap.cancel();
+        super::stop_touchpad_scroll(state);
+        state.launcher_swipe = Default::default();
+    }
     let time = event.time_msec();
     if !pressed {
         state.finish_interaction(button);
@@ -217,9 +222,8 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             .shell
             .quick_settings_placement(w, h, state.shell.quick_settings_progress())
             .unmap(state.cursor);
-        if !shell::quick_settings_rect(w, h).contains(pos)
-            && shell::navigation_hit(w, h, state.cursor).is_none()
-            && !(state
+        if !(shell::quick_settings_rect(w, h).contains(pos)
+            || state
                 .shell
                 .statusbar_visible(state.has_fullscreen_window(), state.overview.visible())
                 && shell::statusbar_hit(w, state.cursor).is_some())

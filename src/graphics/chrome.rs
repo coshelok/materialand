@@ -93,53 +93,10 @@ pub(super) fn paint(
         }
     }
 
-    if (!fullscreen || state.overview.visible()) && crate::shell::tablet_mode() {
-        let (buffer, loc) = state
-            .shell
-            .render_navigation(&theme, &mut state.fonts, win_w, win_h);
-        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), None);
-        if let Some((target, mask, alpha)) = second {
-            let (buffer, loc) =
-                state
-                    .shell
-                    .render_navigation(&target, &mut state.fonts, win_w, win_h);
-            push_masked_buffer(
-                &mut elements,
-                renderer,
-                &buffer,
-                (loc.x, loc.y),
-                Some(alpha),
-                mask,
-            );
-        }
-    }
-
-    if state
-        .shell
-        .statusbar_visible(fullscreen, state.overview.visible())
-    {
-        let (buffer, loc) = state
-            .shell
-            .render_statusbar(&theme, &mut state.fonts, win_w);
-        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), None);
-        if let Some((target, mask, alpha)) = second {
-            let (buffer, loc) = state
-                .shell
-                .render_statusbar(&target, &mut state.fonts, win_w);
-            push_masked_buffer(
-                &mut elements,
-                renderer,
-                &buffer,
-                (loc.x, loc.y),
-                Some(alpha),
-                mask,
-            );
-        }
-    }
-
     let shade_p = state.shell.quick_settings_progress().clamp(0.0, 1.0);
     if shade_p > 0.001 {
         let layer = crate::shell::LayerFrame {
+            source: None,
             buffer: state.shell.scrim_buffer(&theme),
             loc: (0.0, 0.0).into(),
             size: Some((win_w as i32, win_h as i32).into()),
@@ -201,6 +158,29 @@ pub(super) fn paint(
                 None,
             );
             push_masked_overlay(&mut elements, renderer, &frame, alpha, mask);
+        }
+    }
+
+    if state
+        .shell
+        .statusbar_visible(fullscreen, state.overview.visible())
+    {
+        let (buffer, loc) = state
+            .shell
+            .render_statusbar(&theme, &mut state.fonts, win_w);
+        push_buffer(&mut elements, renderer, &buffer, (loc.x, loc.y), None);
+        if let Some((target, mask, alpha)) = second {
+            let (buffer, loc) = state
+                .shell
+                .render_statusbar(&target, &mut state.fonts, win_w);
+            push_masked_buffer(
+                &mut elements,
+                renderer,
+                &buffer,
+                (loc.x, loc.y),
+                Some(alpha),
+                mask,
+            );
         }
     }
 

@@ -105,13 +105,18 @@ impl Shell {
             0.0,
             Theme::with_alpha(theme.surface_container_low, d.background_alpha),
         );
+        let text_style = TextStyle {
+            size: d.font_size,
+            line_height: d.font_size * 1.25,
+            ..TextStyle::label_large()
+        };
         let clock = statusbar_button(w, StatusAction::Clock);
-        let text = fit_text(fonts, TextStyle::label_large(), &self.clock, clock.w);
-        fonts.draw_text_role(
+        let text = fit_text(fonts, text_style, &self.clock, (clock.w - 4.0).max(1.0));
+        let width = fonts.text_width_styled(text_style, &text);
+        fonts.draw_text_centered(
             &mut s,
-            clock.x,
-            (d.height - TextStyle::label_large().line_height) / 2.0,
-            TextStyle::label_large(),
+            (clock.right() - 4.0 - width / 2.0, d.height / 2.0),
+            text_style,
             &text,
             theme.on_surface,
         );
@@ -183,26 +188,26 @@ impl Shell {
                 )
             })
             .unwrap_or(("battery_unknown", "—".into()));
+        let percent = fit_text(
+            fonts,
+            text_style,
+            &percent,
+            (r.w - d.icon_size - 4.0).max(1.0),
+        );
+        let width = fonts.text_width_styled(text_style, &percent);
+        fonts.draw_text_centered(
+            &mut s,
+            (r.right() - width / 2.0, r.h / 2.0),
+            text_style,
+            &percent,
+            theme.on_surface,
+        );
         fonts.draw_icon_centered(
             &mut s,
-            r.x + d.icon_size / 2.0,
+            r.right() - width - 4.0 - d.icon_size / 2.0,
             r.h / 2.0,
             icon,
             d.icon_size,
-            theme.on_surface,
-        );
-        let percent = fit_text(
-            fonts,
-            TextStyle::label_medium(),
-            &percent,
-            (r.w - d.icon_size).max(1.0),
-        );
-        fonts.draw_text_role(
-            &mut s,
-            r.x + d.icon_size,
-            (r.h - TextStyle::label_medium().line_height) / 2.0,
-            TextStyle::label_medium(),
-            &percent,
             theme.on_surface,
         );
         let buffer = s.to_memory_buffer();

@@ -8,12 +8,12 @@ pub(super) enum Target {
 }
 #[derive(Clone, Copy)]
 pub(super) enum Control {
-    Nav(shell::NavAction),
     Status(shell::StatusAction),
     Notification(shell::NotificationHit),
     Overview(crate::desktop::overview::OverviewHit),
     SplitDivider,
     ShadeHeader(TopAction),
+    ShadePage,
     ConnectionPage(QuickAction),
     Connection(usize),
     ConnectionSettings,
@@ -52,11 +52,6 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
     {
         if let Some(action) = shell::statusbar_hit(w, pos) {
             return Target::Shell(Control::Status(action));
-        }
-    }
-    if !fullscreen || state.overview.visible() {
-        if let Some(action) = shell::navigation_hit(w, h, pos) {
-            return Target::Shell(Control::Nav(action));
         }
     }
     if state.overview.open {
@@ -120,9 +115,21 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
                 .unmap(pos),
         )));
     }
+    if state.shell.quick_settings_open
+        && shell::shade_split(w)
+        && shell::notification_panel(w, h).contains(qs_pos)
+    {
+        return Target::Shell(
+            state
+                .shell
+                .notification_hit(w, h, qs_pos)
+                .map(Control::Notification)
+                .unwrap_or(Control::Block),
+        );
+    }
     if state.shell.quick_settings_open && shell::quick_settings_rect(w, h).contains(qs_pos) {
         if shell::tablet_mode()
-            && !state.shell.notifications_open
+            && (!state.shell.notifications_open || shell::shade_split(w))
             && state.shell.connection_page.is_none()
         {
             if let Some(value) = shell::shade_brightness_hit(w, h, qs_pos) {
@@ -133,13 +140,18 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
                 });
             }
         }
+        if (state.shell.notifications_open || state.shell.connection_page.is_some())
+            && shell::shade_page_button(w, h).contains(qs_pos)
+        {
+            return Target::Shell(Control::ShadePage);
+        }
         if let Some(action) = shell::shade_header_hit(w, h, qs_pos) {
             return Target::Shell(Control::ShadeHeader(action));
         }
         if qs_pos.y < f64::from(shell::quick_settings_rect(w, h).y + shell::quick_tiles_top()) {
             return Target::Shell(Control::Block);
         }
-        if state.shell.notifications_open {
+        if state.shell.notifications_open && !shell::shade_split(w) {
             return Target::Shell(
                 state
                     .shell
@@ -278,7 +290,7 @@ pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
         state.shell.set_brightness_open(false);
     }
     if state.shell.quick_settings_open
-        && !shell::quick_settings_rect(w, h).contains(qs_pos)
+        && !shell::shade_contains(w, h, qs_pos)
         && top != Some(TopAction::QuickSettings)
     {
         state.shell.set_quick_settings_open(false);
@@ -303,7 +315,7 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
         }
         Control::ConnectionPage(page) => {
             state.shell.connection_page = Some(page);
-            state.shell.shade_scroll = 0.0;
+            state.shell.reset_shade_scroll();
             state.services.request(crate::system::Action::Refresh);
             return;
         }
@@ -313,6 +325,14 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
         }
         Control::ConnectionSettings => {
             super::navigation::connection_settings(state);
+            return;
+        }
+        Control::ShadePage => {
+            state.shell.notifications_open =
+                !state.shell.notifications_open && state.shell.connection_page.is_none();
+            state.shell.connection_page = None;
+            state.shell.reset_shade_scroll();
+            state.shell.consume_menu_release = true;
             return;
         }
         Control::ShadeHeader(action) => {
@@ -334,11 +354,6 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
             if let Some(snapshot) = state.notifications.poll() {
                 state.shell.notifications = snapshot;
             }
-            state.shell.consume_menu_release = true;
-            return;
-        }
-        Control::Nav(action) => {
-            super::navigation::perform(state, action);
             state.shell.consume_menu_release = true;
             return;
         }

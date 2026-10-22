@@ -1,54 +1,97 @@
-//! Shortcuts survive restarts independently of the dock and installed catalog.
+//! Sparse placement transactions preserve gaps and never reorder unrelated apps.
 use super::*;
 impl Shell {
     pub fn load_home(&mut self) {
         if let Some(path) = config::pins_path().map(|p| p.with_file_name("home-apps")) {
-            if let Err(error) = self.load_home_at(path.clone()) {
-                tracing::warn!(%error, "could not read home screen shortcuts");
-                self.home.pins.set_path(path);
+            if let Err(error) = self.load_home_at(path) {
+                tracing::warn!(%error, "could not load home workspace; keeping file untouched");
+                // Refuse writes after a malformed file instead of overwriting user data.
+                self.home
+                    .workspace
+                    .set_path("/dev/null/workspace.json".into());
             }
         }
     }
     fn load_home_at(&mut self, path: std::path::PathBuf) -> std::io::Result<()> {
-        self.home.pins = config::Pins::load(path, vec![])?;
+        self.home.workspace = config::Workspace::load(path)?;
         self.home.apps = self
             .home
-            .pins
-            .ids()
+            .workspace
+            .entries
             .iter()
-            .filter_map(|id| {
+            .filter_map(|s| {
                 self.apps
                     .iter()
                     .chain(std::iter::once(&self.terminal_app))
-                    .find(|a| &a.identity() == id)
+                    .find(|a| a.identity() == s.id)
                     .cloned()
             })
             .collect();
+        self.home.cache.clear();
         Ok(())
     }
     pub fn is_on_home(&self, app: &AppEntry) -> bool {
-        self.home.pins.contains(&app.identity())
+        self.home.workspace.contains(&app.identity())
     }
     pub fn toggle_home_app(&mut self, app: AppEntry) -> std::io::Result<()> {
         let id = app.identity();
-        self.home.pins.toggle(id.clone())?;
-        if self.home.pins.contains(&id) {
-            self.home.apps.push(app);
-        } else {
+        let (w, h) = self.home.last_size;
+        let layout = home_layout(w, h);
+        let mut entries = self.home.anchored(layout);
+        if self.is_on_home(&app) {
+            entries.retain(|s| s.id != id);
+            self.home.workspace.commit(entries)?;
             self.home.apps.retain(|a| a.identity() != id);
+        } else {
+            let cells = self.home.cells(layout);
+            let cell = (0..)
+                .map(|i| layout.cell_at_slot(i))
+                .find(|c| !cells.values().any(|v| v == c))
+                .unwrap();
+            entries.push(config::Shortcut {
+                id,
+                anchor: Some(layout.anchor(cell)),
+            });
+            self.home.workspace.commit(entries)?;
+            self.home.apps.push(app);
         }
         self.home.cache.clear();
         Ok(())
     }
-    pub fn place_home_app(&mut self, app: AppEntry, index: usize) -> std::io::Result<()> {
-        let mut apps = self.home.apps.clone();
-        let identity = app.identity();
-        apps.retain(|a| a.identity() != identity);
-        let index = index.min(apps.len());
-        let before = apps.get(index).map(AppEntry::identity);
-        self.home.pins.place_before(identity, before.as_deref())?;
-        apps.insert(index, app);
-        self.home.apps = apps;
+    pub fn place_home_app(&mut self, app: AppEntry, slot: usize) -> std::io::Result<()> {
+        let (w, h) = self.home.last_size;
+        let layout = home_layout(w, h);
+        let cell = layout.cell_at_slot(slot);
+        let id = app.identity();
+        let cells = self.home.cells(layout);
+        let previous = cells.get(&id).copied();
+        let occupied = cells
+            .iter()
+            .find(|(other, c)| **other != id && **c == cell)
+            .map(|(id, _)| id.clone());
+        let mut entries = self.home.anchored(layout);
+        if let Some(other) = occupied {
+            let replacement = previous.unwrap_or_else(|| {
+                (0..)
+                    .map(|i| layout.cell_at_slot(i))
+                    .find(|c| *c != cell && !cells.values().any(|v| v == c))
+                    .unwrap()
+            });
+            entries.iter_mut().find(|s| s.id == other).unwrap().anchor =
+                Some(layout.anchor(replacement));
+        }
+        if let Some(entry) = entries.iter_mut().find(|s| s.id == id) {
+            entry.anchor = Some(layout.anchor(cell));
+        } else {
+            entries.push(config::Shortcut {
+                id: id.clone(),
+                anchor: Some(layout.anchor(cell)),
+            });
+        }
+        self.home.workspace.commit(entries)?;
+        if !self.home.apps.iter().any(|a| a.identity() == id) {
+            self.home.apps.push(app);
+        }
         self.home.cache.clear();
         Ok(())
     }
@@ -57,7 +100,7 @@ impl Shell {
             .apps
             .iter()
             .enumerate()
-            .map(|(i, app)| (app.identity(), self.home_tile_rect(w, h, i)))
+            .map(|(i, a)| (a.identity(), self.home_tile_rect(w, h, i)))
             .collect()
     }
     pub fn animate_home_reorder(&mut self, w: f32, h: f32, before: HashMap<String, RectF>) {
@@ -81,14 +124,15 @@ impl Shell {
         if !layout.grid.contains(pos) {
             return None;
         }
-        let col = ((pos.x as f32 - layout.grid.x) / (layout.grid.w / layout.columns as f32)).floor()
-            as usize;
-        let row =
-            ((pos.y as f32 - layout.grid.y) / config::design().home.cell_height).floor() as usize;
-        Some(
-            (self.home.page * layout.per_page + row * layout.columns + col.min(layout.columns - 1))
-                .min(self.home.apps.len()),
-        )
+        let c = workspace::Cell {
+            page: self.home.page,
+            column: (((pos.x as f32 - layout.grid.x) / layout.grid.w * layout.columns as f32)
+                as usize)
+                .min(layout.columns - 1),
+            row: (((pos.y as f32 - layout.grid.y) / layout.grid.h * layout.rows as f32) as usize)
+                .min(layout.rows - 1),
+        };
+        Some(layout.slot(c))
     }
     pub fn reveal_home(&mut self) {
         self.home
@@ -97,18 +141,19 @@ impl Shell {
         self.home.reveal.set_target(1.0);
     }
     pub fn home_offset(&self) -> f32 {
-        let design = crate::config::design();
-        design.motion.home_offset
+        let d = config::design();
+        d.motion.home_offset
             * (1.0
                 - self
                     .home
                     .reveal
                     .value()
-                    .clamp(0.0, design.motion.overshoot_limit))
+                    .clamp(0.0, d.motion.overshoot_limit))
     }
     pub fn turn_home_page(&mut self, w: f32, h: f32, delta: i32) {
+        let extra = usize::from(self.dragged_identity.is_some());
         self.home.page = (self.home.page as i64 + i64::from(delta))
-            .clamp(0, self.home_pages(w, h) as i64 - 1) as usize;
+            .clamp(0, (self.home_pages(w, h) + extra - 1) as i64) as usize;
         self.home.position.set_target(self.home.page as f32);
         self.home.pressed = None;
         if self.reduce_motion {
@@ -116,7 +161,8 @@ impl Shell {
         }
     }
     pub fn clamp_home_page(&mut self, w: f32, h: f32) {
-        if self.home.page >= self.home_pages(w, h) {
+        self.home.last_size = (w, h);
+        if self.dragged_identity.is_none() && self.home.page >= self.home_pages(w, h) {
             self.turn_home_page(w, h, 0);
         }
     }

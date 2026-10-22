@@ -11,11 +11,11 @@ pub fn notification_stride() -> f32 {
 }
 impl Shell {
     pub fn notification_scroll_max(&self, w: f32, h: f32) -> f32 {
-        (quick_tiles_top()
+        (notification_top(w)
             + config::design().power.row_height
             + self.notifications.items.len() as f32 * notification_stride()
             + config::design().quick_settings.padding
-            - quick_settings_rect(w, h).h)
+            - notification_panel(w, h).h)
             .max(0.0)
     }
     pub fn notification_hit(
@@ -24,11 +24,11 @@ impl Shell {
         h: f32,
         pos: Point<f64, Logical>,
     ) -> Option<NotificationHit> {
-        let rect = quick_settings_rect(w, h);
+        let rect = notification_panel(w, h);
         if !rect.contains(pos) {
             return None;
         }
-        let y = pos.y as f32 - rect.y - quick_tiles_top();
+        let y = pos.y as f32 - rect.y - notification_top(w);
         let header = config::design().power.row_height;
         if y < 0.0 {
             return None;
@@ -38,9 +38,14 @@ impl Shell {
                 && pos.x as f32 > rect.right() - header * 2.0)
                 .then_some(NotificationHit::Clear);
         }
-        let index = ((y - header + self.shade_scroll) / notification_stride()).floor() as usize;
+        let scroll = if shade_split(w) {
+            self.notice_scroll.value()
+        } else {
+            self.shade_scroll
+        };
+        let index = ((y - header + scroll) / notification_stride()).floor() as usize;
         let notice = self.notifications.items.iter().rev().nth(index)?;
-        let row_y = (y - header + self.shade_scroll) % notification_stride();
+        let row_y = (y - header + scroll) % notification_stride();
         (row_y < config::design().quick_settings.tile_height
             && pos.x as f32 > rect.right() - config::design().quick_settings.padding - header)
             .then_some(NotificationHit::Dismiss(notice.id))
@@ -53,9 +58,29 @@ impl Shell {
         rect: RectF,
         pad: f32,
     ) {
+        self.paint_notification_content(
+            layer,
+            fonts,
+            theme,
+            rect,
+            pad,
+            quick_tiles_top(),
+            self.shade_scroll,
+        );
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn paint_notification_content(
+        &self,
+        layer: &mut Surface,
+        fonts: &mut Fonts,
+        theme: &Theme,
+        rect: RectF,
+        pad: f32,
+        top: f32,
+        scroll: f32,
+    ) {
         let d = &config::design().quick_settings;
         let header = config::design().power.row_height;
-        let top = quick_tiles_top();
         if !self.notifications.items.is_empty() {
             fonts.draw_text_role(
                 layer,
@@ -92,7 +117,7 @@ impl Shell {
         let mut body = Surface::new(layer.pixmap.width(), layer.pixmap.height());
         for (i, notice) in self.notifications.items.iter().rev().enumerate() {
             let x = pad + d.padding;
-            let y = pad + top + header + i as f32 * notification_stride() - self.shade_scroll;
+            let y = pad + top + header + i as f32 * notification_stride() - scroll;
             let width = rect.w - 2.0 * d.padding;
             body.fill_round_rect(
                 x,

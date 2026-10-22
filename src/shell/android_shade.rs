@@ -167,3 +167,88 @@ impl Shell {
         self.draw_ripple(s, PressKey::Tile(index), &clip, on);
     }
 }
+
+impl Shell {
+    pub fn reset_shade_scroll(&mut self) {
+        self.shade_scroll = 0.0;
+        self.shade_scroll_target = 0.0;
+        self.shade_scroll_motion.snap(0.0);
+    }
+    pub fn scroll_shade(&mut self, delta: f32, max: f32) {
+        if !delta.is_finite() {
+            return;
+        }
+        self.shade_scroll_target = (self.shade_scroll_target + delta).clamp(0.0, max.max(0.0));
+        self.shade_scroll_motion
+            .set_target(self.shade_scroll_target);
+        if self.reduce_motion {
+            self.shade_scroll_motion.finish();
+            self.shade_scroll = self.shade_scroll_target;
+        }
+    }
+}
+
+pub fn shade_page_button(w: f32, h: f32) -> RectF {
+    let rect = quick_settings_rect(w, h);
+    let size = 2.0 * config::design().statusbar.height;
+    RectF {
+        x: rect.right() - 3.0 * config::design().shade.header_button_width,
+        y: rect.y,
+        w: config::design().shade.header_button_width,
+        h: size,
+    }
+}
+
+impl Shell {
+    pub fn shade_scroll_limit(&self, w: f32, h: f32) -> f32 {
+        if self.notifications_open && !shade_split(w) {
+            self.notification_scroll_max(w, h)
+        } else if let Some(page) = self.connection_page {
+            let count = if page == QuickAction::Wifi {
+                self.system_status.networks.len()
+            } else {
+                self.system_status.devices.len()
+            };
+            (quick_tiles_top()
+                + 48.0
+                + count as f32 * config::design().power.row_height
+                + config::design().quick_settings.padding
+                - quick_settings_rect(w, h).h)
+                .max(0.0)
+        } else {
+            shade_scroll_max(w, h)
+        }
+    }
+    pub fn clamp_shade_scroll(&mut self, w: f32, h: f32) -> bool {
+        let notice_max = self.notification_scroll_max(w, h);
+        self.notice_scroll_target = self.notice_scroll_target.clamp(0.0, notice_max);
+        let notice_clamped = self.notice_scroll.value().clamp(0.0, notice_max);
+        let notice_changed = notice_clamped != self.notice_scroll.value();
+        if notice_changed {
+            self.notice_scroll.snap(notice_clamped);
+        }
+        self.notice_scroll.set_target(self.notice_scroll_target);
+        let max = self.shade_scroll_limit(w, h);
+        self.shade_scroll_target = self.shade_scroll_target.clamp(0.0, max);
+        let clamped = self.shade_scroll.clamp(0.0, max);
+        let changed = clamped != self.shade_scroll;
+        if changed {
+            self.shade_scroll = clamped;
+            self.shade_scroll_motion.snap(clamped);
+        }
+        self.shade_scroll_motion
+            .set_target(self.shade_scroll_target);
+        changed || notice_changed
+    }
+    pub fn scroll_notifications(&mut self, delta: f32, w: f32, h: f32) {
+        if !delta.is_finite() {
+            return;
+        }
+        self.notice_scroll_target =
+            (self.notice_scroll_target + delta).clamp(0.0, self.notification_scroll_max(w, h));
+        self.notice_scroll.set_target(self.notice_scroll_target);
+        if self.reduce_motion {
+            self.notice_scroll.finish();
+        }
+    }
+}

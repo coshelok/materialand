@@ -21,9 +21,10 @@ pub const BRIGHTNESS_MIN: f32 = 0.02;
 pub const BRIGHTNESS_MAX: f32 = 1.0;
 
 pub struct Shell {
+    app_icons: crate::graphics::app_icons::AppIcons,
     pub apps: Vec<AppEntry>,
     overview_cards: HashMap<Window, Vec<Piece>>,
-    overview_header: Option<Piece>,
+    overview_header: LayerCache,
     pub home: home::Home,
     pub pinned: Vec<AppEntry>,
     pins: config::Pins,
@@ -42,10 +43,11 @@ pub struct Shell {
     pub notifications_open: bool,
     statusbar_cache: LayerCache,
     pub shade_scroll: f32,
+    shade_scroll_motion: Spring,
+    shade_scroll_target: f32,
     pub dragged_identity: Option<String>,
     pub shortcut_error: Option<String>,
     drag_icon: Option<Piece>,
-    navigation_cache: Vec<Piece>,
     split_handle: Vec<Piece>,
     pub connection_page: Option<QuickAction>,
     pub brightness_available: bool,
@@ -71,8 +73,14 @@ pub struct Shell {
     /// Cached full-screen content layer of the launcher overlay, keyed by what
     /// it shows; the open/close transform is applied by the GPU.
     launcher_layer: LayerCache,
+    launcher_scrollbar: LayerCache,
+    app_tiles: HashMap<String, Vec<Piece>>,
     /// Cached quick-settings sheet content (settled state only).
     qs_layer: LayerCache,
+    shade_backdrop: LayerCache,
+    notice_layer: LayerCache,
+    notice_scroll: Spring,
+    notice_scroll_target: f32,
     /// Cached brightness-popup content.
     brightness_layer: LayerCache,
     /// Cached session-menu content.
@@ -157,6 +165,7 @@ mod motion;
 mod paint;
 mod power;
 mod quick_settings;
+mod shade_frame;
 mod topbar;
 mod wallpaper;
 mod window_motion;
@@ -169,6 +178,7 @@ mod tests;
 mod types;
 pub use types::*;
 
+mod app_grid;
 mod buttons;
 mod launcher_tile;
 mod placement;
@@ -180,7 +190,7 @@ mod home;
 pub use home::{home_layout, HomeHit};
 
 pub(crate) mod android_shade;
-pub use android_shade::{shade_brightness_hit, shade_brightness_value};
+pub use android_shade::{shade_brightness_hit, shade_brightness_value, shade_page_button};
 mod navigation;
 pub use navigation::*;
 

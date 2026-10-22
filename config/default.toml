@@ -31,6 +31,8 @@ ripple = 0.12  # Touch/click ripple opacity.
 
 # Spring stiffness: higher = faster. Damping ratio: lower = bouncier, 1 = no oscillation.
 [motion]
+sheet_stiffness = 300.0  # Full-screen drawer/shade spring; independent from bouncing cards.
+sheet_damping = 1.0  # At least 1: full-screen edges land without bouncing open a gap.
 spatial_stiffness = 420.0  # Spring stiffness for panels, dock resizing and home-page changes.
 spatial_damping = 0.68  # Damping ratio for spatial motion.
 responsive_stiffness = 850.0  # Spring stiffness for press feedback.
@@ -140,9 +142,9 @@ margin_x = 32.0  # Horizontal screen margin used to limit drawer width.
 margin_y = 32.0  # Vertical screen margin used to limit drawer height.
 offset_y = 0.0  # Offset from vertical screen center; negative moves the drawer up.
 tile_size = 104.0  # Square app tile size; also the tile width on the home screen.
-search_height = 64.0  # Search field height.
+search_height = 56.0  # Search field height.
 search_inset_x = 20.0  # Search field inset from the drawer's left and right edges.
-search_inset_y = 32.0  # Search field top inset.
+search_inset_y = 24.0  # Search field top inset.
 grid_gap = 8.0  # Gap between grid rows and columns.
 grid_padding = 20.0  # Grid viewport horizontal inset.
 grid_header_height = 48.0  # Space between the search field bottom and the app grid.
@@ -177,44 +179,45 @@ label_max_chars = 14  # Maximum app caption length before truncation.
 secondary_icons = ["terminal", "code", "settings", "monitor"]  # App icon keys using the secondary palette; unlisted keys use primary.
 tertiary_icons = ["public", "photo", "calendar_month"]  # App icon keys using the tertiary palette.
 
-# Home-screen clock, shortcut grid and page navigation; dimensions are logical pixels.
+# Home-screen shortcut grid and page navigation; dimensions are logical pixels.
 [home]
-max_columns = 6  # Maximum home-screen columns; compact layouts choose fewer columns automatically.
-widget_width = 360.0  # Preferred width of the two-part digital clock widget.
-widget_height = 144.0  # Clock widget height in the full home layout.
-widget_top = 48.0  # Clock widget top position below the centered date.
-widget_gap = 12.0  # Gap between the hour and minute shapes.
-widget_radius = 36.0  # Corner radius of the expressive clock shapes.
+max_rows = 5  # Maximum workspace rows; cells stretch to fill available height.
+max_columns = 8  # Maximum home-screen columns; compact layouts choose fewer columns automatically.
+widget_width = 360.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+widget_height = 144.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+widget_top = 48.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+widget_gap = 12.0  # Legacy home-clock key accepted for config compatibility; unused.
+widget_radius = 36.0  # Legacy home-clock key accepted for config compatibility; unused.
 search_width = 600.0  # Maximum width of the functional home app-search capsule.
 search_height = 52.0  # Home app-search capsule height.
-search_bottom = 4.0  # Gap between home content bottom and the app-search capsule.
+search_bottom = 4.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 page_dot_radius = 3.0  # Radius of the Android-style home-page indicators in logical pixels.
 page_dot_gap = 12.0  # Distance between home-page indicator centers in logical pixels.
 top_gap = 12.0  # Gap below the topbar area.
 bottom_gap = 16.0  # Gap above the dock area.
 margin_x = 24.0  # Minimum horizontal screen margin.
-max_width = 1120.0  # Maximum home content width; centered on wider screens.
-compact_threshold = 430.0  # Use the full clock/date layout when available home height exceeds this.
-hero_height = 224.0  # Space above shortcuts in the full clock/date layout.
-compact_hero_height = 96.0  # Space above shortcuts in the compact clock layout.
+max_width = 1120.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+compact_threshold = 430.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+hero_height = 224.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+compact_hero_height = 96.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 footer_height = 116.0  # Space reserved below shortcuts for page dots and app search.
-cell_width = 108.0  # Minimum shortcut cell width used to choose the column count.
-cell_height = 116.0  # Shortcut row spacing; must be at least tile_height.
-tile_height = 104.0  # Shortcut tile height and clickable area.
-tile_offset_y = 8.0  # Shortcut tile offset below its row's top edge.
+cell_width = 112.0  # Minimum cell width; columns distribute across the full workspace.
+cell_height = 112.0  # Minimum cell height; rows distribute across the available workspace.
+tile_height = 104.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+tile_offset_y = 8.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 page_gap = 32.0  # Extra horizontal space between animated home pages.
-nav_bottom = 100.0  # Distance from home content bottom to navigation button tops.
+nav_bottom = 100.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 nav_offset = 96.0  # Horizontal offset of the navigation buttons' outer edges from screen center.
 nav_width = 40.0  # Previous/next page button width.
 nav_height = 36.0  # Previous/next page button height.
-nav_radius = 18.0  # Page button corner radius.
+nav_radius = 18.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 nav_icon_size = 22.0  # Page arrow glyph size.
-label_offset_y = 8.0  # Page counter top offset inside the navigation row.
-clock_x = 16.0  # Clock/date X relative to the home content's left edge.
-clock_size = 84.0  # Full-layout clock font size.
-compact_clock_size = 40.0  # Compact-layout clock font size.
-clock_line_height = 96.0  # Clock text line height in both layouts.
-date_y = 104.0  # Date text offset below the clock's top position in the full layout.
+label_offset_y = 8.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+clock_x = 16.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+clock_size = 84.0  # Legacy home-clock key accepted for config compatibility; unused.
+compact_clock_size = 40.0  # Legacy home-clock key accepted for config compatibility; unused.
+clock_line_height = 96.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+date_y = 104.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 
 # Shared floating panel placement; dimensions are logical pixels.
 [panels]
@@ -270,7 +273,7 @@ tile_gap = 12.0  # Gap between control rows and columns.
 chip_height = 40.0  # Palette chip height.
 chip_gap = 8.0  # Gap between palette chips and rows.
 chips_y = 322.0  # First palette chip row's top position.
-chip_margin = 16.0  # Horizontal inset around the palette chip grid.
+chip_margin = 20.0  # Horizontal inset around the palette chip grid.
 chip_bottom_gap = 6.0  # Minimum gap below visible palette chips.
 tile_tint = 0.3  # Idle tile blend toward a tonal container color, 0..1.
 tile_radius = 24.0  # Idle tile corner radius.
@@ -451,28 +454,34 @@ directory = ""  # Optional font search directory; "" uses automatic discovery.
 [input.touchpad]
 tap_to_click = true  # Treat a brief touchpad tap as a primary-button click in direct sessions.
 tap_drag = true  # Tap, then hold a second touch to drag without pressing the touchpad.
+drag_lock = true  # Allow lifting and repositioning a finger during tap-and-drag; tap again to finish.
+disable_while_typing = true  # Suppress accidental touchpad input while typing, when supported.
+kinetic_scroll = true  # Let shell lists coast after a two-finger scroll; a new touch stops them.
+scroll_friction = 9.0  # Inertia decay per second, 2..30; larger values stop sooner.
+swipe_distance = 70.0  # Minimum gesture travel in logical input units, 20..300; also used for home page swipes.
 invert_scroll = false  # true reverses both scroll axes; false keeps the original direction. Three-finger gestures are unchanged.
 
 # Laptop controls with an Android-style shell. "desktop" restores the topbar and app dock.
 [navigation]
 mode = "tablet"  # Shell layout: "tablet" or "desktop".
-width = 232.0  # Compact navigation strip width in logical pixels.
-height = 44.0  # Navigation strip height in logical pixels.
-margin = 12.0  # Navigation strip distance from the bottom screen edge.
-icon_size = 22.0  # Navigation glyph size in logical pixels.
+width = 232.0  # Width of the invisible launcher animation origin; no bottom buttons are drawn.
+height = 44.0  # Height of the invisible launcher origin; does not reserve screen space.
+margin = 12.0  # Invisible launcher origin distance from the bottom screen edge.
+icon_size = 22.0  # Legacy navigation glyph size; accepted for compatibility, unused.
 
-# Four-finger-down system shade; appearance geometry still uses quick_settings tokens.
+# Three-finger-down system shade; appearance geometry still uses quick_settings tokens.
 [shade]
+header_button_width = 56.0  # Width of notification/back, clock and power targets in the shade header.
 fullscreen = true  # Use the full tablet work area for the Android system shade; false restores the floating sheet.
-wide_columns = 4  # Quick-control columns on a wide tablet display; compact screens use two.
-wide_threshold = 1000.0  # Work-area width at which the wide quick-control grid is used.
-width = 760.0  # Preferred shade width in logical pixels.
+wide_columns = 3  # Quick-control columns on a wide tablet display; compact screens use two.
+wide_threshold = 800.0  # Work-area width at which the wide quick-control grid is used.
+width = 1000.0  # Maximum shade content width in logical pixels.
 height = 680.0  # Preferred shade height in logical pixels; content scrolls on small screens.
 margin = 16.0  # Screen-edge inset in logical pixels.
-header_height = 172.0  # Space for the clock/date and brightness slider before quick-control tiles.
+header_height = 192.0  # Space for the clock/date and brightness slider before quick-control tiles.
 clock_size = 32.0  # Large clock size in the system shade, in logical pixels.
 clock_line_height = 40.0  # Line height of the system shade clock, at least clock_size.
-brightness_y = 100.0  # Brightness capsule top offset inside the system shade.
+brightness_y = 120.0  # Brightness capsule top offset inside the system shade.
 brightness_height = 48.0  # Brightness capsule height in logical pixels.
 brightness_icon_x = 24.0  # Brightness glyph inset from the capsule's left edge.
 tile_label_x = 60.0  # Horizontal text inset after an Android-style quick tile's leading icon.
@@ -481,6 +490,9 @@ tile_status_y = 46.0  # Quick tile status top offset in logical pixels.
 
 # Four-finger-up live app overview.
 [overview]
+grid_threshold = 1000.0  # At this width, recents uses a tablet grid instead of a phone carousel.
+grid_columns = 3  # Number of preview columns on a tablet page.
+grid_rows = 2  # Number of preview rows on a tablet page; short outputs use the carousel.
 card_radius = 32.0  # GPU corner radius of live app previews, in logical pixels.
 app_header_height = 48.0  # Per-app icon and title strip above each live preview.
 side_scale = 0.90  # Scale of neighboring recent-app cards relative to the centered one, 0.5..1.
@@ -517,10 +529,11 @@ page_delay = 0.65  # Delay before changing home pages while hovering an edge, in
 
 # Android-style top status strip in tablet mode; hidden for ordinary fullscreen apps.
 [statusbar]
+font_size = 18.0  # Clock and battery text size in logical pixels for laptop viewing.
 background_alpha = 0.0  # Android-style transparent status area; raise toward 1 for an opaque backing.
-height = 32.0  # Reserved height in logical pixels, keeping window titles below the strip.
-padding = 20.0  # Horizontal screen-edge inset in logical pixels.
-icon_size = 18.0  # Radio and notification glyph size in logical pixels.
-item_width = 36.0  # Radio/notification hit-area width in logical pixels.
-clock_width = 72.0  # Clock hit-area width in logical pixels.
-battery_width = 76.0  # Battery icon and percentage hit-area width in logical pixels.
+height = 36.0  # Reserved height in logical pixels, keeping window titles below the strip.
+padding = 12.0  # Horizontal screen-edge inset in logical pixels.
+icon_size = 20.0  # Radio and notification glyph size in logical pixels.
+item_width = 28.0  # Radio/notification hit-area width in logical pixels.
+clock_width = 60.0  # Clock hit-area width in logical pixels.
+battery_width = 72.0  # Battery icon and percentage hit-area width in logical pixels.

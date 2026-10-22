@@ -60,10 +60,20 @@ pub fn quick_settings_rect(win_w: f32, win_h: f32) -> RectF {
     if tablet_mode() {
         let d = &design.shade;
         if d.fullscreen {
+            if shade_split(win_w) {
+                let margin = d.margin;
+                return RectF {
+                    x: margin,
+                    y: top_inset(),
+                    w: (win_w - 2.0 * margin - design.quick_settings.tile_gap) / 2.0,
+                    h: (win_h - top_inset() - bottom_inset()).max(1.0),
+                };
+            }
+            let width = win_w.min(d.width).max(1.0);
             return RectF {
-                x: 0.0,
+                x: (win_w - width) / 2.0,
                 y: top_inset(),
-                w: win_w.max(1.0),
+                w: width,
                 h: (win_h - top_inset() - bottom_inset()).max(1.0),
             };
         }
@@ -90,6 +100,32 @@ pub fn quick_settings_rect(win_w: f32, win_h: f32) -> RectF {
         w,
         h,
     }
+}
+
+pub fn shade_split(w: f32) -> bool {
+    tablet_mode() && config::design().shade.fullscreen && w >= config::design().shade.wide_threshold
+}
+pub fn notification_panel(w: f32, h: f32) -> RectF {
+    let left = quick_settings_rect(w, h);
+    if shade_split(w) {
+        RectF {
+            x: left.right() + config::design().quick_settings.tile_gap,
+            ..left
+        }
+    } else {
+        left
+    }
+}
+pub fn notification_top(w: f32) -> f32 {
+    if shade_split(w) {
+        2.0 * config::design().statusbar.height
+    } else {
+        quick_tiles_top()
+    }
+}
+pub fn shade_contains(w: f32, h: f32, pos: Point<f64, Logical>) -> bool {
+    quick_settings_rect(w, h).contains(pos)
+        || (shade_split(w) && notification_panel(w, h).contains(pos))
 }
 
 pub fn quick_setting_tile(rect: RectF, index: usize, progress: f32) -> RectF {
@@ -249,9 +285,9 @@ pub fn shade_header_hit(w: f32, h: f32, pos: Point<f64, Logical>) -> Option<TopA
     {
         return None;
     }
-    if pos.x as f32 > r.right() - 56.0 {
+    if pos.x as f32 > r.right() - config::design().shade.header_button_width {
         Some(TopAction::Power)
-    } else if pos.x as f32 > r.right() - 112.0 {
+    } else if pos.x as f32 > r.right() - 2.0 * config::design().shade.header_button_width {
         Some(TopAction::Clock)
     } else {
         None

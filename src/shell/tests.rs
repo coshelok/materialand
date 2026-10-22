@@ -206,7 +206,7 @@ fn launcher_hit_regions() {
 }
 
 #[test]
-fn tablet_drawer_stays_between_the_status_strip_and_floating_navigation() {
+fn tablet_drawer_fills_the_area_below_the_status_strip() {
     for (w, h) in [(320.0, 240.0), (640.0, 480.0), (1280.0, 800.0)] {
         let r = launcher_card(w, h);
         assert!(r.x >= 0.0 && r.right() <= w);
@@ -317,6 +317,181 @@ fn truncate_adds_ellipsis() {
 fn launcher_columns_positive() {
     assert!(launcher_columns(720.0) >= 1);
     assert!(launcher_columns(10.0) >= 1);
+}
+
+#[test]
+fn fullscreen_drawer_preserves_content_shape_and_lands_without_a_gap() {
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
+    shell.launcher_open = true;
+    shell.set_launcher_open(true);
+    let rect = launcher_card(1280.0, 800.0);
+    let mut previous = 800.0;
+    for _ in 0..240 {
+        shell.tick(1.0 / 144.0);
+        let placement = shell.launcher_placement(1280.0, 800.0, shell.launcher_progress());
+        assert_eq!(placement.target.w, rect.w);
+        assert_eq!(placement.target.h, rect.h);
+        assert!(placement.target.y >= rect.y);
+        assert!(placement.target.y <= previous);
+        previous = placement.target.y;
+        let icon = RectF {
+            x: 100.0,
+            y: 180.0,
+            w: 56.0,
+            h: 56.0,
+        };
+        let drawn = placement.map_rect(icon);
+        let point = placement.unmap(pt(f64::from(drawn.x + 28.0), f64::from(drawn.y + 28.0)));
+        assert!((point.x - 128.0).abs() < 0.001 && (point.y - 208.0).abs() < 0.001);
+    }
+    assert!((previous - rect.y).abs() < 0.001);
+}
+
+#[test]
+fn scrolling_reuses_drawer_textures_and_crops_tiles_at_the_fixed_header() {
+    let mut shell = Shell::new(
+        (0..100)
+            .map(|i| {
+                let mut a = app(&format!("App {i:03}"));
+                a.desktop_file = Some(format!("/apps/{i}.desktop").into());
+                a
+            })
+            .collect(),
+        ThemeSpec::default(),
+    );
+    let mut fonts = Fonts::load().unwrap();
+    let theme = ThemeSpec::default().light();
+    shell.set_reduce_motion(true);
+    let (w, h) = (640.0, 480.0);
+    shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
+    let background = shell
+        .launcher_layer
+        .as_ref()
+        .unwrap()
+        .surface
+        .pixmap
+        .data()
+        .as_ptr();
+    let tile_id = shell.apps[0].identity();
+    let tile = shell.app_tiles[&tile_id][0].surface.pixmap.data().as_ptr();
+    shell.scroll_launcher(w, h, 30.0);
+    let frame = shell.render_launcher(&theme, &mut fonts, w, h, 1.0, None);
+    assert_eq!(
+        shell
+            .launcher_layer
+            .as_ref()
+            .unwrap()
+            .surface
+            .pixmap
+            .data()
+            .as_ptr(),
+        background
+    );
+    assert_eq!(
+        shell.app_tiles[&tile_id][0].surface.pixmap.data().as_ptr(),
+        tile
+    );
+    let viewport = launcher_viewport(w, h);
+    let pieces: Vec<_> = frame
+        .pieces
+        .iter()
+        .filter(|(p, _)| p.source.is_some())
+        .collect();
+    assert!(!pieces.is_empty());
+    assert!(pieces.iter().any(|(p, _)| p.source.unwrap().y > 0.0));
+    for (piece, _) in pieces {
+        assert!(piece.loc.y >= f64::from(viewport.y));
+        assert!(
+            piece.loc.y + f64::from(piece.size.unwrap().h) <= f64::from(viewport.bottom()) + 1.0
+        );
+    }
+}
+
+#[test]
+fn shade_scroll_moves_only_the_body_and_keeps_its_raster_cache() {
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
+    let mut fonts = Fonts::load().unwrap();
+    let theme = ThemeSpec::default().dark();
+    shell.set_reduce_motion(true);
+    let first = shell.render_quick_settings(
+        &theme,
+        &mut fonts,
+        640.0,
+        480.0,
+        1.0,
+        0.5,
+        ColorVariant::Neutral,
+        None,
+    );
+    let cache = shell
+        .qs_layer
+        .as_ref()
+        .unwrap()
+        .surface
+        .pixmap
+        .data()
+        .as_ptr();
+    shell.scroll_shade(64.0, shade_scroll_max(640.0, 480.0));
+    let second = shell.render_quick_settings(
+        &theme,
+        &mut fonts,
+        640.0,
+        480.0,
+        1.0,
+        0.5,
+        ColorVariant::Neutral,
+        None,
+    );
+    assert_eq!(
+        cache,
+        shell
+            .qs_layer
+            .as_ref()
+            .unwrap()
+            .surface
+            .pixmap
+            .data()
+            .as_ptr()
+    );
+    assert_eq!(
+        first.pieces[1].0.source.unwrap().y,
+        second.pieces[1].0.source.unwrap().y
+    );
+    assert_eq!(first.pieces[2].0.loc, second.pieces[2].0.loc);
+    assert_eq!(
+        second.pieces[2].0.source.unwrap().y - first.pieces[2].0.source.unwrap().y,
+        64.0
+    );
+}
+
+#[test]
+fn clearing_notifications_clamps_displayed_and_pending_scroll() {
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
+    shell.notifications_open = true;
+    shell.notifications.items = (0..12)
+        .map(|id| crate::notifications::Notice {
+            id,
+            app: "Mail".into(),
+            summary: "Message".into(),
+            body: String::new(),
+        })
+        .collect();
+    shell.set_reduce_motion(true);
+    shell.scroll_shade(240.0, shell.shade_scroll_limit(640.0, 480.0));
+    assert!(shell.shade_scroll > 0.0);
+    shell.notifications.items.clear();
+    assert!(shell.clamp_shade_scroll(640.0, 480.0));
+    assert_eq!(shell.shade_scroll, 0.0);
+    assert_eq!(shell.shade_scroll_target, 0.0);
+    assert!(shell.shade_scroll_motion.settled());
+    assert!(!shell.clamp_shade_scroll(640.0, 480.0));
+
+    // A service update can arrive before the first animated scroll frame.
+    shell.set_reduce_motion(false);
+    shell.scroll_shade(200.0, 500.0);
+    shell.clamp_shade_scroll(640.0, 480.0);
+    shell.shade_scroll_motion.step(1.0 / 60.0);
+    assert_eq!(shell.shade_scroll_motion.value(), 0.0);
 }
 
 #[test]
@@ -609,4 +784,99 @@ fn theme_transition_reuses_both_raster_endpoints_for_every_cached_sheet() {
             assert_eq!(paint(sheet, &mut shell, &mut fonts, &spec.dark()), dark);
         }
     }
+}
+
+#[test]
+fn tablet_notifications_scroll_independently_and_keep_header_and_tiles_cached() {
+    let mut shell = Shell::new(vec![], ThemeSpec::default());
+    shell.set_reduce_motion(true);
+    shell.notifications.items = (0..16)
+        .map(|id| crate::notifications::Notice {
+            id,
+            app: "Mail".into(),
+            summary: "Message".into(),
+            body: String::new(),
+        })
+        .collect();
+    let mut fonts = Fonts::load().unwrap();
+    let theme = ThemeSpec::default().light();
+    let first = shell.render_quick_settings(
+        &theme,
+        &mut fonts,
+        1280.0,
+        800.0,
+        1.0,
+        0.5,
+        ColorVariant::Neutral,
+        None,
+    );
+    let left = shell
+        .qs_layer
+        .as_ref()
+        .unwrap()
+        .surface
+        .pixmap
+        .data()
+        .as_ptr();
+    let right = shell
+        .notice_layer
+        .as_ref()
+        .unwrap()
+        .surface
+        .pixmap
+        .data()
+        .as_ptr();
+    shell.scroll_notifications(104.0, 1280.0, 800.0);
+    let second = shell.render_quick_settings(
+        &theme,
+        &mut fonts,
+        1280.0,
+        800.0,
+        1.0,
+        0.5,
+        ColorVariant::Neutral,
+        None,
+    );
+    assert_eq!(shell.shade_scroll, 0.0);
+    assert_eq!(
+        left,
+        shell
+            .qs_layer
+            .as_ref()
+            .unwrap()
+            .surface
+            .pixmap
+            .data()
+            .as_ptr()
+    );
+    assert_eq!(
+        right,
+        shell
+            .notice_layer
+            .as_ref()
+            .unwrap()
+            .surface
+            .pixmap
+            .data()
+            .as_ptr()
+    );
+    assert_eq!(first.pieces[3].0.source, second.pieces[3].0.source);
+    assert_eq!(
+        second.pieces[4].0.source.unwrap().y - first.pieces[4].0.source.unwrap().y,
+        104.0
+    );
+    let pane = notification_panel(1280.0, 800.0);
+    let point = (
+        f64::from(pane.right() - config::design().quick_settings.padding - 10.0),
+        f64::from(pane.y + notification_top(1280.0) + config::design().power.row_height + 20.0),
+    )
+        .into();
+    assert_eq!(
+        shell.notification_hit(1280.0, 800.0, point),
+        Some(NotificationHit::Dismiss(14))
+    );
+    shell.notifications.items.clear();
+    shell.notifications.revision += 1;
+    shell.clamp_shade_scroll(1280.0, 800.0);
+    assert_eq!(shell.notice_scroll.value(), 0.0);
 }

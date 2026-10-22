@@ -1,6 +1,42 @@
 //! Text measurement and role/icon placement.
 use super::*;
 impl Fonts {
+    /// Center visible ink, including glyph bearings; line-height is not an ink box.
+    pub fn draw_text_centered(
+        &mut self,
+        surface: &mut crate::graphics::canvas::Surface,
+        center: (f32, f32),
+        style: TextStyle,
+        text: &str,
+        color: tiny_skia::Color,
+    ) {
+        let mut bounds: Option<(f32, f32, f32, f32)> = None;
+        let mut cursor = 0.0;
+        for ch in text.chars() {
+            let g = self.rasterize(style.kind, ch, style.size.max(1.0) as u16);
+            if g.width > 0 && g.height > 0 {
+                let left = cursor + g.xmin as f32;
+                let top = -(g.ymin as f32) - g.height as f32;
+                let right = left + g.width as f32;
+                let bottom = -(g.ymin as f32);
+                bounds = Some(bounds.map_or((left, top, right, bottom), |b| {
+                    (b.0.min(left), b.1.min(top), b.2.max(right), b.3.max(bottom))
+                }));
+            }
+            cursor += g.advance + style.tracking;
+        }
+        if let Some((left, top, right, bottom)) = bounds {
+            let ascent = self.ascent(style.kind, style.size);
+            self.draw_text_role(
+                surface,
+                center.0 - (left + right) / 2.0,
+                center.1 - (top + bottom) / 2.0 - ascent,
+                style,
+                text,
+                color,
+            );
+        }
+    }
     pub fn text_width_styled(&mut self, style: TextStyle, text: &str) -> f32 {
         self.text_width_tracked(style.kind, text, style.size, style.tracking)
     }

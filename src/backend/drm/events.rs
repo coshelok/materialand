@@ -89,8 +89,29 @@ pub(super) fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBacke
                 if let Err(error) = device.config_tap_set_drag_enabled(options.tap_drag) {
                     tracing::warn!(?error, device = %device.id(), "could not configure touchpad tap dragging");
                 }
+                if let Err(error) = device.config_tap_set_drag_lock_enabled(options.drag_lock) {
+                    tracing::warn!(?error, device = %device.id(), "could not configure touchpad drag lock");
+                }
+                if let Err(error) = device.config_tap_set_button_map(
+                    smithay::reexports::input::TapButtonMap::LeftRightMiddle,
+                ) {
+                    tracing::warn!(?error, device = %device.id(), "could not configure touchpad tap buttons");
+                }
+                let method = smithay::reexports::input::ScrollMethod::TwoFinger;
+                if device.config_scroll_methods().contains(&method) {
+                    if let Err(error) = device.config_scroll_set_method(method) {
+                        tracing::warn!(?error, device = %device.id(), "could not configure two-finger scrolling");
+                    }
+                }
+                if device.config_dwt_is_available() {
+                    if let Err(error) = device.config_dwt_set_enabled(options.disable_while_typing)
+                    {
+                        tracing::warn!(?error, device = %device.id(), "could not configure touchpad typing suppression");
+                    }
+                }
             }
         }
+        InputEvent::GestureHoldBegin { .. } => input::stop_touchpad_scroll(&mut app.state),
         InputEvent::GestureSwipeBegin { event } => {
             input::swipe_begin(&mut app.state, event.device().id(), event.fingers())
         }
@@ -104,6 +125,8 @@ pub(super) fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBacke
         }
         InputEvent::DeviceRemoved { .. } => {
             app.state.launcher_swipe = Default::default();
+            app.state.super_tap = Default::default();
+            input::stop_touchpad_scroll(&mut app.state);
         }
         InputEvent::Keyboard { event } => input::on_keyboard(&mut app.state, &event),
         InputEvent::PointerMotion { event } => input::on_pointer_motion_relative(

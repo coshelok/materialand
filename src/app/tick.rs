@@ -47,6 +47,9 @@ impl Ticker {
         state
             .shell
             .clamp_launcher_scroll(state.display.size.w as f32, state.display.size.h as f32);
+        dirty |= state
+            .shell
+            .clamp_shade_scroll(state.display.size.w as f32, state.display.size.h as f32);
 
         // Update the clock once per second, but only mark the frame dirty when
         // the displayed minute actually changes: an idle compositor must not
@@ -63,7 +66,8 @@ impl Ticker {
         let now = Instant::now();
         let dt = animation_step(now - self.last_frame, interval, self.animating);
         self.last_frame = now;
-        self.animating = state.shell.tick(dt)
+        self.animating = crate::input::tick_touchpad_scroll(state, dt)
+            | state.shell.tick(dt)
             | state.tick_overview(dt)
             | state.tick_split(dt)
             | crate::input::tick_shortcut_drag(state, dt);

@@ -13,6 +13,10 @@ impl Shell {
         variant: ColorVariant,
         mask: Option<CircleMask>,
     ) -> OverlayFrame {
+        if tablet_mode() && config::design().shade.fullscreen && mask.is_none() {
+            return self
+                .render_tablet_shade(theme, fonts, win_w, win_h, progress, brightness, variant);
+        }
         let p = progress.clamp(0.0, 1.0);
         let rect = quick_settings_rect(win_w, win_h);
         let pad = crate::config::design().shadow.padding;
@@ -60,7 +64,15 @@ impl Shell {
             None
         } else {
             let mut layer = Surface::new(layer_w, layer_h);
-            self.paint_quick_settings(&mut layer, fonts, theme, rect, brightness, variant);
+            self.paint_quick_settings(
+                &mut layer,
+                fonts,
+                theme,
+                rect,
+                brightness,
+                variant,
+                shade_split(win_w),
+            );
             let buffer = layer.to_memory_buffer();
             if mask.is_none() && stable {
                 self.qs_layer.store(CachedLayer {
@@ -97,7 +109,7 @@ impl Shell {
             return OverlayFrame::single(buffer, loc, None, p);
         }
 
-        OverlayFrame::single(
+        let mut frame = OverlayFrame::single(
             cached.buffer.clone(),
             Point::from((loc_x + scale_tx as f64, loc_y + scale_ty as f64)),
             Some(Size::from((
@@ -105,8 +117,43 @@ impl Shell {
                 (layer_h as f32 * scale).round() as i32,
             ))),
             p,
-        )
+        );
+        if tablet_mode() && config::design().shade.fullscreen {
+            let key = theme.cache_key();
+            if !self.shade_backdrop.select(key) {
+                let mut surface = Surface::new(1, 1);
+                surface.clear(theme.surface_container_low);
+                let buffer = surface.to_memory_buffer();
+                self.shade_backdrop.store(CachedLayer {
+                    key,
+                    surface,
+                    buffer,
+                });
+            }
+            frame.pieces.insert(
+                0,
+                (
+                    LayerFrame {
+                        source: None,
+                        buffer: self.shade_backdrop.as_ref().unwrap().buffer.clone(),
+                        loc: (
+                            0.0,
+                            f64::from(
+                                self.quick_settings_placement(win_w, win_h, progress)
+                                    .target
+                                    .y,
+                            ),
+                        )
+                            .into(),
+                        size: Some((win_w.ceil() as i32, rect.h.ceil() as i32).into()),
+                    },
+                    p,
+                ),
+            );
+        }
+        frame
     }
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn paint_quick_settings(
         &mut self,
         layer: &mut Surface,
@@ -115,6 +162,7 @@ impl Shell {
         rect: RectF,
         brightness: f32,
         variant: ColorVariant,
+        _dual_column: bool,
     ) {
         let design = crate::config::design();
         let pad = design.shadow.padding;
@@ -158,10 +206,14 @@ impl Shell {
                 "Notifications"
             } else if tablet_mode() && self.connection_page.is_none() {
                 &self.clock
+            } else if self.connection_page == Some(QuickAction::Wifi) {
+                "Wi-Fi"
+            } else if self.connection_page == Some(QuickAction::Bluetooth) {
+                "Bluetooth"
             } else {
                 "Quick settings"
             },
-            rect.w - 2.0 * design.quick_settings.padding - 112.0,
+            rect.w - 2.0 * design.quick_settings.padding - 3.0 * design.shade.header_button_width,
         );
         fonts.draw_text_role(
             layer,
@@ -175,7 +227,10 @@ impl Shell {
         fonts.draw_text_role(
             layer,
             pad + design.quick_settings.padding,
-            pad + design.quick_settings.subtitle_y,
+            pad + design
+                .quick_settings
+                .subtitle_y
+                .max(design.quick_settings.title_y + clock_style.line_height + 4.0),
             TextStyle::body_small(),
             if self.notifications_open {
                 "App updates"
@@ -187,9 +242,19 @@ impl Shell {
             theme.on_surface_variant,
         );
 
+        if self.notifications_open || self.connection_page.is_some() {
+            fonts.draw_icon_centered(
+                layer,
+                pad + rect.w - 2.5 * design.shade.header_button_width,
+                pad + config::design().statusbar.height,
+                "arrow_back",
+                config::design().statusbar.icon_size,
+                theme.on_surface,
+            );
+        }
         fonts.draw_icon_centered(
             layer,
-            pad + rect.w - 28.0,
+            pad + rect.w - 0.5 * design.shade.header_button_width,
             pad + 32.0,
             "power_settings_new",
             22.0,
@@ -197,7 +262,7 @@ impl Shell {
         );
         fonts.draw_icon_centered(
             layer,
-            pad + rect.w - 84.0,
+            pad + rect.w - 1.5 * design.shade.header_button_width,
             pad + 32.0,
             "schedule",
             22.0,
@@ -476,7 +541,7 @@ impl Shell {
             fonts.draw_text_role(
                 layer,
                 pad + design.quick_settings.padding,
-                pad + 78.0,
+                pad + design.shade.brightness_y - TextStyle::label_medium().line_height - 4.0,
                 TextStyle::label_medium(),
                 &battery,
                 theme.on_surface_variant,

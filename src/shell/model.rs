@@ -8,9 +8,10 @@ impl Shell {
         let pins = config::Pins::initial(vec![terminal_app.identity()]);
 
         Shell {
+            app_icons: crate::graphics::app_icons::AppIcons::load(&apps),
             apps,
             overview_cards: HashMap::new(),
-            overview_header: None,
+            overview_header: LayerCache::default(),
             home: home::Home::new(),
             pinned: vec![terminal_app.clone()],
             terminal_app,
@@ -28,10 +29,11 @@ impl Shell {
             notifications_open: false,
             statusbar_cache: LayerCache::default(),
             shade_scroll: 0.0,
+            shade_scroll_motion: Spring::effects(0.0),
+            shade_scroll_target: 0.0,
             dragged_identity: None,
             shortcut_error: None,
             drag_icon: None,
-            navigation_cache: Vec::new(),
             split_handle: Vec::new(),
             connection_page: None,
             brightness_available: false,
@@ -50,17 +52,39 @@ impl Shell {
             dock_cache: Vec::new(),
             decor_cache: HashMap::new(),
             launcher_layer: LayerCache::default(),
+            launcher_scrollbar: LayerCache::default(),
+            app_tiles: HashMap::new(),
             qs_layer: LayerCache::default(),
+            shade_backdrop: LayerCache::default(),
+            notice_layer: LayerCache::default(),
+            notice_scroll: Spring::effects(0.0),
+            notice_scroll_target: 0.0,
             brightness_layer: LayerCache::default(),
             power_layer: LayerCache::default(),
             scrim_cache: None,
             frame_epoch: 0,
             cursor_cache: None,
-            launcher: Spring::spatial(0.0),
+            launcher: if tablet_mode() {
+                Spring::at(
+                    0.0,
+                    config::design().motion.sheet_stiffness,
+                    config::design().motion.sheet_damping,
+                )
+            } else {
+                Spring::spatial(0.0)
+            },
             launcher_scroll: Spring::effects(0.0),
             launcher_scroll_target: 0.0,
             brightness: Spring::spatial(0.0),
-            quick_settings: Spring::spatial(0.0),
+            quick_settings: if tablet_mode() {
+                Spring::at(
+                    0.0,
+                    config::design().motion.sheet_stiffness,
+                    config::design().motion.sheet_damping,
+                )
+            } else {
+                Spring::spatial(0.0)
+            },
             power: Spring::spatial(0.0),
             night_light: Spring::effects(0.0),
             theme_mix: Tween::new(

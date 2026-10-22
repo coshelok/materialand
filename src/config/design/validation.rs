@@ -11,7 +11,16 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
             Err(invalid(message))
         }
     }
+    require(
+        d.motion.sheet_damping >= 1.0,
+        "motion.sheet_damping must be at least 1 to keep fullscreen sheet edges covered",
+    )?;
     require(d.schema_version == 1, "unsupported design schema_version")?;
+    require(
+        (2.0..=30.0).contains(&d.input.touchpad.scroll_friction)
+            && (20.0..=300.0).contains(&d.input.touchpad.swipe_distance),
+        "touchpad scroll_friction must be in 2..30 and swipe_distance in 20..300",
+    )?;
     require(
         (2..=6).contains(&d.shade.wide_columns),
         "shade.wide_columns must be in 2..=6",
@@ -19,6 +28,14 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
     require(
         (1..=16).contains(&d.home.max_columns) && (1..=16).contains(&d.launcher.max_columns),
         "home and launcher max_columns must be in 1..=16",
+    )?;
+    require(
+        (1..=16).contains(&d.home.max_rows),
+        "home.max_rows must be in 1..=16",
+    )?;
+    require(
+        (1..=4).contains(&d.overview.grid_rows) && (1..=6).contains(&d.overview.grid_columns),
+        "overview grid must have 1..4 rows and 1..6 columns",
     )?;
     require(
         (0.5..=1.0).contains(&d.overview.side_scale),
@@ -67,6 +84,10 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
     require(
         d.drag.threshold >= 1.0 && (0.1..=5.0).contains(&d.drag.page_delay),
         "invalid drag threshold or page delay",
+    )?;
+    require(
+        d.statusbar.font_size >= 1.0 && d.statusbar.font_size * 1.25 <= d.statusbar.height,
+        "statusbar.font_size line height must fit the strip",
     )?;
     require(
         d.statusbar.icon_size <= d.statusbar.height

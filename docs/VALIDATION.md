@@ -27,7 +27,7 @@ Live recent-app corners have a separate offscreen GPU regression:
 cargo test --locked egl_rounded_previews_preserve_clipping_transforms_and_shader_isolation -- --ignored
 ```
 
-It checks actual rounded clipping and alpha with scaled/cropped sources, both direct/nested framebuffer orientations, and shader isolation. Check real client snapshots, app identity/actions, neighboring card depth and upward dismissal in a normal session. Check the home search capsule, five-column compact and bounded tablet app grids, and full-height drawer/shade in both themes. Existing gesture ownership and split behavior must remain intact.
+It checks actual rounded clipping and alpha with scaled/cropped sources, both direct/nested framebuffer orientations, and shader isolation. Check real client snapshots, app identity/actions, neighboring card depth and upward dismissal in a normal session. Check the home search capsule, full-width home/drawer grids and available top-left cells, and full-height drawer/shade in both themes. Existing gesture ownership and split behavior must remain intact.
 
 ## Nested session
 
@@ -83,19 +83,25 @@ cargo test --locked desktop::integration_tests -- --ignored --nocapture
 
 They create real SHM clients and exercise minimize/overview/restore, split configure/ack/buffer commits, output resizing, close requests and leaving split by maximizing. They could not complete in the restricted environment described above, so they are not counted as verified client behavior there.
 
-To generate manual shell design previews in `/tmp` without changing the running desktop or system radios:
+To generate 40 manual shell design previews in `target/visual-audit/` without changing the running desktop or system radios:
 
 ```sh
 cargo test --locked write_tablet_design_previews -- --ignored --nocapture
 ```
 
+The previews cover home, drawer, shade, notifications and recents in both themes at 320×640, 640×480, 1280×800 and 1920×1080. They use fixture applications, system status and labeled preview-client surfaces, with the same cropped layer geometry as rendering. They establish static layout, not animation frame pacing or real client behavior.
+
+CPU regressions check full-width cells, unreserved top-left cells, sparse-position persistence, occupied-cell swaps, new-page creation and resized-output collision handling, stable icon/background caches during scrolling, fixed shade-header geometry, scroll clamping after notifications disappear, and spring trajectories at 30–360 Hz including fractional rates and reversal. The reveal EGL regression exercises the actual layer-upload path with nonzero source crops.
+
+During manual review, reverse opening/closing sheets repeatedly, scroll long network and notification lists, and click the fixed headings and visible rows. Clear notifications while still scrolling. Check that no stale offset, exposed panel edge or click-through remains. Toggle themes while recents is visible and inspect both its header and card chrome.
+
 On the target laptop:
 
-1. Verify three fingers up/down opens/closes the launcher; four up opens recent apps; four down opens the shade. Four up while the shade is open must only close it; four down while recents are open must only close recents. Unrelated gestures inside an open panel must not switch layers. Repeat during closing animations and over fullscreen applications. Canceled, short and diagonal swipes should do nothing.
-2. Use navigation buttons and Super+P/Tab/S without a touchpad. Enter each overlay while moving/resizing a window or holding a client button; release it and check that input recovers. Escape and outside clicks must dismiss the overlay without reaching the app behind it.
+1. Verify three fingers up opens the launcher and three down opens the shade. Three down while the launcher is open must only close it; three up while the shade is open must only close it. Four up/down opens/closes recents; four down from home must do nothing. Unrelated gestures inside an open panel must not switch layers. Repeat during closing animations and over fullscreen applications. Canceled, short and diagonal swipes should do nothing.
+2. Use bare Super and Super+P/Tab/S without a touchpad. Enter each overlay while moving/resizing a window or holding a client button; release it and check that input recovers. Escape and outside clicks must dismiss the overlay without reaching the app behind it.
 3. Minimize two clients, open recent apps, restore each, close one with unsaved work and handle its confirmation. Check live previews, arrows and fine touchpad scroll. Drag a card upward past the dismissal threshold and release: it must continue upward from the release position, completely leave the output, and send one close request. The next card must slide slowly into the vacated position without a jump when the client disappears. Repeat with the first, middle and last cards, rapid consecutive dismissals, a short canceled drag, and reduced motion. An app that ignores/cancels closing must return as a reachable card after the configured timeout.
 4. Pair two clients from overview by clicking both split icons; repeat with a split icon followed by the second preview body. Clicking the first icon again should cancel. If the output is too narrow, selection must remain on the first app with a size notice. Check entry/return at 60 Hz and high refresh: no disappearing titlebar, stacking jump or missing offscreen-to-card window; the small rebound must finish smoothly. Repeat with minimized windows and reduced motion. Grab the divider at its center and near either adjacent CSD/SSD edge, including before new client buffers arrive. Both panes must resize together with their outer edges fixed; grabbing off-center must not jump the divider. Test client-initiated resize at both inner edges, releasing outside the handle, unrelated windows and popups over the gap, minimum sizes, fullscreen/maximize/minimize, closing one member, and output resizing. Exit with Super+BackSpace or right-click the divider.
-5. Drag icons within a page, from the launcher, and between pages via edge dwell. Drop outside the grid to cancel. Restart and verify order, including missing/reinstalled apps. Repeat with reduced motion.
+5. Drag icons into distant empty cells, onto occupied cells and from the launcher. Verify only the two occupied cells swap and unrelated icons stay put. Drag to the right edge of the last page to create a page. Drop into the top-left cells; drop outside the grid to cancel. Remove an icon and restart: holes and distant positions must remain. Resize the output and return to its original size; check missing/reinstalled apps and saved positions. Repeat with reduced motion.
 6. Compare battery percentage/charging with sysfs. Toggle Wi-Fi/Bluetooth and compare with NetworkManager/BlueZ. Connect a known network and paired device, disconnect, handle a new secured network through settings, and test missing services, permission denial and hardware radio switches. Check errors, busy state and frame pacing while commands run.
 7. Check light/dark palettes, small screens, scrolling/clipping, rapid overlay changes and theme reveals. Switch `navigation.mode` to desktop and verify the old topbar/dock, independent pins and all keyboard gestures remain usable.
 
@@ -113,3 +119,19 @@ cargo test --locked real_session_bus_delivers_replaces_and_withdraws_notificatio
 ```
 
 This requires Unix socket and D-Bus permissions. CPU tests cover ownership/routing of gestures, status hit areas, notification ID replacement/expiry/close reasons and bounds. The preview generator also writes status-strip and notification-list images.
+
+## Rewritten workspace and tablet layout
+
+Check status-strip time at 00:00, 11:11 and 23:59 and battery at 9%, 67% and 100% in both themes: text must stay vertically centered and fit beside icons. Click the time to open the calendar. Confirm the home grid has no duplicate clock and no reserved cells. On wide outputs, scroll notifications without moving controls, then scroll controls without moving notifications; dismiss a visible notification after scrolling. Back returns from connection lists before closing the shade.
+
+In tablet recents, use all four arrow keys and Enter, move across page boundaries, dismiss cards in each row and verify smooth reflow. Repeat split selection with two cards in different rows and pages. Real client configure/ack timing and physical frame pacing still require a normal KMS or nested session.
+
+To preview actual installed application icons, run `cargo test --locked write_installed_icons_preview -- --ignored --nocapture`; the image is saved as `target/visual-audit/installed-app-icons.png`. Icon regressions cover theme inheritance/cycles, hicolor and pixmap fallback, absolute paths, transparent PNG/SVG decoding and invalid images. Verify Firefox, Cursor and other installed apps in the launcher and on home; absent icon files must keep the fallback. Check the main shade has no redundant bell and that the status-strip bell still opens notifications.
+
+## Touchpad scrolling and dragging
+
+CPU tests cover direct finger tracking, release inertia, refresh-independent decay, stale releases, reduced motion, boundary stopping, per-device/list ownership, overlay interruption and one home-page turn per horizontal gesture. Gesture routing checks every combination of initial panel and three/four-finger direction.
+
+On the laptop, flick long launcher, network and notification lists, touch again to stop, then click an app. Move the pointer between shade columns during a scroll: the original column must keep ownership. Open another panel mid-scroll and verify the old sequence does not scroll it. Check horizontal two-finger home paging, direction inversion and vertical/diagonal motion. Test tap-and-drag on shortcuts, recents dismissal, the split divider and brightness slider; lift/reposition the finger and tap to finish, then repeat with drag lock disabled. Verify typing suppression and touchpad reconnects. These hardware interactions require a direct session; automated tests do not establish the physical pad's behavior.
+
+Bare Super regression: press/release either Win key to minimize all windows and show home. Hold Super and use P, Tab, S, or a client shortcut; releasing Super must not then show home. Check both release orders, Shift held before Super, and a VT switch mid-press. Verify the old Back/Home/Recents area has no visible buttons or hidden click targets and that maximized windows and fullscreen sheets use the freed bottom space.

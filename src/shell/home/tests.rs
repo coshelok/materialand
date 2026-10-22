@@ -8,125 +8,13 @@ fn app(index: usize) -> AppEntry {
         desktop_file: Some(format!("/applications/app-{index}.desktop").into()),
     }
 }
-#[test]
-fn home_shortcuts_survive_restart_independently_of_dock_pins() {
-    let dir = std::env::temp_dir().join(format!("materialand-home-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("home-apps");
-    std::fs::write(&path, "desktop:app-3.desktop\ndesktop:missing.desktop\n").unwrap();
-    let mut shell = Shell::new((0..8).map(app).collect(), ThemeSpec::default());
-    shell.load_home_at(path.clone()).unwrap();
-    assert_eq!(shell.home.apps[0].identity(), app(3).identity());
-    let dock: Vec<_> = shell.pinned.iter().map(AppEntry::identity).collect();
-    shell.toggle_home_app(app(5)).unwrap();
-    shell.toggle_home_app(app(3)).unwrap();
-    assert_eq!(
-        shell
-            .pinned
-            .iter()
-            .map(AppEntry::identity)
-            .collect::<Vec<_>>(),
-        dock
-    );
-    let mut restarted = Shell::new((0..8).map(app).collect(), ThemeSpec::default());
-    restarted.load_home_at(path.clone()).unwrap();
-    assert_eq!(restarted.home.apps.len(), 1);
-    assert_eq!(restarted.home.apps[0].identity(), app(5).identity());
-    assert!(std::fs::read_to_string(&path)
-        .unwrap()
-        .contains("desktop:missing.desktop"));
-    restarted.toggle_home_app(app(5)).unwrap();
-    restarted.load_home_at(path).unwrap();
-    assert!(restarted.home.apps.is_empty());
-    std::fs::remove_dir_all(dir).unwrap();
+fn center(r: RectF) -> Point<f64, Logical> {
+    (f64::from(r.x + r.w / 2.0), f64::from(r.y + r.h / 2.0)).into()
 }
 #[test]
-fn failed_home_save_does_not_add_a_shortcut() {
-    let mut shell = Shell::new(vec![], ThemeSpec::default());
-    shell.home.pins.set_path("/dev/null/home-apps".into());
-    assert!(shell.toggle_home_app(app(1)).is_err());
-    assert!(!shell.is_on_home(&app(1)) && shell.home.apps.is_empty());
-}
-#[test]
-fn every_home_shortcut_can_be_reached_and_pages_clamp_after_removal() {
-    let mut shell = Shell::new(vec![], ThemeSpec::default());
-    shell.set_reduce_motion(true);
-    for i in 0..95 {
-        shell.toggle_home_app(app(i)).unwrap();
-    }
-    let (w, h) = (1280.0, 800.0);
-    let layout = home_layout(w, h);
-    for i in 0..shell.home.apps.len() {
-        let page = i / layout.per_page;
-        shell.turn_home_page(w, h, page as i32 - shell.home.page as i32);
-        let r = shell.home_tile_rect(w, h, i);
-        assert_eq!(
-            shell.home_hit(
-                w,
-                h,
-                (f64::from(r.x + r.w / 2.0), f64::from(r.y + r.h / 2.0)).into()
-            ),
-            Some(HomeHit::App(i))
-        );
-    }
-    for i in 1..95 {
-        shell.toggle_home_app(app(i)).unwrap();
-    }
-    shell.clamp_home_page(w, h);
-    assert_eq!(shell.home.page, 0);
-    let r = shell.home_tile_rect(w, h, 0);
-    assert!(r.x >= layout.grid.x && r.right() <= layout.grid.right());
-}
-#[test]
-fn ticking_does_not_cancel_home_clicks_and_moving_icons_use_visible_positions() {
-    let mut shell = Shell::new(vec![], ThemeSpec::default());
-    for i in 0..50 {
-        shell.toggle_home_app(app(i)).unwrap();
-    }
-    let (w, h) = (1280.0, 800.0);
-    shell.home.pressed = Some(HomeHit::App(0));
-    shell.clamp_home_page(w, h);
-    shell.tick(1.0 / 60.0);
-    assert_eq!(shell.home.pressed, Some(HomeHit::App(0)));
-    shell.turn_home_page(w, h, 1);
-    for _ in 0..10 {
-        shell.tick(1.0 / 120.0);
-    }
-    let i = home_layout(w, h).per_page;
-    let r = shell.home_tile_rect(w, h, i);
-    let point = (f64::from(r.x + r.w / 2.0), f64::from(r.y + r.h / 2.0)).into();
-    assert!(home_layout(w, h).grid.contains(point));
-    assert_eq!(shell.home_hit(w, h, point), Some(HomeHit::App(i)));
-}
-
-#[test]
-fn home_keeps_both_theme_textures_without_rasterizing_on_each_transition_frame() {
-    let spec = ThemeSpec::default();
-    let mut shell = Shell::new(vec![], spec);
-    let mut fonts = Fonts::load().unwrap();
-    let mut pointers = Vec::new();
-    for theme in [spec.light(), spec.dark(), spec.light(), spec.dark()] {
-        shell.render_home(&theme, &mut fonts, 1280.0, 800.0, None);
-        pointers.push(
-            shell
-                .home
-                .cache
-                .as_ref()
-                .unwrap()
-                .surface
-                .pixmap
-                .data()
-                .as_ptr(),
-        );
-    }
-    assert_ne!(pointers[0], pointers[1]);
-    assert_eq!(pointers[0], pointers[2]);
-    assert_eq!(pointers[1], pointers[3]);
-}
-
-#[test]
-fn reorder_preserves_uninstalled_identities_and_animates_without_changing_saved_order_on_failure() {
-    let dir = std::env::temp_dir().join(format!("materialand-home-reorder-{}", std::process::id()));
+fn sparse_positions_and_missing_apps_survive_restart_without_compaction() {
+    let dir = std::env::temp_dir().join(format!("materialand-workspace-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("home-apps");
     std::fs::write(
@@ -134,45 +22,108 @@ fn reorder_preserves_uninstalled_identities_and_animates_without_changing_saved_
         "desktop:app-0.desktop\ndesktop:missing.desktop\ndesktop:app-1.desktop\n",
     )
     .unwrap();
-    let mut shell = Shell::new((0..4).map(app).collect(), ThemeSpec::default());
-    shell.load_home_at(path.clone()).unwrap();
-    let before = shell.home_reorder_snapshot(1280.0, 800.0);
-    shell.place_home_app(app(1), 0).unwrap();
-    shell.animate_home_reorder(1280.0, 800.0, before.clone());
+    let mut s = Shell::new((0..6).map(app).collect(), ThemeSpec::default());
+    s.load_home_at(path.clone()).unwrap();
+    let layout = home_layout(1280.0, 800.0);
+    let far = layout.per_page - 1;
+    s.place_home_app(app(0), far).unwrap();
+    let position = s.home_tile_rect(1280.0, 800.0, 0);
+    s.toggle_home_app(app(1)).unwrap();
+    let mut restarted = Shell::new((0..6).map(app).collect(), ThemeSpec::default());
+    restarted.load_home_at(path.clone()).unwrap();
+    assert_eq!(restarted.home.apps.len(), 1);
+    assert_eq!(position, restarted.home_tile_rect(1280.0, 800.0, 0));
     assert_eq!(
-        shell
-            .home
-            .apps
-            .iter()
-            .map(AppEntry::identity)
-            .collect::<Vec<_>>(),
-        [app(1).identity(), app(0).identity()]
+        restarted.home_drop_index(1280.0, 800.0, center(position)),
+        Some(far)
     );
-    assert!(std::fs::read_to_string(&path)
-        .unwrap()
-        .contains("desktop:missing.desktop"));
-    let moving = shell.home_tile_rect(1280.0, 800.0, 0);
-    assert!((moving.x - before[&app(1).identity()].x).abs() < 0.01);
-    for _ in 0..240 {
-        shell.home.tick(1.0 / 144.0);
-    }
-    assert!(shell.home.icon_motion.is_empty());
-    shell.home.pins.set_path("/dev/null/home-apps".into());
-    let saved = shell
-        .home
-        .apps
-        .iter()
-        .map(AppEntry::identity)
-        .collect::<Vec<_>>();
-    assert!(shell.place_home_app(app(3), 0).is_err());
+    assert!(restarted.home.workspace.contains("desktop:missing.desktop"));
     assert_eq!(
-        shell
-            .home
-            .apps
-            .iter()
-            .map(AppEntry::identity)
-            .collect::<Vec<_>>(),
-        saved
+        std::fs::read_to_string(path).unwrap(),
+        "desktop:app-0.desktop\ndesktop:missing.desktop\ndesktop:app-1.desktop\n"
     );
+    assert!(dir.join("workspace.json").exists());
     std::fs::remove_dir_all(dir).unwrap();
+}
+#[test]
+fn occupied_drop_swaps_only_two_apps_and_failed_write_changes_nothing() {
+    let mut s = Shell::new(vec![], ThemeSpec::default());
+    for i in 0..3 {
+        s.toggle_home_app(app(i)).unwrap();
+    }
+    let old = s.home_reorder_snapshot(1280.0, 800.0);
+    let target = s
+        .home_drop_index(1280.0, 800.0, center(old[&app(1).identity()]))
+        .unwrap();
+    s.place_home_app(app(0), target).unwrap();
+    assert_eq!(s.home_tile_rect(1280.0, 800.0, 0), old[&app(1).identity()]);
+    assert_eq!(s.home_tile_rect(1280.0, 800.0, 1), old[&app(0).identity()]);
+    assert_eq!(s.home_tile_rect(1280.0, 800.0, 2), old[&app(2).identity()]);
+    let saved = s.home_reorder_snapshot(1280.0, 800.0);
+    s.home.workspace.set_path("/dev/null/workspace.json".into());
+    assert!(s.place_home_app(app(2), target).is_err());
+    assert!(s.toggle_home_app(app(3)).is_err());
+    assert_eq!(s.home_reorder_snapshot(1280.0, 800.0), saved);
+    assert!(!s.is_on_home(&app(3)));
+}
+#[test]
+fn full_width_grid_keeps_shortcuts_reachable_after_output_resize() {
+    let mut s = Shell::new(vec![], ThemeSpec::default());
+    s.set_reduce_motion(true);
+    for i in 0..95 {
+        s.toggle_home_app(app(i)).unwrap();
+    }
+    for (w, h) in [
+        (320.0, 640.0),
+        (640.0, 480.0),
+        (1280.0, 800.0),
+        (1920.0, 1080.0),
+    ] {
+        let layout = home_layout(w, h);
+        assert!(layout.grid.w >= w - 2.0 * config::design().home.margin_x - 0.01);
+        let cells = s.home.cells(layout);
+        let unique: std::collections::HashSet<_> = cells.values().collect();
+        assert_eq!(unique.len(), cells.len());
+        for i in 0..s.home.apps.len() {
+            let cell = cells[&s.home.apps[i].identity()];
+            s.turn_home_page(w, h, cell.page as i32 - s.home.page as i32);
+            let rect = s.home_tile_rect(w, h, i);
+            assert!(rect.x >= layout.grid.x - 0.01 && rect.right() <= layout.grid.right() + 0.01);
+            assert!(rect.y >= layout.grid.y - 0.01 && rect.bottom() <= layout.grid.bottom() + 0.01);
+            assert_eq!(s.home_hit(w, h, center(rect)), Some(HomeHit::App(i)));
+        }
+    }
+}
+#[test]
+fn dragging_can_create_a_page_and_empty_pages_clamp_after_cancel() {
+    let mut s = Shell::new(vec![], ThemeSpec::default());
+    s.set_reduce_motion(true);
+    s.toggle_home_app(app(0)).unwrap();
+    s.dragged_identity = Some(app(0).identity());
+    s.turn_home_page(1280.0, 800.0, 1);
+    assert_eq!(s.home.page, 1);
+    s.clamp_home_page(1280.0, 800.0);
+    assert_eq!(s.home.page, 1);
+    let layout = home_layout(1280.0, 800.0);
+    s.place_home_app(app(0), layout.per_page + layout.columns + 3)
+        .unwrap();
+    s.dragged_identity = None;
+    s.clamp_home_page(1280.0, 800.0);
+    assert_eq!(s.home.page, 1);
+    assert_eq!(s.home_pages(1280.0, 800.0), 2);
+    s.dragged_identity = Some(app(0).identity());
+    s.turn_home_page(1280.0, 800.0, 1);
+    assert_eq!(s.home.page, 2);
+    s.dragged_identity = None;
+    s.clamp_home_page(1280.0, 800.0);
+    assert_eq!(s.home.page, 1);
+}
+#[test]
+fn former_clock_cells_accept_shortcuts_without_reserving_space() {
+    let mut s = Shell::new(vec![], ThemeSpec::default());
+    s.toggle_home_app(app(0)).unwrap();
+    s.place_home_app(app(0), 0).unwrap();
+    let r = s.home_tile_rect(1280.0, 800.0, 0);
+    assert_eq!(s.home_drop_index(1280.0, 800.0, center(r)), Some(0));
+    assert_eq!(s.home_hit(1280.0, 800.0, center(r)), Some(HomeHit::App(0)));
 }

@@ -53,3 +53,11 @@ mod shortcut_drag;
 pub(crate) use shortcut_drag::ShortcutDrag;
 
 pub(crate) use shortcut_drag::tick as tick_shortcut_drag;
+
+mod touchpad_scroll;
+pub(crate) use touchpad_scroll::{
+    stop as stop_touchpad_scroll, tick as tick_touchpad_scroll, TouchpadScroll,
+};
+
+mod super_tap;
+pub(crate) use super_tap::SuperTap;

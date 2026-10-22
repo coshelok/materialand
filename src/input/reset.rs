@@ -3,6 +3,7 @@ use super::*;
 // Shell entry must release a client's pointer grab without re-entering the
 // keyboard filter that may have requested the overlay.
 pub(crate) fn prepare_shell_overlay(state: &mut State) {
+    super::touchpad_scroll::interrupt(state);
     state.overview.cancel_press(state.shell.reduce_motion);
     super::shortcut_drag::cancel(state);
     if let Some(button) = state.interaction.button() {
@@ -41,6 +42,8 @@ pub(crate) fn prepare_shell_overlay(state: &mut State) {
     state.shell.cancel_presses();
 }
 pub fn cancel(state: &mut State) {
+    state.super_tap = Default::default();
+    super::stop_touchpad_scroll(state);
     state.overview.cancel_press(state.shell.reduce_motion);
     state.launcher_swipe = Default::default();
     super::shortcut_drag::cancel(state);

@@ -7,6 +7,7 @@ pub(super) fn paint_recent_card(
     meta: &WindowMeta,
     size: (f32, f32),
     selected: bool,
+    focused: bool,
 ) -> Surface {
     let d = &config::design().overview;
     let (w, h) = size;
@@ -14,6 +15,16 @@ pub(super) fn paint_recent_card(
         w.ceil() as u32,
         (h + d.app_header_height + d.footer_height).ceil() as u32,
     );
+    if focused {
+        s.fill_round_rect(
+            0.0,
+            0.0,
+            w,
+            d.app_header_height,
+            d.app_header_height / 2.0,
+            theme.secondary_container,
+        );
+    }
     let badge = d.app_header_height * 0.7;
     s.circle(
         badge / 2.0,
@@ -53,29 +64,6 @@ pub(super) fn paint_recent_card(
     );
     let footer_y = d.app_header_height + h;
     let button_h = (d.footer_height - 16.0).max(1.0);
-    let open_width = (w - 120.0).clamp(1.0, 160.0);
-    s.fill_round_rect(
-        0.0,
-        footer_y + 8.0,
-        open_width,
-        button_h,
-        button_h / 2.0,
-        theme.secondary_container,
-    );
-    let open = fit_text(
-        fonts,
-        TextStyle::label_large(),
-        "Open app",
-        open_width - 24.0,
-    );
-    fonts.draw_text_role(
-        &mut s,
-        12.0,
-        footer_y + (d.footer_height - TextStyle::label_large().line_height) / 2.0,
-        TextStyle::label_large(),
-        &open,
-        theme.on_secondary_container,
-    );
     for (x, icon, active) in [
         (
             w - 84.0,
@@ -114,6 +102,7 @@ pub(super) fn paint_recent_card(
     s
 }
 impl Shell {
+    #[allow(clippy::too_many_arguments)]
     pub fn overview_card(
         &mut self,
         window: &Window,
@@ -122,6 +111,7 @@ impl Shell {
         meta: &WindowMeta,
         size: (f32, f32),
         selected: bool,
+        focused: bool,
     ) -> MemoryRenderBuffer {
         let (w, h) = size;
         let key = KeyHash::new()
@@ -131,12 +121,13 @@ impl Shell {
             .u32(w.to_bits())
             .u32(h.to_bits())
             .bool(selected)
+            .bool(focused)
             .finish();
         let cache = self.overview_cards.entry(window.clone()).or_default();
         if let Some(piece) = cache.iter().find(|p| p.key == key) {
             return piece.buffer.clone();
         }
-        let surface = paint_recent_card(theme, fonts, meta, size, selected);
+        let surface = paint_recent_card(theme, fonts, meta, size, selected, focused);
         let buffer = surface.to_memory_buffer();
         cache.push(Piece {
             key,
@@ -160,10 +151,8 @@ impl Shell {
             .str(label)
             .u32(w.to_bits())
             .finish();
-        if let Some(piece) = &self.overview_header {
-            if piece.key == key {
-                return piece.buffer.clone();
-            }
+        if self.overview_header.select(key) {
+            return self.overview_header.as_ref().unwrap().buffer.clone();
         }
         let d = &config::design().overview;
         let mut s = Surface::new(w.ceil() as u32, d.header_height.ceil() as u32);
@@ -183,7 +172,7 @@ impl Shell {
             theme.on_surface,
         );
         let buffer = s.to_memory_buffer();
-        self.overview_header = Some(Piece {
+        self.overview_header.store(CachedLayer {
             key,
             surface: s,
             buffer: buffer.clone(),

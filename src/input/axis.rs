@@ -1,11 +1,37 @@
 //! Scroll frames retain source, high-resolution deltas and finger-stop events.
 use super::*;
 use smithay::{
-    backend::input::{Axis, AxisRelativeDirection, AxisSource, Event, PointerAxisEvent},
+    backend::input::{Axis, AxisRelativeDirection, AxisSource, Device, Event, PointerAxisEvent},
     input::pointer::AxisFrame,
 };
 pub fn on_pointer_axis<B: InputBackend>(state: &mut State, event: B::PointerAxisEvent) {
+    state.super_tap.cancel();
     let invert = crate::config::design().input.touchpad.invert_scroll;
+    if event.source() == AxisSource::Finger {
+        let sign = scroll_sign(event.source(), invert);
+        if super::touchpad_scroll::input(
+            state,
+            event.device().id(),
+            event.amount(Axis::Horizontal).map(|v| v * sign),
+            event.amount(Axis::Vertical).map(|v| v * sign),
+            event.time_msec(),
+        ) {
+            return;
+        }
+    } else {
+        super::stop_touchpad_scroll(state);
+    }
+    if !matches!(state.interaction, Interaction::None) || state.shortcut_drag.is_some() {
+        return;
+    }
+    if state.shell.calendar.open
+        || state.shell.power_open
+        || state.shell.brightness_open
+        || !state.swallowed_buttons.is_empty()
+    {
+        return;
+    }
+
     if state.overview.open {
         let axis = if event
             .amount(Axis::Horizontal)
@@ -32,22 +58,16 @@ pub fn on_pointer_axis<B: InputBackend>(state: &mut State, event: B::PointerAxis
             event.amount_v120(Axis::Vertical),
             invert,
         ) as f32;
-        let max = if state.shell.notifications_open {
-            state.shell.notification_scroll_max(w, h)
-        } else if let Some(page) = state.shell.connection_page {
-            let count = if page == QuickAction::Wifi {
-                state.services.status.networks.len()
-            } else {
-                state.services.status.devices.len()
-            };
-            (shell::quick_tiles_top() + 48.0 + count as f32 * config::design().power.row_height
-                - shell::quick_settings_rect(w, h).h
-                + 24.0)
-                .max(0.0)
-        } else {
-            shell::shade_scroll_max(w, h)
-        };
-        state.shell.shade_scroll = (state.shell.shade_scroll + delta).clamp(0.0, max);
+        let pos = state
+            .shell
+            .quick_settings_placement(w, h, state.shell.quick_settings_progress())
+            .unmap(state.cursor);
+        if shell::shade_split(w) && shell::notification_panel(w, h).contains(pos) {
+            state.shell.scroll_notifications(delta, w, h);
+        } else if shell::quick_settings_rect(w, h).contains(pos) {
+            let max = state.shell.shade_scroll_limit(w, h);
+            state.shell.scroll_shade(delta, max);
+        }
         return;
     }
     if state.shell.app_menu.is_some() {

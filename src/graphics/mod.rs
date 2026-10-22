@@ -1,4 +1,5 @@
 //! Raster resources, scene ordering and presentation bookkeeping.
+pub mod app_icons;
 pub mod canvas;
 mod chrome;
 pub mod layers;

@@ -37,10 +37,11 @@ pub fn launcher_card(win_w: f32, win_h: f32) -> RectF {
 pub fn search_rect(win_w: f32, win_h: f32) -> RectF {
     let design = crate::config::design();
     let card = launcher_card(win_w, win_h);
+    let width = (card.w - 2.0 * design.launcher.search_inset_x).max(1.0);
     RectF {
-        x: card.x + design.launcher.search_inset_x,
+        x: card.x + (card.w - width) / 2.0,
         y: card.y + design.launcher.search_inset_y,
-        w: card.w - 2.0 * design.launcher.search_inset_x,
+        w: width,
         h: design.launcher.search_height,
     }
 }
@@ -53,33 +54,35 @@ pub fn launcher_columns(card_w: f32) -> usize {
         .min(design.launcher.max_columns)
 }
 
-pub fn launcher_grid_origin(win_w: f32, win_h: f32) -> (f32, f32) {
-    let design = crate::config::design();
+pub fn launcher_grid_origin(win_w: f32, win_h: f32) -> (f32, f32, f32) {
+    let d = config::design();
     let card = launcher_card(win_w, win_h);
-    let search = search_rect(win_w, win_h);
     let cols = launcher_columns(card.w);
-    let grid_w = cols as f32 * design.launcher.tile_size
-        + cols.saturating_sub(1) as f32 * design.launcher.grid_gap;
+    let pitch = if tablet_mode() && d.launcher.fullscreen {
+        (card.w - 2.0 * d.launcher.grid_padding).max(1.0) / cols as f32
+    } else {
+        d.launcher.tile_size + d.launcher.grid_gap
+    };
+    let width = cols as f32 * pitch;
     (
-        card.x + (card.w - grid_w) / 2.0,
-        search.bottom() + design.launcher.grid_header_height,
+        card.x + (card.w - width) / 2.0 + (pitch - d.launcher.tile_size) / 2.0,
+        search_rect(win_w, win_h).bottom() + d.launcher.grid_header_height,
+        pitch,
     )
 }
-
-pub fn launcher_tile_pos(origin: (f32, f32), slot: usize, cols: usize) -> (f32, f32) {
-    let design = crate::config::design();
-    let col = slot % cols;
-    let row = slot / cols;
-    let x = origin.0 + col as f32 * (design.launcher.tile_size + design.launcher.grid_gap);
-    let y = origin.1 + row as f32 * (design.launcher.tile_size + design.launcher.grid_gap);
-    (x, y)
+pub fn launcher_tile_pos(origin: (f32, f32, f32), slot: usize, cols: usize) -> (f32, f32) {
+    let d = config::design();
+    (
+        origin.0 + (slot % cols) as f32 * origin.2,
+        origin.1 + (slot / cols) as f32 * (d.launcher.tile_size + d.launcher.grid_gap),
+    )
 }
 
 /// Only the grid scrolls. Search and section labels stay fixed.
 pub fn launcher_viewport(w: f32, h: f32) -> RectF {
     let design = crate::config::design();
     let card = launcher_card(w, h);
-    let (_, y) = launcher_grid_origin(w, h);
+    let (_, y, _) = launcher_grid_origin(w, h);
     RectF {
         x: card.x + design.launcher.grid_padding,
         y,

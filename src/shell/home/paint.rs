@@ -1,5 +1,6 @@
-//! Material You clock widget, tonal app medallions and spring-driven pages.
+//! Cached app icons, fixed search and spring-driven home pages.
 use super::*;
+use crate::shell::placement::CardPlacement;
 impl Shell {
     pub fn render_home(
         &mut self,
@@ -7,75 +8,24 @@ impl Shell {
         fonts: &mut Fonts,
         w: f32,
         h: f32,
-        mask: Option<CircleMask>,
-    ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
+    ) -> OverlayFrame {
         let design = crate::config::design();
         let layout = home_layout(w, h);
-        let mut hash = KeyHash::new()
+        self.home.last_size = (w, h);
+        let key = KeyHash::new()
             .u64(theme.cache_key())
             .u32(w as u32)
             .u32(h as u32)
             .u32(self.home.page as u32)
-            .str(&self.clock)
-            .str(self.dragged_identity.as_deref().unwrap_or(""))
+            .u32(self.home_pages(w, h) as u32)
+            .bool(self.dragged_identity.is_some())
+            .u64(self.home.drop_hint.map_or(u64::MAX, |v| v as u64))
             .str(self.shortcut_error.as_deref().unwrap_or(""))
-            .str(&self.calendar.now.date_text())
-            .u32(self.home.position.value().to_bits())
-            .u32(self.home.reveal.value().to_bits())
-            .str(&format!("{:?}", self.home.pressed));
-        for (i, app) in self.home.apps.iter().enumerate() {
-            let rect = self.home_tile_rect(w, h, i);
-            hash = hash.u32(rect.x.to_bits()).u32(rect.y.to_bits());
-            hash = hash
-                .str(&app.identity())
-                .str(&app.name)
-                .str(&app.icon)
-                .u32(self.press_scale(PressKey::Home(i)).to_bits());
-        }
-        let key = hash.finish();
+            .finish();
         if !self.home.cache.select(key) {
             let mut s = Surface::new(layout.area.w.ceil() as u32, layout.area.h.ceil() as u32);
             self.paint_home_widgets(&mut s, fonts, theme, layout);
-            let mut grid = Surface::new(layout.grid.w.ceil() as u32, layout.grid.h.ceil() as u32);
-            for (i, app) in self.home.apps.iter().enumerate() {
-                if self.dragged_identity.as_deref() == Some(app.identity().as_str()) {
-                    continue;
-                }
-                let rect = self.home_tile_rect(w, h, i);
-                if rect.right() <= layout.grid.x || rect.x >= layout.grid.right() {
-                    continue;
-                }
-                let (tx, ty) = (rect.x - layout.grid.x, rect.y - layout.grid.y);
-                if self.home.pressed == Some(HomeHit::App(i)) {
-                    grid.fill_round_rect(
-                        tx,
-                        ty,
-                        rect.w,
-                        rect.h,
-                        design.shape.large,
-                        Theme::with_alpha(theme.primary, design.state.pressed),
-                    );
-                }
-                self.draw_launcher_tile(
-                    &mut grid,
-                    fonts,
-                    theme,
-                    app,
-                    tx,
-                    ty,
-                    self.press_scale(PressKey::Home(i)),
-                );
-            }
-            s.blit(
-                &grid,
-                SkTransform::from_translate(
-                    layout.grid.x - layout.area.x,
-                    layout.grid.y - layout.area.y,
-                ),
-                1.0,
-                None,
-            );
-            let pages = self.home_pages(w, h);
+            let pages = self.home_pages(w, h) + usize::from(self.dragged_identity.is_some());
             if pages > 1 {
                 for (r, icon) in [
                     (layout.previous, "chevron_left"),
@@ -134,11 +84,41 @@ impl Shell {
             });
         }
         let layer = self.home.cache.as_ref().expect("home layer");
-        masked_from(
-            &layer.surface,
-            mask,
-            &layer.buffer,
+        let mut frame = OverlayFrame::single(
+            layer.buffer.clone(),
             (f64::from(layout.area.x), f64::from(layout.area.y)).into(),
-        )
+            None,
+            1.0,
+        );
+        let placement = CardPlacement {
+            source: layout.grid,
+            target: layout.grid,
+        };
+        let cells = self.home.cells(layout);
+        for i in 0..self.home.apps.len() {
+            let app = self.home.apps[i].clone();
+            if self.dragged_identity.as_deref() == Some(app.identity().as_str()) {
+                continue;
+            }
+            let rect = self.home_tile_in(layout, &cells, i);
+            if rect.right() <= layout.grid.x
+                || rect.x >= layout.grid.right()
+                || rect.bottom() <= layout.grid.y
+                || rect.y >= layout.grid.bottom()
+            {
+                continue;
+            }
+            let buffer = self.app_tile(
+                fonts,
+                theme,
+                &app,
+                self.press_scale(PressKey::Home(i)),
+                self.home.pressed == Some(HomeHit::App(i)),
+            );
+            if let Some(layer) = LayerFrame::clipped(buffer, rect, layout.grid, placement) {
+                frame.pieces.push((layer, 1.0));
+            }
+        }
+        frame
     }
 }

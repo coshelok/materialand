@@ -140,8 +140,8 @@ fn clicking_the_launcher_scrim_dismisses_it() {
     let (_display, mut s) = fresh();
     s.shell.launcher_open = true;
     let (w, h) = (s.display.size.w as f32, s.display.size.h as f32);
-    // Inside the overlay, outside the centred card: a bare scrim click.
-    let pos = Point::from((12.0, h as f64 - 12.0));
+    // The bottom now belongs to the full-height drawer; only the area above it is outside.
+    let pos = Point::from((12.0, 12.0));
     assert_eq!(
         crate::shell::launcher_hit(w, h, 0, 0.0, pos),
         crate::shell::LauncherHit::Scrim
@@ -243,20 +243,20 @@ fn animated_quick_setting_click_follows_the_rendered_tile() {
         state.theme_spec.variant,
         None,
     );
-    let layer = &frame.pieces[0].0;
+    let layer = &frame.pieces[2].0;
+    let source = layer.source.expect("cropped shade body");
     let size = layer.size.unwrap();
     let card = crate::shell::quick_settings_rect(w, h);
     let tile = crate::shell::quick_setting_tile_rect(w, h, 0);
-    let x = tile.x - card.x + crate::config::design().shadow.padding + tile.w / 2.0;
-    let y = tile.y - card.y + crate::config::design().shadow.padding + tile.h / 2.0;
+    let pad = crate::config::design().shadow.padding;
     let point = Point::from((
         layer.loc.x
             + f64::from(
-                x * size.w as f32 / (card.w + 2.0 * crate::config::design().shadow.padding).ceil(),
+                (tile.x - card.x + pad + tile.w / 2.0 - source.x) * size.w as f32 / source.w,
             ),
         layer.loc.y
             + f64::from(
-                y * size.h as f32 / (card.h + 2.0 * crate::config::design().shadow.padding).ceil(),
+                (tile.y - card.y + pad + tile.h / 2.0 - source.y) * size.h as f32 / source.h,
             ),
     ));
     let initial = state.theme.is_dark;

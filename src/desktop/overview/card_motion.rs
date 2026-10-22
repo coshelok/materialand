@@ -9,6 +9,8 @@ pub(super) fn row_spring(value: f32) -> Spring {
 #[derive(Clone)]
 pub(super) struct CardMotion {
     slot: Spring,
+    grid_x: Spring,
+    grid_y: Spring,
     slot_target: f32,
     offset: Spring,
     drag_sample: Option<(f32, u32)>,
@@ -22,6 +24,8 @@ impl CardMotion {
         let d = &config::design().overview;
         Self {
             slot: row_spring(slot),
+            grid_x: row_spring((slot / d.grid_rows as f32).floor()),
+            grid_y: row_spring(slot % d.grid_rows as f32),
             slot_target: slot,
             offset: Spring::at(0.0, d.dismiss_stiffness, d.dismiss_damping),
             drag_sample: None,
@@ -37,6 +41,9 @@ impl CardMotion {
     pub fn slot_target(&self) -> f32 {
         self.slot_target
     }
+    pub fn grid_position(&self) -> (f32, f32) {
+        (self.grid_x.value(), self.grid_y.value())
+    }
     pub fn offset(&self) -> f32 {
         self.offset.value()
     }
@@ -49,8 +56,13 @@ impl CardMotion {
     pub fn retarget_slot(&mut self, slot: f32, reduced: bool) {
         self.slot_target = slot;
         self.slot.set_target(slot);
+        let rows = config::design().overview.grid_rows as f32;
+        self.grid_x.set_target((slot / rows).floor());
+        self.grid_y.set_target(slot % rows);
         if reduced {
             self.slot.finish();
+            self.grid_x.finish();
+            self.grid_y.finish();
         }
     }
     pub fn hold(&mut self) {
@@ -101,9 +113,12 @@ impl CardMotion {
     pub fn tick(&mut self, dt: f32, reduced: bool) -> bool {
         if reduced {
             self.slot.finish();
+            self.grid_x.finish();
+            self.grid_y.finish();
             self.offset.finish();
         }
-        let active = self.slot.step(dt) | self.offset.step(dt);
+        let active =
+            self.slot.step(dt) | self.offset.step(dt) | self.grid_x.step(dt) | self.grid_y.step(dt);
         if self
             .exit_edge
             .is_some_and(|edge| self.offset.value() <= edge)

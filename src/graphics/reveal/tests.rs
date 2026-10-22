@@ -41,7 +41,7 @@ fn egl_reveal_preserves_pixels_clipping_scaling_and_shader_isolation() {
     let display = unsafe { EGLDisplay::new(device) }.unwrap();
     let context = EGLContext::new(&display).unwrap();
     let mut renderer = unsafe { GlesRenderer::new(context) }.unwrap();
-    let shader = program(&mut renderer).expect("compile reveal shader");
+    program(&mut renderer).expect("compile reveal shader");
     let source_size = (64, 32);
     let buffer = MemoryRenderBuffer::from_slice(
         &[255, 0, 0, 255].repeat(64 * 32),
@@ -68,6 +68,7 @@ fn egl_reveal_preserves_pixels_clipping_scaling_and_shader_isolation() {
         &mut layers,
         &mut renderer,
         &crate::shell::LayerFrame {
+            source: None,
             buffer: buffer.clone(),
             loc: (12.0, 10.0).into(),
             size: Some((32, 16).into()),
@@ -96,26 +97,31 @@ fn egl_reveal_preserves_pixels_clipping_scaling_and_shader_isolation() {
                 Rectangle::new((20, 10).into(), (16, 16).into()),
             ),
         ] {
-            let inner = MemoryRenderBufferRenderElement::from_buffer(
+            let mut cropped = Vec::new();
+            crate::graphics::uploads::push_layer(
+                &mut cropped,
                 &mut renderer,
-                (0.0, 0.0),
-                &buffer,
+                &crate::shell::LayerFrame {
+                    buffer: buffer.clone(),
+                    source: Some(crate::shell::RectF {
+                        x: source.loc.x as f32,
+                        y: source.loc.y as f32,
+                        w: source.size.w as f32,
+                        h: source.size.h as f32,
+                    }),
+                    loc: (destination.loc.x as f64, destination.loc.y as f64).into(),
+                    size: Some((destination.size.w, destination.size.h).into()),
+                },
                 Some(0.5),
-                None,
-                None,
-                Kind::Unspecified,
-            )
-            .unwrap();
-            let element = RevealElement::new(
-                inner,
-                shader.clone(),
-                CircleMask {
+                Some(CircleMask {
                     cx: 28.0,
                     cy: 18.0,
                     radius: 6.0,
-                },
-                source_size.into(),
+                }),
             );
+            let element = cropped.pop().unwrap();
+            assert_eq!(element.src(), source);
+            assert_eq!(element.geometry(1.0.into()), destination);
             assert!(element.opaque_regions(1.0.into()).is_empty());
             assert!(element.underlying_storage(&mut renderer).is_none());
             let plain = MemoryRenderBufferRenderElement::from_buffer(

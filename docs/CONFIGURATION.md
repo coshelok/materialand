@@ -33,6 +33,13 @@ invert_scroll = true
 
 `invert_scroll` reverses horizontal and vertical touchpad scrolling in apps and the launcher. Mouse-wheel direction is independent. Set `false` to restore the original direction.
 
+`drag_lock = true` allows lifting/repositioning a finger during tap-and-drag; tap again to release. Set it to `false` for release on finger lift. `disable_while_typing = true` uses the device's typing suppression when available. One/two/three-finger taps map to left/right/middle buttons; supported pads use two-finger scrolling.
+
+`kinetic_scroll = true` enables shell-list inertia after finger release. `scroll_friction = 9.0` controls its decay (2–30; higher stops sooner). A new touch/click or keyboard action stops coasting; reduced motion disables it. Client applications keep their own scrolling. `swipe_distance = 70.0` sets the gesture threshold (20–300 input units), including horizontal home-page changes. These changes take effect after restarting.
+
+Three fingers up opens the launcher or closes an open shade. Three fingers down opens the shade or closes an open launcher. Four fingers up/down opens/closes recents. Each gesture belongs to its initial panel, so it cannot close one panel and open another in the same movement.
+
+
 ## Keyboard
 
 | Variable | Example |
@@ -56,7 +63,7 @@ Use `materialand --check` to inspect connected outputs, modes and reported physi
 
 Direct sessions select the highest advertised progressive refresh rate at the display's preferred resolution. The initialized output log includes `refresh_hz`. Animation frames follow KMS page flips; there is no fixed 60 Hz animation cap. Nested mode follows the host monitor's reported refresh rate, including when the window moves between displays; 60 Hz is used only when the host reports no valid rate. Actual presentation speed still depends on the renderer and, in nested mode, the host compositor.
 
-Brightness controls the backlight associated with the active connector, with a 2% minimum. It uses direct access when permitted, otherwise `busctl` and logind. Night light adjusts the output's color channels through its gamma ramps. Both controls show **Unavailable** in nested mode or when the required output support is missing. Three-finger launcher gestures and four-finger overview/shade gestures use libinput in direct sessions. All three overlays also have mouse controls and keyboard shortcuts.
+Brightness controls the backlight associated with the active connector, with a 2% minimum. It uses direct access when permitted, otherwise `busctl` and logind. Night light adjusts the output's color channels through its gamma ramps. Both controls show **Unavailable** in nested mode or when the required output support is missing. Three-finger launcher/shade gestures and four-finger overview gestures use libinput in direct sessions. All three overlays also have mouse controls and keyboard shortcuts.
 
 ## Saved applications
 
@@ -64,13 +71,14 @@ Files live in `$XDG_CONFIG_HOME/materialand/`, or `~/.config/materialand/` when 
 
 | File | Contents |
 | --- | --- |
-| `home-apps` | Home screen shortcut identities, in display order |
+| `workspace.json` | Home shortcut identities, pages and sparse cell positions |
+| `home-apps` | Legacy ordered home shortcuts; imported if no workspace exists, then preserved |
 | `pinned-apps` | Dock pin identities, in display order |
 
-Manage these through an application's context menu. Drag home shortcuts to reorder them or hold an icon near a screen edge to change pages. The dock pin action is available in `navigation.mode = "desktop"`. Home shortcuts and dock pins are independent; empty files preserve an intentionally empty selection. Missing application identities remain saved for reinstalls. Unpinning the terminal leaves `Super+Enter` available.
+Manage these through an application's context menu. Drag home shortcuts into free cells or onto another shortcut to swap positions. Hold an icon near the right edge to create another page. Empty cells remain empty. The dock pin action is available in `navigation.mode = "desktop"`. Home shortcuts and dock pins are independent; empty files preserve an intentionally empty selection. Missing application identities remain saved for reinstalls. Unpinning the terminal leaves `Super+Enter` available.
 
 ## Navigation and system services
 
-The default `[navigation] mode = "tablet"` uses a home screen, app grid, recent-app overview and system shade, plus compact mouse controls. Set `mode = "desktop"` to restore the topbar and app dock. See the [controls table](../README.md#controls) for gestures and keyboard shortcuts.
+The default `[navigation] mode = "tablet"` uses a home screen, app grid, recent-app overview and system shade, with the top status controls and no bottom navigation buttons. Bare Super returns home on release; Super chords retain their existing actions. Set `mode = "desktop"` to restore the topbar and app dock. See the [controls table](../README.md#controls) for gestures and keyboard shortcuts.
 
 Battery, Wi-Fi and Bluetooth readings come from Linux power-supply attributes, NetworkManager and BlueZ respectively. [System controls](SYSTEM_CONTROLS.md) documents runtime dependencies and connection setup. No radio state is stored in the design configuration.

@@ -35,3 +35,26 @@ impl Shell {
             .retain(|key, _| !matches!(key, PressKey::Launcher(_)));
     }
 }
+
+impl Shell {
+    /// Finger input follows directly; only release inertia moves it afterwards.
+    pub(crate) fn follow_touchpad_scroll(&mut self) {
+        self.launcher_scroll.snap(self.launcher_scroll_target);
+        self.shade_scroll_motion.snap(self.shade_scroll_target);
+        self.shade_scroll = self.shade_scroll_target;
+        self.notice_scroll.snap(self.notice_scroll_target);
+    }
+    pub(crate) fn stop_touchpad_scroll(&mut self) {
+        self.launcher_scroll_target = self.launcher_scroll();
+        self.shade_scroll_target = self.shade_scroll;
+        self.notice_scroll_target = self.notice_scroll.value();
+        self.follow_touchpad_scroll();
+    }
+    pub(crate) fn touchpad_scroll_positions(&self) -> (f32, f32, f32) {
+        (
+            self.launcher_scroll(),
+            self.shade_scroll,
+            self.notice_scroll.value(),
+        )
+    }
+}

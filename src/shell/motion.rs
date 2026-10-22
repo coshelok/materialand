@@ -107,6 +107,9 @@ impl Shell {
             self.home.snap();
             self.calendar.animation.finish();
             self.launcher_scroll.snap(self.launcher_scroll_target);
+            self.shade_scroll_motion.snap(self.shade_scroll_target);
+            self.shade_scroll = self.shade_scroll_target;
+            self.notice_scroll.snap(self.notice_scroll_target);
             switch.snap(1.0);
             self.launcher
                 .snap(if self.launcher_open { 1.0 } else { 0.0 });
@@ -180,6 +183,9 @@ impl Shell {
 
     pub fn tick(&mut self, dt: f32) -> bool {
         let mut active = self.dock_motion.tick(dt);
+        active |= self.shade_scroll_motion.step(dt);
+        active |= self.notice_scroll.step(dt);
+        self.shade_scroll = self.shade_scroll_motion.value().max(0.0);
         active |= self.home.tick(dt);
         active |= self.calendar.animation.step(dt);
         active |= self.launcher_scroll.step(dt);

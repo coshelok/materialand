@@ -31,7 +31,7 @@ pub(crate) fn open_shade(state: &mut State, open: bool) {
         super::prepare_shell_overlay(state);
         state.shell.connection_page = None;
         state.shell.notifications_open = false;
-        state.shell.shade_scroll = 0.0;
+        state.shell.reset_shade_scroll();
         state.services.request(crate::system::Action::Refresh);
     }
     state.shell.set_quick_settings_open(open);

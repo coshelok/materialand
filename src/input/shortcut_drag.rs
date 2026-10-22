@@ -32,13 +32,22 @@ pub(super) fn motion(state: &mut State, pos: Point<f64, Logical>) -> bool {
         && (pos.x - drag.start.x).hypot(pos.y - drag.start.y)
             >= f64::from(config::design().drag.threshold)
     {
-        show_home(state);
+        if state.shell.launcher_open || state.windows.space.elements().next().is_some() {
+            show_home(state);
+        }
         state.shell.shortcut_error = None;
         state.shell.dragged_identity = Some(drag.app.identity());
         state.shell.cancel_presses();
         drag.active = true;
     }
     let active = drag.active;
+    if active {
+        state.shell.home.drop_hint = state.shell.home_drop_index(
+            state.display.size.w as f32,
+            state.display.size.h as f32,
+            pos,
+        );
+    }
     state.shortcut_drag = Some(drag);
     active
 }
@@ -81,6 +90,7 @@ pub(super) fn release(state: &mut State, pos: Point<f64, Logical>) -> bool {
         state.shell.shortcut_error = Some(format!("Could not save shortcut: {error}"));
     }
     state.shell.dragged_identity = None;
+    state.shell.home.drop_hint = None;
     state.shell.animate_home_reorder(w, h, before);
     state.shell.cancel_presses();
     true
@@ -88,6 +98,7 @@ pub(super) fn release(state: &mut State, pos: Point<f64, Logical>) -> bool {
 pub(super) fn cancel(state: &mut State) {
     state.shortcut_drag = None;
     state.shell.dragged_identity = None;
+    state.shell.home.drop_hint = None;
 }
 pub(crate) fn tick(state: &mut State, dt: f32) -> bool {
     let Some(drag) = &mut state.shortcut_drag else {
@@ -115,6 +126,10 @@ pub(crate) fn tick(state: &mut State, dt: f32) -> bool {
         state
             .shell
             .turn_home_page(w, state.display.size.h as f32, direction);
+        state.shell.home.drop_hint =
+            state
+                .shell
+                .home_drop_index(w, state.display.size.h as f32, state.cursor);
     }
     true
 }

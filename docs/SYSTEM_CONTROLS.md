@@ -1,6 +1,6 @@
 # System controls
 
-Open the shade with four fingers down, `Super+S`, the Settings navigation control, or the top status strip. Swipe four fingers up to dismiss it; this does not open recent apps. The header opens the clock/calendar and session menu. The body contains radio toggles, display/appearance controls and palettes; it scrolls on small outputs.
+Open the shade with three fingers down, `Super+S`, or the top status strip. Swipe three fingers up to dismiss it; this does not open the launcher. The header opens the clock/calendar and session menu. The body contains radio toggles, display/appearance controls and palettes; it scrolls on small outputs.
 
 ## Battery
 

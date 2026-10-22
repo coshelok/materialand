@@ -38,6 +38,7 @@ pub struct Overview {
     drag_base: f32,
     progress: Spring,
     position: Spring,
+    grid_page: Spring,
     reduced: bool,
 }
 impl Default for Overview {
@@ -60,6 +61,7 @@ impl Default for Overview {
                 config::design().overview.transition_damping,
             ),
             position: card_motion::row_spring(0.0),
+            grid_page: card_motion::row_spring(0.0),
             reduced: false,
         }
     }
@@ -82,6 +84,20 @@ impl Overview {
     }
     pub fn card_size(&self, w: f32, h: f32) -> (f32, f32) {
         let d = &config::design().overview;
+        if Self::grid_layout(w, h) {
+            let columns = d.grid_columns as f32;
+            let rows = d.grid_rows as f32;
+            let width = ((w - 2.0 * d.margin - (columns - 1.0) * d.gap) / columns)
+                .min(d.card_width)
+                .max(1.0);
+            let height = ((h - d.header_height - shell::bottom_inset() - (rows - 1.0) * d.gap)
+                / rows
+                - d.app_header_height
+                - d.footer_height)
+                .min(width * d.card_height / d.card_width)
+                .max(1.0);
+            return (width, height);
+        }
         let width = d.card_width.min((w - 2.0 * d.margin).max(1.0));
         let height = d
             .card_height
@@ -99,6 +115,26 @@ impl Overview {
     pub fn card(&self, w: f32, h: f32, index: usize) -> RectF {
         let d = &config::design().overview;
         let (width, height) = self.card_size(w, h);
+        if Self::grid_layout(w, h) {
+            let rows = d.grid_rows as f32;
+            let (x, y) = self
+                .items
+                .get(index)
+                .map_or(((index as f32 / rows).floor(), index as f32 % rows), |i| {
+                    i.motion.grid_position()
+                });
+            let columns = d.grid_columns as f32;
+            return RectF {
+                x: (w - columns * width - (columns - 1.0) * d.gap) / 2.0
+                    + (x - self.grid_page.value() * columns) * (width + d.gap),
+                y: d.header_height
+                    + d.app_header_height
+                    + y * (height + d.app_header_height + d.footer_height + d.gap)
+                    + self.card_offset(index),
+                w: width,
+                h: height,
+            };
+        }
         let distance = self
             .items
             .get(index)
@@ -156,6 +192,13 @@ impl Overview {
             Some(OverviewHit { index, action })
         })
     }
+    pub fn grid_layout(w: f32, h: f32) -> bool {
+        let d = &config::design().overview;
+        w >= d.grid_threshold
+            && h - shell::bottom_inset() - d.header_height
+                >= d.grid_rows as f32 * (d.app_header_height + d.footer_height + 120.0)
+                    + (d.grid_rows - 1) as f32 * d.gap
+    }
     pub fn scroll(&mut self, delta: f64, reduced: bool) {
         self.scroll_accum += delta;
         let threshold = (config::design().overview.card_width / 4.0).max(24.0) as f64;
@@ -190,8 +233,15 @@ impl Overview {
         self.selected = available[next];
         self.position
             .set_target(self.items[self.selected].motion.slot_target());
+        let d = &config::design().overview;
+        self.grid_page.set_target(
+            (self.items[self.selected].motion.slot_target()
+                / (d.grid_columns * d.grid_rows) as f32)
+                .floor(),
+        );
         if reduced {
             self.position.finish();
+            self.grid_page.finish();
         }
     }
     pub fn close(&mut self, reduced: bool) {
@@ -209,7 +259,7 @@ impl Overview {
         }
     }
     pub fn tick(&mut self, dt: f32) -> bool {
-        let mut active = self.progress.step(dt) | self.position.step(dt);
+        let mut active = self.progress.step(dt) | self.position.step(dt) | self.grid_page.step(dt);
         for item in &mut self.items {
             active |= item.motion.tick(dt, self.reduced);
         }
@@ -330,6 +380,10 @@ impl State {
             .get(self.overview.selected)
             .map_or(0.0, |i| i.motion.slot_target());
         self.overview.position.snap(slot);
+        let d = &config::design().overview;
+        self.overview
+            .grid_page
+            .snap((slot / (d.grid_columns * d.grid_rows) as f32).floor());
         self.overview.progress.set_target(1.0);
         if self.shell.reduce_motion {
             self.overview.progress.finish();
@@ -511,7 +565,17 @@ mod tests {
             assert!(center.x >= 0.0 && center.right() <= w);
             assert!(center.y - d.app_header_height >= shell::top_inset());
             assert!(center.bottom() + d.footer_height <= h - shell::bottom_inset());
-            assert!(neighbor.w < center.w && neighbor.h < center.h);
+            if Overview::grid_layout(w, h) {
+                assert_eq!(neighbor.w, center.w);
+                assert!(neighbor.y >= center.bottom() + d.footer_height);
+                for index in 0..d.grid_rows * d.grid_columns {
+                    let card = overview.card(w, h, index);
+                    assert!(card.x >= 0.0 && card.right() <= w);
+                    assert!(card.bottom() + d.footer_height <= h - shell::bottom_inset() + 0.01);
+                }
+            } else {
+                assert!(neighbor.w < center.w && neighbor.h < center.h);
+            }
             assert!(neighbor.y > center.y);
         }
     }

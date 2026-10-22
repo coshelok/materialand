@@ -1,7 +1,7 @@
 //! Shell actions, layer frames and private cache records.
 use super::*;
 /// A floating-point rectangle.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RectF {
     pub x: f32,
     pub y: f32,
@@ -144,6 +144,8 @@ pub struct CircleMask {
 /// One draw-ready chrome layer: a cached texture plus where and how big it is.
 pub struct LayerFrame {
     pub buffer: MemoryRenderBuffer,
+    /// Optional logical source crop within the cached texture.
+    pub source: Option<RectF>,
     pub loc: Point<f64, Logical>,
     /// Size override; `Some` asks the GPU to scale the layer while drawing,
     /// `None` draws it at its natural size.
@@ -165,7 +167,15 @@ impl OverlayFrame {
         alpha: f32,
     ) -> Self {
         Self {
-            pieces: vec![(LayerFrame { buffer, loc, size }, alpha)],
+            pieces: vec![(
+                LayerFrame {
+                    buffer,
+                    source: None,
+                    loc,
+                    size,
+                },
+                alpha,
+            )],
         }
     }
 }
