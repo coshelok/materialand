@@ -141,6 +141,39 @@ fn tablet_state() -> (smithay::reexports::wayland_server::Display<State>, State)
     (display, state)
 }
 #[test]
+fn appearance_retry_stays_in_the_fixed_header_and_does_not_reach_tiles() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(true);
+    state.shell.set_quick_settings_open(true);
+    state.shell.appearance_error = Some("Config needs repair".into());
+    for (w, h) in [(320, 640), (1280, 800)] {
+        state.display.size = (w, h).into();
+        state.shell.shade_scroll = 200.0;
+        for notifications in [false, true] {
+            state.shell.notifications_open = notifications;
+            let rect = state.shell.appearance_status_rect(
+                shell::quick_settings_rect(w as f32, h as f32),
+                shell::shade_split(w as f32),
+            );
+            let position = (
+                f64::from(rect.right() - 20.0),
+                f64::from(rect.y + rect.h / 2.0),
+            )
+                .into();
+            assert!(matches!(
+                target::target(&state, position),
+                target::Target::Shell(target::Control::AppearanceRetry)
+            ), "retry target at {w}x{h}, notifications={notifications}, rect={rect:?}, open={}, progress={}", state.shell.quick_settings_open, state.shell.quick_settings_progress());
+            target::press(&mut state, target::Control::AppearanceRetry, position);
+            assert!(state.shell.consume_menu_release);
+            actions::finish_compositor_press(&mut state, position);
+            assert!(state.shell.quick_settings_open);
+            assert!(!state.shell.consume_menu_release);
+        }
+    }
+}
+
+#[test]
 fn navigation_actions_and_gestures_select_distinct_layers() {
     let (_display, mut state) = tablet_state();
     state.shell.set_reduce_motion(true);
@@ -436,11 +469,109 @@ fn modified_super_and_seat_pause_cannot_trigger_home() {
 fn removed_navigation_does_not_reserve_space_or_intercept_bottom_clicks() {
     let (_display, state) = tablet_state();
     assert_eq!(shell::bottom_inset(), 0.0);
-    assert_eq!(shell::launcher_card(1280.0, 800.0).bottom(), 800.0);
+    assert_eq!(
+        shell::launcher_card(1280.0, 800.0).bottom(),
+        800.0 - shell::sheet_inset(1280.0)
+    );
     for x in [560.0, 640.0, 720.0] {
         assert!(matches!(
             target::target(&state, (x, 790.0).into()),
             target::Target::Desktop
         ));
+    }
+}
+
+#[test]
+fn style_page_routes_palettes_without_toggling_hidden_quick_controls() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(true);
+    let center = |r: shell::RectF, scroll: f32| {
+        (
+            f64::from(r.x + r.w / 2.0),
+            f64::from(r.y + r.h / 2.0 - scroll),
+        )
+            .into()
+    };
+    for (w, h) in [(320, 640), (640, 480), (1280, 800)] {
+        state.display.size = (w, h).into();
+        let (w, h) = (w as f32, h as f32);
+        navigation::open_shade(&mut state, true);
+        let rect = shell::quick_settings_rect(w, h);
+        let limit = state.shell.shade_scroll_limit(w, h);
+        state.shell.scroll_shade(limit, limit);
+        let point = center(shell::shade_style_button(rect), state.shell.shade_scroll);
+        assert!(matches!(
+            target::target(&state, point),
+            target::Target::Shell(target::Control::AppearancePage)
+        ));
+        target::press(&mut state, target::Control::AppearancePage, point);
+        actions::finish_compositor_press(&mut state, point);
+        assert!(state.shell.appearance_page && state.shell.quick_settings_open);
+        assert_eq!(state.shell.shade_scroll, 0.0);
+        for i in 0..VARIANTS.len() {
+            let chip = shell::palette_chip_rect_in(rect, i);
+            let limit = state.shell.shade_scroll_limit(w, h);
+            state.shell.scroll_shade(limit, limit);
+            let point = center(chip, state.shell.shade_scroll);
+            if point.y >= f64::from(rect.y + shell::quick_tiles_top()) {
+                assert!(matches!(target::target(&state, point),
+                    target::Target::Shell(target::Control::Chip(index)) if index == i));
+            }
+        }
+        let point = center(shell::shade_page_button(w, h), 0.0);
+        assert!(matches!(
+            target::target(&state, point),
+            target::Target::Shell(target::Control::ShadePage)
+        ));
+        target::press(&mut state, target::Control::ShadePage, point);
+        actions::finish_compositor_press(&mut state, point);
+        assert!(!state.shell.appearance_page && !state.shell.notifications_open);
+        assert!(state.shell.quick_settings_open);
+        assert_eq!(state.shell.shade_scroll, 0.0);
+        state.shell.appearance_page = true;
+        navigation::status_action(&mut state, shell::StatusAction::Shade);
+        assert!(!state.shell.appearance_page && state.shell.quick_settings_open);
+    }
+}
+
+#[test]
+fn rounded_sheet_corners_are_scrim_and_both_columns_remain_interactive() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(true);
+    state.shell.set_quick_settings_open(true);
+    for (w, h) in [(320, 640), (1280, 800)] {
+        state.display.size = (w, h).into();
+        let (w, h) = (w as f32, h as f32);
+        for rect in [
+            shell::quick_settings_rect(w, h),
+            shell::notification_panel(w, h),
+        ] {
+            let corner = (f64::from(rect.x + 1.0), f64::from(rect.y + 1.0)).into();
+            assert!(!shell::shade_contains(w, h, corner));
+            assert!(shell::shade_contains(
+                w,
+                h,
+                (
+                    f64::from(rect.x + rect.w / 2.0),
+                    f64::from(rect.y + rect.h / 2.0)
+                )
+                    .into()
+            ));
+            assert!(!matches!(
+                target::target(&state, corner),
+                target::Target::Shell(target::Control::ShadeHeader(_))
+            ));
+        }
+        let drawer = shell::launcher_card(w, h);
+        assert_eq!(
+            shell::launcher_hit(
+                w,
+                h,
+                10,
+                0.0,
+                (f64::from(drawer.x + 1.0), f64::from(drawer.y + 1.0)).into()
+            ),
+            LauncherHit::Scrim
+        );
     }
 }

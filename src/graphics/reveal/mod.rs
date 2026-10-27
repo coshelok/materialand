@@ -1,5 +1,5 @@
 //! Reveal cached textures on the GPU; no per-frame CPU masks or texture uploads.
-use crate::shell::CircleMask;
+use crate::shell::{CircleMask, RoundedClip};
 use smithay::{
     backend::renderer::{
         element::{Element, Id, Kind, RenderElement},
@@ -23,9 +23,11 @@ pub(super) fn program(renderer: &mut GlesRenderer) -> Option<GlesTexProgram> {
             &[
                 UniformName::new("screen_mapping", UniformType::_4f),
                 UniformName::new("circle", UniformType::_3f),
+                UniformName::new("round_rect", UniformType::_4f),
+                UniformName::new("round_radius", UniformType::_1f),
             ],
         )
-        .map_err(|error| tracing::warn!(%error, "GPU theme reveal unavailable; using a crossfade"))
+        .map_err(|error| tracing::warn!(%error, "GPU clipping unavailable; using unclipped layers and theme crossfade"))
         .ok();
     renderer
         .egl_context()
@@ -38,7 +40,8 @@ pub(super) fn program(renderer: &mut GlesRenderer) -> Option<GlesTexProgram> {
 pub struct RevealElement<E> {
     inner: E,
     program: GlesTexProgram,
-    mask: CircleMask,
+    mask: Option<CircleMask>,
+    rounded: Option<RoundedClip>,
     texture_size: Size<i32, Buffer>,
     id: Id,
 }
@@ -46,13 +49,15 @@ impl<E> RevealElement<E> {
     pub fn new(
         inner: E,
         program: GlesTexProgram,
-        mask: CircleMask,
+        mask: Option<CircleMask>,
+        rounded: Option<RoundedClip>,
         texture_size: Size<i32, Buffer>,
     ) -> Self {
         Self {
             inner,
             program,
             mask,
+            rounded,
             texture_size,
             id: Id::new(),
         }
@@ -80,7 +85,7 @@ impl<E: Element> Element for RevealElement<E> {
     fn kind(&self) -> Kind {
         self.inner.kind()
     }
-    // The circle changes even when the texture's commit does not. A fresh
+    // The clip changes even when the texture's commit does not. A fresh
     // element id damages this layer, and no opaque region can hide the old theme.
     // No underlying_storage: KMS must never scan out the unclipped texture.
 }
@@ -98,7 +103,18 @@ impl<E: RenderElement<GlesRenderer>> RenderElement<GlesRenderer> for RevealEleme
             self.program.clone(),
             vec![
                 Uniform::new("screen_mapping", (sx, sy, ox, oy)),
-                Uniform::new("circle", (self.mask.cx, self.mask.cy, self.mask.radius)),
+                Uniform::new(
+                    "circle",
+                    self.mask
+                        .map_or((0.0, 0.0, -1.0), |m| (m.cx, m.cy, m.radius)),
+                ),
+                Uniform::new(
+                    "round_rect",
+                    self.rounded.map_or((0.0, 0.0, 0.0, 0.0), |m| {
+                        (m.rect.x, m.rect.y, m.rect.w, m.rect.h)
+                    }),
+                ),
+                Uniform::new("round_radius", self.rounded.map_or(-1.0, |m| m.radius)),
             ],
         );
         let result = self.inner.draw(frame, src, dst, damage, &[]);

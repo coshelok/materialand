@@ -129,9 +129,6 @@ impl Shell {
             }
             self.window_in.clear();
             self.launch_origins = Default::default();
-            for s in self.window_out.values_mut() {
-                s.snap(1.0);
-            }
             self.press.clear();
         }
     }
@@ -199,9 +196,6 @@ impl Shell {
             active |= s.step(dt);
         }
         for s in self.window_in.values_mut() {
-            active |= s.step(dt);
-        }
-        for s in self.window_out.values_mut() {
             active |= s.step(dt);
         }
         self.window_in.retain(|_, s| !s.settled());

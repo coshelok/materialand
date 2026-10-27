@@ -364,6 +364,7 @@ fn configured_session() {
     state.toggle_theme((500.0, 16.0).into());
     state.set_variant(ColorVariant::Neutral);
     state.toggle_reduce_motion();
+    state.flush_appearance();
     let path = super::appearance_path().unwrap();
     let reloaded = parse_document(&load_document(&path, defaults()).unwrap()).unwrap();
     assert_eq!(reloaded.appearance.theme, "light");

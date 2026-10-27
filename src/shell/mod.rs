@@ -21,6 +21,7 @@ pub const BRIGHTNESS_MIN: f32 = 0.02;
 pub const BRIGHTNESS_MAX: f32 = 1.0;
 
 pub struct Shell {
+    pub(crate) decoration_controls: decoration_controls::DecorationControls<Window>,
     app_icons: crate::graphics::app_icons::AppIcons,
     pub apps: Vec<AppEntry>,
     overview_cards: HashMap<Window, Vec<Piece>>,
@@ -47,9 +48,11 @@ pub struct Shell {
     shade_scroll_target: f32,
     pub dragged_identity: Option<String>,
     pub shortcut_error: Option<String>,
+    pub appearance_error: Option<String>,
     drag_icon: Option<Piece>,
     split_handle: Vec<Piece>,
     pub connection_page: Option<QuickAction>,
+    pub appearance_page: bool,
     pub brightness_available: bool,
     pub brightness_error: bool,
     pub night_light_available: bool,
@@ -119,8 +122,6 @@ pub struct Shell {
     /// Window entrance springs, `0` (hidden) .. `1` (rest).
     window_in: HashMap<Window, window_motion::Entrance>,
     launch_origins: window_motion::LaunchOrigins,
-    /// Window exit springs, `0` (rest) .. `1` (gone).
-    window_out: HashMap<Window, Spring>,
     /// Per-control press/ripple animation state.
     press: HashMap<PressKey, PressAnim>,
     /// Hovered chrome element, for M3 state layers.
@@ -144,10 +145,13 @@ pub struct Shell {
     swatches_light: Option<[(Color, Color, Color); 9]>,
 }
 
+mod app_identity;
 mod app_menu;
 mod brightness;
 mod cursor;
 mod decoration;
+mod decoration_controls;
+pub use decoration_controls::DecorButton;
 mod decoration_frame;
 mod dock;
 mod floating_dock;

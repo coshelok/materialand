@@ -22,6 +22,21 @@ impl WindowPose {
     pub fn scale(&self) -> f64 {
         f64::from(self.target.w / self.source.w.max(1.0))
     }
+
+    /// Undo the same rounded anchor/translation used by the render elements.
+    /// Popups and CSD may extend outside `source`; do not clamp to the frame.
+    pub fn source_point(&self, point: Point<f64, Logical>) -> Option<Point<f64, Logical>> {
+        let sx = self.scale();
+        let sy = f64::from(self.target.h / self.source.h.max(1.0));
+        if !sx.is_finite() || !sy.is_finite() || sx <= 0.0 || sy <= 0.0 {
+            return None;
+        }
+        let ax = f64::from(self.source.x.round());
+        let ay = f64::from(self.source.y.round());
+        let dx = f64::from((self.target.x - self.source.x).round());
+        let dy = f64::from((self.target.y - self.source.y).round());
+        Some((ax + (point.x - ax - dx) / sx, ay + (point.y - ay - dy) / sy).into())
+    }
 }
 pub(in crate::shell) struct Entrance {
     pub(super) origin: Option<RectF>,
@@ -62,12 +77,12 @@ impl Entrance {
         }
         // Start moving on the very next frame. Bound the first step more tightly
         // so stale compositor idle time cannot jump ahead in a new entrance.
-        let max_step = if std::mem::take(&mut self.first_tick) {
-            1.0 / 60.0
+        let elapsed = if std::mem::take(&mut self.first_tick) {
+            dt.min(1.0 / 60.0)
         } else {
-            1.0 / 30.0
+            dt
         };
-        let active = self.progress.step(dt.min(max_step));
+        let active = self.progress.step(elapsed);
         if self.progress.value() >= 0.999 {
             self.progress.finish();
             return false;
@@ -174,5 +189,26 @@ mod tests {
             ),
             (300.0, 120.0, 900.0, 600.0, 1.0)
         );
+    }
+
+    #[test]
+    fn missed_frames_preserve_elapsed_entrance_time_after_first_presentation() {
+        let advance = |steps: &[f32]| {
+            let mut entrance = Entrance::new(None);
+            entrance.built();
+            entrance.present();
+            entrance.step(1.0 / 60.0);
+            for dt in steps {
+                entrance.step(*dt);
+            }
+            entrance.pose(frame())
+        };
+        let reference = advance(&[1.0 / 120.0; 24]);
+        for steps in [vec![0.1, 0.1], vec![0.2], vec![0.02, 0.13, 0.05]] {
+            let pose = advance(&steps);
+            assert!((pose.target.w - reference.target.w).abs() < 0.01);
+            assert!((pose.target.x - reference.target.x).abs() < 0.01);
+            assert!((pose.alpha - reference.alpha).abs() < 0.001);
+        }
     }
 }

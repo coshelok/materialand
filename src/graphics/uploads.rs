@@ -62,20 +62,21 @@ pub(super) fn masked_buffer_element(
         Kind::Unspecified,
     )
     .ok()?;
-    Some(apply_mask(renderer, element, mask))
+    Some(apply_mask(renderer, element, mask, None))
 }
 fn apply_mask(
     renderer: &mut GlesRenderer,
     element: MemoryRenderBufferRenderElement<GlesRenderer>,
     mask: Option<shell::CircleMask>,
+    rounded: Option<shell::RoundedClip>,
 ) -> ShellElement {
-    if let Some(mask) = mask {
+    if mask.is_some() || rounded.is_some() {
         if let (Some(program), Some(UnderlyingStorage::Memory(memory))) = (
             reveal::program(renderer),
             element.underlying_storage(renderer),
         ) {
             let size = memory.size();
-            return ShellElement::Reveal(RevealElement::new(element, program, mask, size));
+            return ShellElement::Reveal(RevealElement::new(element, program, mask, rounded, size));
         }
     }
     ShellElement::Memory(element)
@@ -125,7 +126,12 @@ pub(super) fn push_layer(
     ) else {
         return;
     };
-    elements.push(UiElement::Memory(apply_mask(renderer, el, mask)));
+    elements.push(UiElement::Memory(apply_mask(
+        renderer,
+        el,
+        mask,
+        layer.rounded,
+    )));
 }
 
 /// Push every piece of an overlay frame (scrim, card, press feedback) in order,

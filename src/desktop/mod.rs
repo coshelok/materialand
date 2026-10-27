@@ -154,6 +154,8 @@ pub struct State {
     /// unregisters the `zwp_linux_dmabuf_v1` global when dropped.
     _dmabuf_global: DmabufGlobal,
     activation_state: XdgActivationState,
+    activation_inputs:
+        activation::InputHistory<smithay::reexports::wayland_server::backend::ClientId>,
 
     pub pointer: PointerHandle<Self>,
     pub keyboard: KeyboardHandle<Self>,
@@ -167,7 +169,7 @@ pub struct State {
     pub theme: Theme,
     /// Palette seed + Material You variant the current `theme` was built from.
     pub theme_spec: ThemeSpec,
-    appearance_store: config::AppearanceStore,
+    appearance_writer: config::AppearanceWriter,
 
     pub running: bool,
     pub start_time: Instant,
@@ -189,6 +191,7 @@ pub struct State {
     pub swallowed_keys: HashSet<smithay::input::keyboard::Keycode>,
 }
 
+mod activation;
 mod appearance;
 mod focus;
 mod geometry;

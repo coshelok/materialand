@@ -14,6 +14,36 @@ fn fresh() -> (Display<State>, State) {
 }
 
 #[test]
+fn opening_overlay_consumes_old_release_and_seat_reset_clears_the_latch() {
+    let (_display, mut state) = fresh();
+    // A compositor-owned press is still held when a keyboard shortcut opens
+    // the launcher. Its release is neither a launcher click nor a dismissal.
+    state.swallowed_buttons.insert(0x110);
+    crate::input::prepare_shell_overlay(&mut state);
+    state.shell.launcher_open = true;
+    state.swallowed_buttons.remove(&0x110);
+    crate::input::finish_compositor_press(&mut state, (0.0, 0.0).into());
+    assert!(state.shell.launcher_open);
+    assert!(!state.shell.consume_menu_release, "consumed exactly once");
+
+    state.swallowed_buttons.insert(0x110);
+    crate::input::prepare_shell_overlay(&mut state);
+    assert!(state.shell.consume_menu_release);
+    crate::input::cancel(&mut state);
+    assert!(
+        !state.shell.consume_menu_release,
+        "VT reset must not swallow the next click"
+    );
+    assert!(state.swallowed_buttons.is_empty());
+
+    crate::input::prepare_shell_overlay(&mut state);
+    assert!(
+        !state.shell.consume_menu_release,
+        "opening with no held button needs no release"
+    );
+}
+
+#[test]
 fn cascade_stays_within_output() {
     let (_display, mut s) = fresh();
     let (ww, wh) = (
@@ -42,6 +72,24 @@ fn dock_item_count_matches_the_built_list() {
 }
 
 #[test]
+#[ignore = "explicit CPU timing of theme input handling, not a display FPS benchmark"]
+fn measure_theme_input_preparation() {
+    let (_display, mut state) = fresh();
+    state.display.size = (1280, 800).into();
+    for shade_open in [false, true] {
+        state.shell.set_quick_settings_open(shade_open);
+        for sample in 0..3 {
+            let start = std::time::Instant::now();
+            state.toggle_theme((100.0, 100.0).into());
+            println!(
+                "theme input: shade={shade_open}, sample={sample}, elapsed={:?}",
+                start.elapsed()
+            );
+        }
+    }
+}
+
+#[test]
 fn theme_toggle_switches_scheme() {
     let (_display, mut s) = fresh();
     let initial = s.theme.is_dark;
@@ -64,7 +112,7 @@ fn set_variant_keeps_brightness_and_changes_palette() {
 }
 
 #[test]
-fn appearance_controls_save_immediately_and_restore_before_rendering() {
+fn appearance_controls_save_in_background_and_restore_before_rendering() {
     let dir = std::env::temp_dir().join(format!(
         "materialand-desktop-appearance-{}",
         std::process::id()
@@ -80,6 +128,7 @@ fn appearance_controls_save_immediately_and_restore_before_rendering() {
         state.toggle_theme((500.0, 16.0).into());
     }
     state.set_variant(ColorVariant::Vibrant);
+    state.appearance_writer.flush();
     let chosen = config::Appearance {
         dark: true,
         variant: ColorVariant::Vibrant,
@@ -108,10 +157,48 @@ fn appearance_controls_save_immediately_and_restore_before_rendering() {
 
     restarted.toggle_theme((500.0, 16.0).into());
     restarted.set_variant(ColorVariant::TonalSpot);
+    restarted.appearance_writer.flush();
     let (_display, mut third) = fresh();
     third.restore_appearance(config::AppearanceStore::at(Some(path)));
     assert!(!third.theme.is_dark);
     assert_eq!(third.theme_spec.variant, ColorVariant::TonalSpot);
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
+fn failed_appearance_save_preserves_invalid_config_and_retry_clears_error() {
+    let dir = std::env::temp_dir().join(format!(
+        "materialand-appearance-retry-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("config.toml");
+    let invalid = "# user edits must survive\n[appearance\n";
+    std::fs::write(&path, invalid).unwrap();
+    let (_display, mut state) = fresh();
+    state.restore_appearance(config::AppearanceStore::at(Some(path.clone())));
+    assert_eq!(
+        state.shell.appearance_error.as_deref(),
+        Some("Config needs repair")
+    );
+    state.toggle_reduce_motion();
+    state.appearance_writer.flush();
+    state.poll_appearance();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), invalid);
+    assert!(state.shell.appearance_error.is_some());
+
+    std::fs::write(&path, "# repaired by user\n[appearance]\n").unwrap();
+    state.save_appearance();
+    assert!(
+        state.shell.appearance_error.is_some(),
+        "a queued retry is not yet a successful save"
+    );
+    state.appearance_writer.flush();
+    assert!(state.poll_appearance());
+    assert!(state.shell.appearance_error.is_none());
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert!(saved.contains("# repaired by user"));
+    assert!(saved.contains("reduce_motion = true"));
     std::fs::remove_dir_all(dir).unwrap();
 }
 

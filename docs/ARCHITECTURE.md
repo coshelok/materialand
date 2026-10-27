@@ -27,6 +27,11 @@ Input selects one target in scene order: shell overlays/chrome, a client surface
 
 Resize requests configure a size while retaining the committed window placement. A `ResizePlacement` moves an anchored edge only after the client acknowledges and commits the requested state. Position calculations use the client's actual geometry and respect its size limits.
 
+Closing a normal window sends the protocol request immediately. Its content and
+input remain available until the client unmaps or destroys it, so save dialogs and
+cancelled closes do not vanish behind a compositor fade. Exit animation requires
+a snapshot after a confirmed unmap; live clients are never hidden speculatively.
+
 ## Scene and outputs
 
 `Layers` accepts groups in back-to-front order. Each group is already front-to-back. Final assembly reverses groups, never the surface elements inside an individual window. Decorations sit behind the complete client surface tree within the same window group. Popup/subsurface order therefore survives composition of overlapping windows.
@@ -45,11 +50,24 @@ The DRM backend owns the seat, libinput/udev sources, pending GPU initialization
 
 `FrameState` permits one submitted frame. Rendering synchronizes its fence, queues once, and waits for vblank before acknowledging scanout and releasing client frame callbacks. While a flip is pending, redraw requests only mark the scene dirty: they neither arm an animation timer nor advance springs. The page-flip callback advances and renders the next pose immediately. A no-damage frame may release callbacks for content already presented and uses a refresh-derived timer when more animation work remains. Idle wakeups maintain the clock. Both backends paint the final settled pose, and the animation clock limits its first step after idle to one display interval.
 
+Once motion is active, analytic springs consume the full elapsed time, including
+missed frames. Window entrances separately guard only their first presented step;
+later steps must not impose a 30 Hz or 20 Hz simulation-time cap.
+
 The listening socket, output and GPU are separate resources. Dropping/reopening a GPU preserves Wayland clients and desktop state. A private session bus has the compositor process lifetime and isolates normal D-Bus activation from a parent desktop.
 
 `config/default.toml` is the source of built-in design values. Before fonts, devices and windows are initialized, a partial user `config.toml` is merged and validated into one immutable typed design snapshot. Layout, rendering, input geometry, window placement, typography, Material roles and motion constructors consume that snapshot. Runtime caches therefore require no filesystem reads or configuration locks.
 
 Light/dark mode, palette and reduced motion save to the same TOML document. Preference writes reread the user file, validate it, change only those keys and preserve other values and comments. The legacy `appearance` file migrates when the new file is absent. Appearance, dock pins and home shortcuts share atomic file replacement under the XDG configuration directory. See [Design configuration](DESIGN.md) for the schema and update contract.
+
+Appearance uses one background writer with a single pending slot for the newest
+choice. File I/O runs outside the queue lock; completion revisions prevent stale
+results from changing the current error status. A normal shutdown drains the
+last request. The shade header keeps errors and a Retry action until the latest
+write succeeds. Completion is currently polled by the shared ticker. Pins and
+workspace persistence still run synchronously. Theme input handlers change the
+model and queue persistence; scene assembly prepares visible raster caches on
+demand. Cold frame costs are separate from input-handler latency.
 
 ## Boundaries retained from the original implementation
 

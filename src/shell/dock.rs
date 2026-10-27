@@ -67,23 +67,30 @@ impl Shell {
                     );
                 }
                 DockItem::Launch(app) => {
-                    let icon = config::icon_for_key(&app.icon);
-                    let (fill, on) = app_colors(theme, &app.icon);
-                    s.circle(cx, cy, icon_size / 2.0 * scale, fill);
-                    fonts.draw_icon_centered(
-                        &mut s,
-                        cx,
-                        cy,
-                        icon,
-                        design.dock.glyph_size * scale * unit,
-                        on,
-                    );
+                    if !self
+                        .app_icon(&app.icon)
+                        .paint(&mut s, (cx, cy), icon_size * scale)
+                    {
+                        let icon = config::icon_for_key(&app.icon);
+                        let (fill, on) = app_colors(theme, &app.icon);
+                        s.circle(cx, cy, icon_size / 2.0 * scale, fill);
+                        fonts.draw_icon_centered(
+                            &mut s,
+                            cx,
+                            cy,
+                            icon,
+                            design.dock.glyph_size * scale * unit,
+                            on,
+                        );
+                    }
                 }
                 DockItem::Focus { window, key: k, .. } => {
                     let icon = config::icon_for_key(k);
                     let active = focused == Some(window);
                     let (fill, on) = app_colors(theme, k);
-                    s.circle(cx, cy, icon_size / 2.0 * scale, fill);
+                    if self.app_icons.get(k).is_none() {
+                        s.circle(cx, cy, icon_size / 2.0 * scale, fill);
+                    }
                     if active {
                         let w = icon_size * scale;
                         let h = icon_size * scale;
@@ -96,18 +103,20 @@ impl Shell {
                             theme.primary_container,
                         );
                     }
-                    fonts.draw_icon_centered(
-                        &mut s,
-                        cx,
-                        cy,
-                        icon,
-                        design.dock.glyph_size * scale * unit,
-                        if active {
-                            theme.on_primary_container
-                        } else {
-                            on
-                        },
-                    );
+                    if !self.app_icon(k).paint(&mut s, (cx, cy), icon_size * scale) {
+                        fonts.draw_icon_centered(
+                            &mut s,
+                            cx,
+                            cy,
+                            icon,
+                            design.dock.glyph_size * scale * unit,
+                            if active {
+                                theme.on_primary_container
+                            } else {
+                                on
+                            },
+                        );
+                    }
                     // Indicator dot for running apps.
                     s.fill_round_rect(
                         cx - if active {

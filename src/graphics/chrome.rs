@@ -94,8 +94,10 @@ pub(super) fn paint(
     }
 
     let shade_p = state.shell.quick_settings_progress().clamp(0.0, 1.0);
-    if shade_p > 0.001 {
+    if shade_p > 0.001 && !(crate::shell::tablet_mode() && crate::config::design().shade.fullscreen)
+    {
         let layer = crate::shell::LayerFrame {
+            rounded: None,
             source: None,
             buffer: state.shell.scrim_buffer(&theme),
             loc: (0.0, 0.0).into(),

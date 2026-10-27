@@ -13,12 +13,7 @@ impl AppEntry {
             return false;
         }
         let want = app_id.trim_end_matches(".desktop").to_lowercase();
-        let desktop = self
-            .desktop_file
-            .as_ref()
-            .and_then(|p| p.file_stem())
-            .map(|s| s.to_string_lossy().to_lowercase());
-        if desktop.as_deref() == Some(&want) {
+        if self.matches_desktop_id(app_id) {
             return true;
         }
         let command = self.command();
@@ -30,5 +25,13 @@ impl AppEntry {
             || program
                 .as_deref()
                 .is_some_and(|p| p == want || want.rsplit('.').next() == Some(p))
+    }
+
+    pub(crate) fn matches_desktop_id(&self, app_id: &str) -> bool {
+        let want = app_id.trim_end_matches(".desktop").to_lowercase();
+        self.desktop_file
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .is_some_and(|s| !want.is_empty() && s.to_string_lossy().to_lowercase() == want)
     }
 }

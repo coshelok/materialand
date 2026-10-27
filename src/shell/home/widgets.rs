@@ -10,6 +10,22 @@ impl Shell {
         layout: HomeLayout,
     ) {
         let d = config::design();
+        if layout.glance.h > 0.0 {
+            let label = fit_text(
+                fonts,
+                TextStyle::title_medium(),
+                &self.calendar.now.date_text(),
+                layout.glance.w - 32.0,
+            );
+            fonts.draw_text_role(
+                surface,
+                16.0,
+                16.0,
+                TextStyle::title_medium(),
+                &label,
+                theme.on_surface,
+            );
+        }
         let r = layout.search;
         let x = r.x - layout.area.x;
         let y = r.y - layout.area.y;
@@ -19,7 +35,7 @@ impl Shell {
             r.w,
             r.h,
             r.h / 2.0,
-            Theme::with_alpha(theme.surface_container_high, 0.9),
+            Theme::with_alpha(theme.surface_container_low, 0.96),
         );
         fonts.draw_icon_centered(
             surface,
@@ -35,9 +51,10 @@ impl Shell {
             "Search apps",
             (r.w - 2.0 * r.h).max(1.0),
         );
-        fonts.draw_text_centered(
+        fonts.draw_text_role(
             surface,
-            (x + r.w / 2.0, y + r.h / 2.0),
+            x + r.h,
+            y + (r.h - TextStyle::body_large().line_height) / 2.0,
             TextStyle::body_large(),
             &text,
             theme.on_surface_variant,

@@ -3,6 +3,11 @@ use super::*;
 
 impl Fonts {
     pub fn load() -> Result<Self, std::io::Error> {
+        Self::load_from_roots(&font_search_roots())
+    }
+
+    pub(super) fn load_from_roots(roots: &[PathBuf]) -> Result<Self, std::io::Error> {
+        let find_file = |names: &[&str]| discovery::find_file(roots, names);
         let regular_path = find_file(&[
             "Roboto-Regular.ttf",
             "NotoSans-Regular.ttf",

@@ -3,6 +3,7 @@ use super::*;
 
 impl Shell {
     pub fn cancel_presses(&mut self) {
+        self.decoration_controls.clear();
         self.home.pressed = None;
         self.press.clear();
         self.press_top = None;

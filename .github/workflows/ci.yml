@@ -21,3 +21,24 @@ jobs:
       - run: cargo test --all-targets --locked
       - run: cargo build --release --locked
       - run: target/release/materialand --help
+      - name: Stage complete installation
+        run: |
+          DESTDIR="$RUNNER_TEMP/materialand-install" sh packaging/install.sh
+          cmp assets/fonts/codepoints "$RUNNER_TEMP/materialand-install/usr/local/share/materialand/fonts/codepoints"
+          cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/materialand-install/usr/local/bin/materialand" --help
+  integration:
+    runs-on: ubuntu-24.04
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      EGL_PLATFORM: surfaceless
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native dependencies and software renderer
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y pkg-config libdrm-dev libegl1-mesa-dev libgbm-dev libgles2-mesa-dev libinput-dev libseat-dev libudev-dev libwayland-dev libxkbcommon-dev xkb-data libgdk-pixbuf-2.0-dev librsvg2-dev libcairo2-dev libegl-mesa0 libgl1-mesa-dri dbus fonts-dejavu-core
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Real Wayland clients, private D-Bus and offscreen EGL
+        run: cargo test --all-targets --locked -- --ignored --skip shell::previews --skip measure_theme_input_preparation --test-threads=1

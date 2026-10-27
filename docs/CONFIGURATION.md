@@ -18,7 +18,7 @@ For a first launch before a config exists:
 MATERIALAND_THEME=dark MATERIALAND_SEED='#6b85b3' ./target/release/materialand
 ```
 
-Light/dark mode, palette and reduced motion save immediately to the `appearance` table in `config.toml` and return before the next session's first frame. Other settings and comments are preserved. When this file is missing, the legacy `appearance` file is migrated automatically. New configs contain all settings, with comments explaining each parameter. Partial files remain supported and inherit omitted defaults.
+Light/dark mode, palette and reduced motion apply immediately and save in the background to the `appearance` table in `config.toml`. Rapid changes are coalesced to the latest choice, and normal shutdown waits for the final write. Saved preferences return before the next session's first frame. A failed save remains visible in the shade header with Retry; fix malformed configuration or filesystem permissions before retrying. Other settings and comments are preserved. When this file is missing, the legacy `appearance` file is migrated automatically. New configs contain all settings, with comments explaining each parameter. Partial files remain supported and inherit omitted defaults.
 
 ## Touchpad
 
@@ -82,3 +82,10 @@ Manage these through an application's context menu. Drag home shortcuts into fre
 The default `[navigation] mode = "tablet"` uses a home screen, app grid, recent-app overview and system shade, with the top status controls and no bottom navigation buttons. Bare Super returns home on release; Super chords retain their existing actions. Set `mode = "desktop"` to restore the topbar and app dock. See the [controls table](../README.md#controls) for gestures and keyboard shortcuts.
 
 Battery, Wi-Fi and Bluetooth readings come from Linux power-supply attributes, NetworkManager and BlueZ respectively. [System controls](SYSTEM_CONTROLS.md) documents runtime dependencies and connection setup. No radio state is stored in the design configuration.
+
+The tablet shade opens palette choices through **Wallpaper & style**. Its back
+arrow (or Escape) returns to the quick controls; the status-bar shade shortcut
+also returns to the main page. Home's date opens the calendar. `home.max_width`
+now bounds the centered workspace; `launcher.width` also bounds the app grid and
+search field in the full-screen drawer. Existing shortcut identities and saved
+cells are retained, with overflow remapped when the available grid changes.

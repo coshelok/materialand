@@ -85,6 +85,52 @@ impl Shell {
                 },
             ),
         );
+        // Broad overlapping paper-like forms stay quiet behind labels while
+        // giving empty workspace areas a deliberate composition at every ratio.
+        for (points, color) in [
+            (
+                [
+                    0.12, 1.08, -0.18, 0.60, 0.34, 0.14, 0.59, 0.30, 0.85, 0.48, 0.28, 0.78, 0.60,
+                    1.12,
+                ],
+                Theme::mix(base, theme.primary_container, 0.88),
+            ),
+            (
+                [
+                    0.54, 1.12, 0.17, 0.72, 0.65, 0.24, 1.10, 0.10, 0.78, 0.38, 1.13, 0.83, 1.06,
+                    1.10,
+                ],
+                Theme::mix(base, theme.secondary_container, 0.78),
+            ),
+            (
+                [
+                    0.62, 1.14, 0.35, 0.83, 0.72, 0.61, 1.12, 0.53, 1.01, 0.83, 0.94, 1.06, 1.10,
+                    1.14,
+                ],
+                Theme::mix(base, theme.tertiary_container, 0.9),
+            ),
+        ] {
+            let mut shape = PathBuilder::new();
+            shape.move_to(points[0] * wf, points[1] * hf);
+            shape.cubic_to(
+                points[2] * wf,
+                points[3] * hf,
+                points[4] * wf,
+                points[5] * hf,
+                points[6] * wf,
+                points[7] * hf,
+            );
+            shape.cubic_to(
+                points[8] * wf,
+                points[9] * hf,
+                points[10] * wf,
+                points[11] * hf,
+                points[12] * wf,
+                points[13] * hf,
+            );
+            shape.close();
+            s.fill_path(&shape.finish().expect("wallpaper fold"), color);
+        }
         for (g, color) in [
             (design.wallpaper.glow_one, theme.tertiary_container),
             (design.wallpaper.glow_two, theme.primary_container),

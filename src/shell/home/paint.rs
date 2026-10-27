@@ -14,6 +14,7 @@ impl Shell {
         self.home.last_size = (w, h);
         let key = KeyHash::new()
             .u64(theme.cache_key())
+            .str(&self.calendar.now.date_text())
             .u32(w as u32)
             .u32(h as u32)
             .u32(self.home.page as u32)

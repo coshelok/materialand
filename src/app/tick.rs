@@ -2,7 +2,6 @@
 use super::clock::LocalTime;
 use crate::desktop::State;
 use std::time::{Duration, Instant};
-const MAX_TICK: f32 = 0.1;
 
 /// Drives the parts of the shell that depend on wall-clock time: the top-bar
 /// clock and the animation springs. Shared by the nested and the KMS loops.
@@ -26,10 +25,11 @@ impl Ticker {
         }
     }
 
-    /// Advance the clock, shell animations and pending window closes.
+    /// Advance the clock and shell animations.
     /// Returns `true` while something is still animating, i.e. the caller
     /// should keep scheduling frames.
     pub fn tick(&mut self, state: &mut State, interval: Duration) -> bool {
+        state.expire_activation_tokens();
         state
             .shell
             .clamp_home_page(state.display.size.w as f32, state.display.size.h as f32);
@@ -43,6 +43,8 @@ impl Ticker {
         if dirty {
             state.shell.set_system_status(state.services.status.clone());
         }
+        dirty |= crate::input::update_decoration_hover(state);
+        dirty |= state.poll_appearance();
         dirty |= state.shell.sync_dock(state.display.size.w as f32, &items);
         state
             .shell
@@ -62,7 +64,7 @@ impl Ticker {
         // Advance shell animations; keep redrawing while any is in flight.
         // The step is clamped: ticks can span nearly a second when the
         // compositor has been idle, and such a leap would complete animations
-        // that just started in a single frame (see `MAX_TICK`).
+        // that just started in a single frame.
         let now = Instant::now();
         let dt = animation_step(now - self.last_frame, interval, self.animating);
         self.last_frame = now;
@@ -89,9 +91,6 @@ impl Ticker {
             None
         };
         dirty |= state.shell.set_hover_dock(hover);
-        // Windows whose close animation finished get their `send_close` now.
-        state.finish_closing();
-
         dirty
     }
 }
@@ -107,7 +106,7 @@ fn animation_step(elapsed: Duration, interval: Duration, was_animating: bool) ->
     } else {
         elapsed.min(interval)
     };
-    elapsed.as_secs_f32().min(MAX_TICK)
+    elapsed.as_secs_f32()
 }
 
 pub fn frame_interval(refresh_millihz: Option<i32>) -> Duration {
@@ -142,10 +141,7 @@ mod tests {
             animation_step(Duration::from_millis(30), interval, true),
             0.03
         );
-        assert_eq!(
-            animation_step(Duration::from_secs(1), interval, true),
-            MAX_TICK
-        );
+        assert_eq!(animation_step(Duration::from_secs(1), interval, true), 1.0);
         assert_eq!(frame_interval(None), frame_interval(Some(0)));
         assert_eq!(frame_interval(None), frame_interval(Some(-1)));
     }

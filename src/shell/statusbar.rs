@@ -78,9 +78,22 @@ impl Shell {
     ) -> (MemoryRenderBuffer, Point<f64, Logical>) {
         let d = &config::design().statusbar;
         let status = &self.system_status;
+        let design = config::design();
+        let panel = (if design.launcher.fullscreen {
+            self.launcher_progress()
+        } else {
+            0.0
+        })
+        .max(if design.shade.fullscreen {
+            self.quick_settings_progress()
+        } else {
+            0.0
+        })
+        .clamp(0.0, 1.0);
         let key = KeyHash::new()
             .u64(theme.cache_key())
             .u32(w.to_bits())
+            .f32(panel)
             .str(&self.clock)
             .bool(status.wifi.available)
             .bool(status.wifi.enabled)
@@ -103,7 +116,7 @@ impl Shell {
             w,
             d.height,
             0.0,
-            Theme::with_alpha(theme.surface_container_low, d.background_alpha),
+            Theme::with_alpha(theme.surface_container_low, d.background_alpha.max(panel)),
         );
         let text_style = TextStyle {
             size: d.font_size,

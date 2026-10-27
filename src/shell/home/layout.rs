@@ -7,6 +7,7 @@ pub enum HomeHit {
     Previous,
     Next,
     Search,
+    Calendar,
 }
 #[derive(Clone, Copy)]
 pub struct HomeLayout {
@@ -18,10 +19,15 @@ pub struct HomeLayout {
     pub previous: RectF,
     pub next: RectF,
     pub search: RectF,
+    pub glance: RectF,
 }
 pub fn home_layout(w: f32, h: f32) -> HomeLayout {
     let d = config::design();
-    let margin = d.home.margin_x.min(w / 8.0);
+    let margin = d
+        .home
+        .margin_x
+        .min(w / 8.0)
+        .max((w - d.home.max_width) / 2.0);
     let top = top_inset() + d.home.top_gap;
     let bottom = (h - bottom_inset() - d.home.bottom_gap).max(top + 1.0);
     let area = RectF {
@@ -31,8 +37,19 @@ pub fn home_layout(w: f32, h: f32) -> HomeLayout {
         h: (bottom - top).max(1.0),
     };
     let footer = d.home.footer_height.min(area.h / 3.0);
+    let glance_height: f32 = if tablet_mode() && h >= 540.0 {
+        76.0
+    } else {
+        0.0
+    };
+    let glance = RectF {
+        w: area.w.min(320.0),
+        h: glance_height.min(56.0),
+        ..area
+    };
     let grid = RectF {
-        h: (area.h - footer).max(1.0),
+        y: area.y + glance_height,
+        h: (area.h - footer - glance_height).max(1.0),
         ..area
     };
     let columns = ((grid.w / d.home.cell_width.max(d.launcher.tile_size)).floor() as usize)
@@ -42,6 +59,7 @@ pub fn home_layout(w: f32, h: f32) -> HomeLayout {
     let nav_y = grid.bottom() + (footer - d.home.search_height - d.home.nav_height).max(0.0) / 2.0;
     HomeLayout {
         area,
+        glance,
         grid,
         columns,
         rows,
@@ -121,6 +139,9 @@ impl Shell {
     }
     pub fn home_hit(&self, w: f32, h: f32, point: Point<f64, Logical>) -> Option<HomeHit> {
         let layout = home_layout(w, h);
+        if layout.glance.h > 0.0 && layout.glance.contains(point) {
+            return Some(HomeHit::Calendar);
+        }
         if layout.search.contains(point) {
             return Some(HomeHit::Search);
         }

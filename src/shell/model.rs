@@ -8,6 +8,7 @@ impl Shell {
         let pins = config::Pins::initial(vec![terminal_app.identity()]);
 
         Shell {
+            decoration_controls: Default::default(),
             app_icons: crate::graphics::app_icons::AppIcons::load(&apps),
             apps,
             overview_cards: HashMap::new(),
@@ -33,9 +34,11 @@ impl Shell {
             shade_scroll_target: 0.0,
             dragged_identity: None,
             shortcut_error: None,
+            appearance_error: None,
             drag_icon: None,
             split_handle: Vec::new(),
             connection_page: None,
+            appearance_page: false,
             brightness_available: false,
             brightness_error: false,
             night_light_available: false,
@@ -107,7 +110,6 @@ impl Shell {
             slider: Spring::spatial(0.0),
             window_in: HashMap::new(),
             launch_origins: Default::default(),
-            window_out: HashMap::new(),
             press: HashMap::new(),
             hover_top: None,
             hover_dock: None,

@@ -43,6 +43,9 @@ pub(super) fn launch_first_filtered(state: &mut State) {
 }
 
 pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical>) {
+    if super::decorations::release(state, pos) {
+        return;
+    }
     if std::mem::take(&mut state.shell.consume_menu_release) {
         return;
     }
@@ -122,6 +125,10 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
                 shell::HomeHit::Search => {
                     open_launcher(state, shell::home_layout(w, h).search);
                 }
+                shell::HomeHit::Calendar => {
+                    super::prepare_shell_overlay(state);
+                    state.shell.set_calendar_open(true);
+                }
             }
         }
         return;
@@ -190,6 +197,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         state.shell.press_end(PressKey::Tile(i));
         if state.shell.quick_settings_open
             && qs_body_contains
+            && !state.shell.appearance_page
             && shell::quick_settings_hit(w, h, qs_pos, 1.0) == Some(action)
         {
             perform_quick_action(state, action);
@@ -201,6 +209,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         state.shell.press_end(PressKey::Chip(i));
         if state.shell.quick_settings_open
             && qs_body_contains
+            && state.shell.appearance_page
             && shell::palette_chip_rect_in(shell::quick_settings_rect(w, h), i).contains(qs_pos)
         {
             state.set_variant(VARIANTS[i]);

@@ -20,6 +20,7 @@ pub fn on_pointer_motion(state: &mut State, location: Point<f64, Logical>, time:
             .clamp(0.0, f64::from((state.display.size.h - 1).max(0))),
     ));
     state.cursor = location;
+    super::decorations::update_hover(state);
     if super::shortcut_drag::motion(state, location) {
         return;
     }
@@ -178,6 +179,9 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         let pointer = state.pointer.clone();
         pointer.button(state, &event);
         pointer.frame(state);
+        if let Some(surface) = pointer.current_focus() {
+            state.record_activation_input(event.serial, &surface);
+        }
         refresh_focus(state, time);
         return;
     }
@@ -197,6 +201,9 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         let pointer = state.pointer.clone();
         pointer.button(state, &event);
         pointer.frame(state);
+        if let Some(surface) = pointer.current_focus() {
+            state.record_activation_input(event.serial, &surface);
+        }
         return;
     }
     if let Some(menu) = &state.shell.app_menu {
@@ -222,7 +229,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             .shell
             .quick_settings_placement(w, h, state.shell.quick_settings_progress())
             .unmap(state.cursor);
-        if !(shell::quick_settings_rect(w, h).contains(pos)
+        if !(shell::shade_contains(w, h, pos)
             || state
                 .shell
                 .statusbar_visible(state.has_fullscreen_window(), state.overview.visible())
@@ -246,6 +253,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             state.windows.space.raise_element(&window, false);
             state.focus_window(Some(window.clone()), serial);
             state.last_interactive_press = Some((serial, window));
+            state.record_activation_input(serial, &surface);
             state.forwarded_buttons.insert(button);
             let pointer = state.pointer.clone();
             pointer.motion(
@@ -281,10 +289,12 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
             }
             state.windows.space.raise_element(&window, false);
             state.focus_window(Some(window.clone()), serial);
-            match shell::decor_hit(&shell::decor_layout(geometry), state.cursor) {
-                DecorHit::Close => state.request_close_window(&window),
-                DecorHit::Minimize => state.minimize_window(&window),
-                DecorHit::Maximize => state.toggle_maximize(&window),
+            let hit = shell::decor_hit(&shell::decor_layout(geometry), state.cursor);
+            if let Some(control) = shell::DecorButton::from_hit(hit) {
+                state.shell.decoration_controls.begin(window, control);
+                return;
+            }
+            match hit {
                 DecorHit::Move => {
                     state.end_split_if_contains(&window);
                     let geometry = state
@@ -302,7 +312,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
                 DecorHit::Resize(edges) => {
                     state.begin_resize(window, edges, geometry, BTN_LEFT);
                 }
-                DecorHit::None => {}
+                DecorHit::None | DecorHit::Close | DecorHit::Minimize | DecorHit::Maximize => {}
             }
         }
         Target::Shell(control) => {

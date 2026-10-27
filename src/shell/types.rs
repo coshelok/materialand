@@ -16,6 +16,15 @@ impl RectF {
     pub fn bottom(&self) -> f32 {
         self.y + self.h
     }
+    pub fn contains_rounded(&self, p: Point<f64, Logical>, radius: f32) -> bool {
+        if !self.contains(p) {
+            return false;
+        }
+        let radius = radius.max(0.0).min(self.w.min(self.h) / 2.0);
+        let x = (p.x as f32).clamp(self.x + radius, self.right() - radius);
+        let y = (p.y as f32).clamp(self.y + radius, self.bottom() - radius);
+        (p.x as f32 - x).hypot(p.y as f32 - y) <= radius
+    }
     pub fn contains(&self, p: Point<f64, Logical>) -> bool {
         let (px, py) = (p.x as f32, p.y as f32);
         px >= self.x && px <= self.right() && py >= self.y && py <= self.bottom()
@@ -141,8 +150,16 @@ pub struct CircleMask {
     pub radius: f32,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct RoundedClip {
+    pub rect: RectF,
+    pub radius: f32,
+}
+
 /// One draw-ready chrome layer: a cached texture plus where and how big it is.
 pub struct LayerFrame {
+    /// Screen-space clip, shared by fixed headers and scrolling content.
+    pub rounded: Option<RoundedClip>,
     pub buffer: MemoryRenderBuffer,
     /// Optional logical source crop within the cached texture.
     pub source: Option<RectF>,
@@ -169,6 +186,7 @@ impl OverlayFrame {
         Self {
             pieces: vec![(
                 LayerFrame {
+                    rounded: None,
                     buffer,
                     source: None,
                     loc,

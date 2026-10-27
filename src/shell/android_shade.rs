@@ -23,6 +23,28 @@ pub fn shade_brightness_value(w: f32, h: f32, x: f32) -> f32 {
     BRIGHTNESS_MIN + t * (BRIGHTNESS_MAX - BRIGHTNESS_MIN)
 }
 impl Shell {
+    /// Fixed header row: saving failures remain visible while the body scrolls.
+    pub fn appearance_status_rect(&self, rect: RectF, split: bool) -> RectF {
+        let d = config::design();
+        let line_height = if tablet_mode()
+            && (!self.notifications_open || split)
+            && self.connection_page.is_none()
+            && !self.appearance_page
+        {
+            d.shade.clock_line_height
+        } else {
+            TextStyle::headline_small().line_height
+        };
+        RectF {
+            x: rect.x + d.quick_settings.padding,
+            y: rect.y
+                + d.quick_settings
+                    .subtitle_y
+                    .max(d.quick_settings.title_y + line_height + 4.0),
+            w: (rect.w - 2.0 * d.quick_settings.padding).max(1.0),
+            h: TextStyle::body_small().line_height,
+        }
+    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn paint_shade_brightness(
         &self,
@@ -99,31 +121,49 @@ impl Shell {
         let h = tile.h * squeeze;
         let x = tile.x + (tile.w - w) / 2.0;
         let y = tile.y + (tile.h - h) / 2.0;
-        let radius = d.quick_settings.tile_radius
-            + d.quick_settings.tile_active_radius_growth * t
-            + d.quick_settings.tile_press_radius_growth * (1.0 - squeeze);
+        // Classic Pixel controls retain a capsule silhouette in both states.
+        let radius = h.min(w) / 2.0;
         s.fill_round_rect(x, y, w, h, radius, fill);
+        let compact = tile.w < 196.0;
+        let icon_y = if compact { 23.0 } else { tile.h / 2.0 };
         fonts.draw_icon_centered(
             s,
             tile.x + d.quick_settings.icon_x,
-            tile.y + tile.h / 2.0,
+            tile.y + icon_y,
             glyph,
             d.quick_settings.icon_size * squeeze,
             on,
         );
         let details = matches!(action, QuickAction::Wifi | QuickAction::Bluetooth);
-        let right = if details {
-            d.shade.tile_label_x
+        let label_x = if compact { 22.0 } else { d.shade.tile_label_x };
+        let right = if details && !compact { 40.0 } else { 18.0 };
+        let text_width = (tile.w - label_x - right).max(1.0);
+        let label_y = if compact {
+            tile.h - 49.0
         } else {
-            d.quick_settings.label_x
+            tile.h / 2.0 - 22.0
         };
-        let text_width = (tile.w - d.shade.tile_label_x - right).max(1.0);
-        let label = fit_text(fonts, TextStyle::title_small(), label, text_width);
+        let status_y = if compact {
+            tile.h - 28.0
+        } else {
+            tile.h / 2.0 + 3.0
+        };
+        let label_style = if compact {
+            TextStyle::title_small()
+        } else {
+            TextStyle::title_medium()
+        };
+        let status_style = if compact {
+            TextStyle::body_small()
+        } else {
+            TextStyle::body_medium()
+        };
+        let label = fit_text(fonts, label_style, label, text_width);
         fonts.draw_text_role(
             s,
-            tile.x + d.shade.tile_label_x,
-            tile.y + d.shade.tile_label_y,
-            TextStyle::title_small(),
+            tile.x + label_x,
+            tile.y + label_y,
+            label_style,
             &label,
             on,
         );
@@ -141,12 +181,12 @@ impl Shell {
                 }
             }
         };
-        let status = fit_text(fonts, TextStyle::body_small(), &status, text_width);
+        let status = fit_text(fonts, status_style, &status, text_width);
         fonts.draw_text_role(
             s,
-            tile.x + d.shade.tile_label_x,
-            tile.y + d.shade.tile_status_y,
-            TextStyle::body_small(),
+            tile.x + label_x,
+            tile.y + status_y,
+            status_style,
             &status,
             on,
         );
@@ -154,7 +194,7 @@ impl Shell {
             fonts.draw_icon_centered(
                 s,
                 tile.right() - d.shade.brightness_icon_x,
-                tile.y + tile.h / 2.0,
+                tile.y + icon_y,
                 "chevron_right",
                 d.statusbar.icon_size,
                 on,
@@ -203,6 +243,15 @@ impl Shell {
     pub fn shade_scroll_limit(&self, w: f32, h: f32) -> f32 {
         if self.notifications_open && !shade_split(w) {
             self.notification_scroll_max(w, h)
+        } else if self.appearance_page {
+            let rect = quick_settings_rect(w, h);
+            let d = &config::design().quick_settings;
+            (palette_top(rect.w)
+                + VARIANTS.len().div_ceil(palette_columns(rect.w)) as f32
+                    * (d.chip_height + d.chip_gap)
+                + d.padding
+                - rect.h)
+                .max(0.0)
         } else if let Some(page) = self.connection_page {
             let count = if page == QuickAction::Wifi {
                 self.system_status.networks.len()

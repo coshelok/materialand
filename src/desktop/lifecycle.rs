@@ -3,18 +3,13 @@ use super::*;
 
 impl State {
     pub fn request_close_window(&mut self, window: &Window) {
-        if self.shell.begin_window_close(window) {
-            if let Some(t) = window.toplevel() {
-                t.send_close();
-            }
-        }
-    }
-
-    pub fn finish_closing(&mut self) {
-        for window in self.shell.take_closed_windows() {
-            if let Some(t) = window.toplevel() {
-                t.send_close();
-            }
+        // Close is a request, not permission to hide a live client. It may need
+        // to show a save dialog or refuse the request. Keep its pixels, focus
+        // and input intact until the client actually unmaps/destroys the window.
+        // Any future exit animation must use a snapshot of that confirmed exit.
+        self.shell.cancel_window_open(window);
+        if let Some(t) = window.toplevel() {
+            t.send_close();
         }
     }
 

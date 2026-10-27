@@ -83,6 +83,14 @@ mod tests {
                     (expected.2, expected.3).into()
                 )
             );
+            let center = (
+                f64::from(output.loc.x) + f64::from(output.size.w) / 2.0,
+                f64::from(output.loc.y) + f64::from(output.size.h) / 2.0,
+            )
+                .into();
+            let source = pose.source_point(center).unwrap();
+            assert!((source.x - f64::from(input.0) - f64::from(input.2) / 2.0).abs() < 0.001);
+            assert!((source.y - f64::from(input.1) - f64::from(input.3) / 2.0).abs() < 0.001);
         }
     }
 }

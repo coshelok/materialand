@@ -60,21 +60,21 @@ pub fn quick_settings_rect(win_w: f32, win_h: f32) -> RectF {
     if tablet_mode() {
         let d = &design.shade;
         if d.fullscreen {
-            if shade_split(win_w) {
-                let margin = d.margin;
-                return RectF {
-                    x: margin,
-                    y: top_inset(),
-                    w: (win_w - 2.0 * margin - design.quick_settings.tile_gap) / 2.0,
-                    h: (win_h - top_inset() - bottom_inset()).max(1.0),
-                };
-            }
-            let width = win_w.min(d.width).max(1.0);
+            let margin = sheet_inset(win_w);
+            let width = if shade_split(win_w) {
+                (win_w - 2.0 * margin - design.quick_settings.tile_gap) / 2.0
+            } else {
+                (win_w - 2.0 * margin).min(d.width).max(1.0)
+            };
             return RectF {
-                x: (win_w - width) / 2.0,
-                y: top_inset(),
+                x: if shade_split(win_w) {
+                    margin
+                } else {
+                    (win_w - width) / 2.0
+                },
+                y: top_inset() + margin,
                 w: width,
-                h: (win_h - top_inset() - bottom_inset()).max(1.0),
+                h: (win_h - top_inset() - bottom_inset() - 2.0 * margin).max(1.0),
             };
         }
         let w = d.width.min((win_w - 2.0 * d.margin).max(1.0));
@@ -102,6 +102,19 @@ pub fn quick_settings_rect(win_w: f32, win_h: f32) -> RectF {
     }
 }
 
+pub fn sheet_inset(w: f32) -> f32 {
+    config::design().shade.margin.min(w * 0.025)
+}
+pub fn sheet_radius() -> f32 {
+    config::design().shape.extra_extra_large
+}
+pub fn shade_radius() -> f32 {
+    if tablet_mode() && config::design().shade.fullscreen {
+        sheet_radius()
+    } else {
+        config::design().shape.extra_large
+    }
+}
 pub fn shade_split(w: f32) -> bool {
     tablet_mode() && config::design().shade.fullscreen && w >= config::design().shade.wide_threshold
 }
@@ -124,8 +137,8 @@ pub fn notification_top(w: f32) -> f32 {
     }
 }
 pub fn shade_contains(w: f32, h: f32, pos: Point<f64, Logical>) -> bool {
-    quick_settings_rect(w, h).contains(pos)
-        || (shade_split(w) && notification_panel(w, h).contains(pos))
+    quick_settings_rect(w, h).contains_rounded(pos, shade_radius())
+        || (shade_split(w) && notification_panel(w, h).contains_rounded(pos, shade_radius()))
 }
 
 pub fn quick_setting_tile(rect: RectF, index: usize, progress: f32) -> RectF {
@@ -191,14 +204,24 @@ pub fn quick_settings_hit(
     })
 }
 
+pub fn palette_columns(width: f32) -> usize {
+    if width < 480.0 {
+        2
+    } else {
+        3
+    }
+}
+
 /// Palette chip rectangle inside the sheet.
 pub fn palette_chip_rect_in(rect: RectF, index: usize) -> RectF {
     let design = crate::config::design();
-    let cw =
-        (rect.w - 2.0 * design.quick_settings.chip_margin - 2.0 * design.quick_settings.chip_gap)
-            / 3.0;
-    let col = index % 3;
-    let row = index / 3;
+    let columns = palette_columns(rect.w);
+    let cw = (rect.w
+        - 2.0 * design.quick_settings.chip_margin
+        - (columns - 1) as f32 * design.quick_settings.chip_gap)
+        / columns as f32;
+    let col = index % columns;
+    let row = index / columns;
     RectF {
         x: rect.x
             + design.quick_settings.chip_margin
@@ -267,16 +290,25 @@ pub fn quick_columns(width: f32) -> usize {
         2
     }
 }
-pub fn palette_top(width: f32) -> f32 {
+pub fn palette_top(_width: f32) -> f32 {
+    quick_tiles_top() + config::design().quick_settings.palette_title_gap
+}
+/// The style entry follows the six controls; palettes live on their own page.
+pub fn shade_style_button(rect: RectF) -> RectF {
     let d = &config::design().quick_settings;
-    quick_tiles_top()
-        + 6usize.div_ceil(quick_columns(width)) as f32 * (d.tile_height + d.tile_gap)
-        + d.palette_title_gap
+    RectF {
+        x: rect.x + d.padding,
+        y: rect.y
+            + quick_tiles_top()
+            + 6usize.div_ceil(quick_columns(rect.w)) as f32 * (d.tile_height + d.tile_gap),
+        w: (rect.w - 2.0 * d.padding).max(1.0),
+        h: 56.0,
+    }
 }
 pub fn shade_scroll_max(w: f32, h: f32) -> f32 {
-    let d = &config::design().quick_settings;
     let card = quick_settings_rect(w, h);
-    (palette_top(card.w) + 3.0 * (d.chip_height + d.chip_gap) + d.padding - card.h).max(0.0)
+    (shade_style_button(card).bottom() + config::design().quick_settings.padding - card.bottom())
+        .max(0.0)
 }
 pub fn shade_header_hit(w: f32, h: f32, pos: Point<f64, Logical>) -> Option<TopAction> {
     let r = quick_settings_rect(w, h);

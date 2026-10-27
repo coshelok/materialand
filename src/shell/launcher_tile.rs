@@ -13,18 +13,26 @@ impl Shell {
         scale: f32,
     ) {
         let design = crate::config::design();
-        if let Some(icon) = self.app_icons.get(&app.icon) {
-            let side = 2.0 * design.apps.medallion_radius * scale;
-            let ratio = side / (icon.width().max(icon.pixmap.height()) as f32);
-            let x = x + design.launcher.tile_size / 2.0 - icon.width() as f32 * ratio / 2.0;
-            let y = y + design.apps.icon_center_y - icon.pixmap.height() as f32 * ratio / 2.0;
-            s.blit(
-                icon,
-                SkTransform::from_scale(ratio, ratio).post_translate(x, y),
-                1.0,
-                None,
-            );
-        } else {
+        let center = (
+            x + design.launcher.tile_size / 2.0,
+            y + design.apps.icon_center_y,
+        );
+        // Desktop icon themes mix square and freeform assets. A common circular
+        // container gives them a stable silhouette without recoloring the logo.
+        s.circle(
+            center.0,
+            center.1,
+            design.apps.medallion_radius * scale,
+            theme.surface_container_high,
+        );
+        if !self.app_icon(&app.icon).paint(
+            s,
+            (
+                x + design.launcher.tile_size / 2.0,
+                y + design.apps.icon_center_y,
+            ),
+            1.55 * design.apps.medallion_radius * scale,
+        ) {
             let icon_name = config::icon_for_key(&app.icon);
             let (fill, on) = app_colors(theme, &app.icon);
             s.circle(

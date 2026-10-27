@@ -123,6 +123,7 @@ impl Shell {
         if p > 0.001 {
             pieces.push((
                 LayerFrame {
+                    rounded: None,
                     source: None,
                     buffer: self.scrim_buffer(theme),
                     loc: Point::from((0.0, 0.0)),
@@ -137,6 +138,7 @@ impl Shell {
             let layer_h = layer.surface.pixmap.height() as f32;
             pieces.push((
                 LayerFrame {
+                    rounded: None,
                     source: None,
                     buffer: layer.buffer.clone(),
                     loc: Point::from(((anim.x - pad * sx) as f64, (anim.y - pad * sy) as f64)),
@@ -186,6 +188,7 @@ impl Shell {
             );
             pieces.push((
                 LayerFrame {
+                    rounded: None,
                     source: None,
                     buffer: press.to_memory_buffer(),
                     loc: Point::from(loc),
@@ -236,6 +239,7 @@ impl Shell {
                 });
             pieces.push((
                 LayerFrame {
+                    rounded: None,
                     buffer: self.launcher_scrollbar.as_ref().unwrap().buffer.clone(),
                     source: None,
                     loc: (f64::from(r.x), f64::from(r.y)).into(),
@@ -243,6 +247,15 @@ impl Shell {
                 },
                 content_alpha,
             ));
+        }
+        if tablet_mode() && design.launcher.fullscreen {
+            let scrim_count = usize::from(p > 0.001);
+            for (piece, _) in pieces.iter_mut().skip(scrim_count) {
+                piece.rounded = Some(RoundedClip {
+                    rect: anim,
+                    radius: sheet_radius(),
+                });
+            }
         }
         OverlayFrame { pieces }
     }
@@ -292,11 +305,7 @@ impl Shell {
             pad,
             card.w,
             card.h,
-            if fullscreen {
-                0.0
-            } else {
-                design.shape.extra_extra_large
-            },
+            design.shape.extra_extra_large,
             theme.surface_container_low,
         );
         if !fullscreen {

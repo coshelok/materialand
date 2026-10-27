@@ -31,7 +31,7 @@ mod workspace;
 pub use workspace::{Anchor, Shortcut, Workspace};
 mod appearance;
 mod storage;
-pub use appearance::{appearance_path, Appearance, AppearanceStore};
+pub use appearance::{appearance_path, Appearance, AppearanceStore, AppearanceWriter};
 mod design;
 pub use design::check_file as check_design_file;
 pub use design::compact_file as compact_config_file;

@@ -8,21 +8,18 @@ pub fn dock_items(state: &State) -> Vec<DockItem> {
         .filter(|window| state.window_has_content(window) || state.window_props(window).minimized)
         .map(|window| {
             let meta = state.window_meta(window);
-            let app = state
-                .shell
-                .pinned
-                .iter()
-                .chain(&state.shell.apps)
-                .chain(std::iter::once(&state.shell.terminal_app))
-                .find(|app| app.matches_app_id(&meta.app_id))
-                .cloned();
-            let key = app.as_ref().map(|a| a.icon.clone()).unwrap_or_else(|| {
-                if meta.app_id.is_empty() {
-                    meta.title
-                } else {
-                    meta.app_id
-                }
-            });
+            let app = state.shell.window_app(&meta.app_id).cloned();
+            let key = app
+                .as_ref()
+                .map(|a| a.icon.clone())
+                .filter(|key| !key.is_empty())
+                .unwrap_or({
+                    if meta.app_id.is_empty() {
+                        meta.title
+                    } else {
+                        meta.app_id
+                    }
+                });
             (window.clone(), key, app)
         })
         .collect();

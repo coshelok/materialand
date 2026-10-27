@@ -18,6 +18,12 @@ impl Shell {
             maximized,
         } = params;
         let l = decor_layout(window_geom);
+        let controls = [
+            DecorButton::Minimize,
+            DecorButton::Maximize,
+            DecorButton::Close,
+        ]
+        .map(|button| self.decoration_controls.visual(window, button));
         let loc = Point::from((
             l.frame.x as f64 - design.shadow.padding as f64,
             l.frame.y as f64 - design.shadow.padding as f64,
@@ -30,8 +36,15 @@ impl Shell {
             .i32(window_geom.size.h)
             .str(&meta.title)
             .str(&meta.app_id)
+            .str(self.window_icon(meta).key)
             .bool(focused)
             .bool(maximized)
+            .bool(controls[0].0)
+            .bool(controls[0].1)
+            .bool(controls[1].0)
+            .bool(controls[1].1)
+            .bool(controls[2].0)
+            .bool(controls[2].1)
             .u64(theme.cache_key())
             .finish();
         if let Some(entries) = self.decor_cache.get_mut(window) {
@@ -88,11 +101,16 @@ impl Shell {
             design.window.maximize_icon,
             neutral_on,
         );
+        let close_active = controls[2].0 || controls[2].1;
         s.circle(
             cc.0,
             cc.1,
             design.window.control_radius,
-            theme.error_container,
+            if close_active {
+                theme.error_container
+            } else {
+                neutral
+            },
         );
         fonts.draw_icon_centered(
             &mut s,
@@ -100,23 +118,38 @@ impl Shell {
             cc.1,
             "close",
             design.window.control_icon,
-            theme.on_error_container,
+            if close_active {
+                theme.on_error_container
+            } else {
+                neutral_on
+            },
         );
 
-        let key = if meta.app_id.is_empty() {
-            meta.title.as_str()
-        } else {
-            meta.app_id.as_str()
-        };
+        for ((cx, cy), (hovered, pressed)) in [nc, mc, cc].into_iter().zip(controls) {
+            state_layer_overlay(
+                &mut s,
+                theme,
+                cx,
+                cy,
+                design.window.control_radius,
+                hovered,
+                pressed,
+            );
+        }
+
         let mid_y = design.shadow.padding + l.titlebar.h / 2.0;
-        fonts.draw_icon_centered(
-            &mut s,
-            design.shadow.padding + design.window.app_icon_x,
-            mid_y,
-            config::icon_for_key(key),
-            design.window.app_icon_size,
-            on,
-        );
+        let icon = self.window_icon(meta);
+        let icon_x = design.shadow.padding + design.window.app_icon_x;
+        if !icon.paint(&mut s, (icon_x, mid_y), design.window.app_icon_size) {
+            fonts.draw_icon_centered(
+                &mut s,
+                icon_x,
+                mid_y,
+                config::icon_for_key(icon.key),
+                design.window.app_icon_size,
+                on,
+            );
+        }
         // The focused window's title carries extra weight.
         let title_style = if focused {
             TextStyle::focused_title()

@@ -30,6 +30,7 @@ pub(crate) fn open_shade(state: &mut State, open: bool) {
     if open {
         super::prepare_shell_overlay(state);
         state.shell.connection_page = None;
+        state.shell.appearance_page = false;
         state.shell.notifications_open = false;
         state.shell.reset_shade_scroll();
         state.services.request(crate::system::Action::Refresh);
@@ -117,7 +118,8 @@ pub(super) fn status_action(state: &mut State, action: shell::StatusAction) {
         shell::StatusAction::Shade => {
             let open = !state.shell.quick_settings_open
                 || state.shell.notifications_open
-                || state.shell.connection_page.is_some();
+                || state.shell.connection_page.is_some()
+                || state.shell.appearance_page;
             open_shade(state, open);
         }
     }

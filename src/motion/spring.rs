@@ -87,7 +87,10 @@ impl Spring {
         if !dt.is_finite() || dt <= 0.0 {
             return !self.settled();
         }
-        let t = f64::from(dt.min(0.05));
+        // This is an analytic solution, so a long frame does not require a
+        // stability clamp. Dropping elapsed time would slow the animation down
+        // exactly when the compositor is already missing frames.
+        let t = f64::from(dt);
         let x = f64::from(self.value - self.target);
         let v = f64::from(self.velocity);
         let a = f64::from(self.damping) / 2.0;

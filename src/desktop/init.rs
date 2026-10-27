@@ -128,6 +128,7 @@ impl State {
             dmabuf_state,
             _dmabuf_global: dmabuf_global,
             activation_state,
+            activation_inputs: Default::default(),
             pointer,
             keyboard,
             windows: WindowManager {
@@ -146,7 +147,7 @@ impl State {
             fonts,
             theme,
             theme_spec: spec,
-            appearance_store: Default::default(),
+            appearance_writer: Default::default(),
             running: true,
             start_time: Instant::now(),
             cursor: (640.0, 400.0).into(),

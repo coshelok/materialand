@@ -138,13 +138,13 @@ impl Shell {
                 ),
                 (
                     notice.summary.as_str(),
-                    TextStyle::title_small(),
+                    TextStyle::title_medium(),
                     28.0,
                     theme.on_surface,
                 ),
                 (
                     notice.body.as_str(),
-                    TextStyle::body_small(),
+                    TextStyle::body_medium(),
                     54.0,
                     theme.on_surface_variant,
                 ),

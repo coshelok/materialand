@@ -8,6 +8,8 @@ pub(super) enum Target {
 }
 #[derive(Clone, Copy)]
 pub(super) enum Control {
+    AppearanceRetry,
+    AppearancePage,
     Status(shell::StatusAction),
     Notification(shell::NotificationHit),
     Overview(crate::desktop::overview::OverviewHit),
@@ -117,7 +119,7 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
     }
     if state.shell.quick_settings_open
         && shell::shade_split(w)
-        && shell::notification_panel(w, h).contains(qs_pos)
+        && shell::notification_panel(w, h).contains_rounded(qs_pos, shell::shade_radius())
     {
         return Target::Shell(
             state
@@ -127,10 +129,21 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
                 .unwrap_or(Control::Block),
         );
     }
-    if state.shell.quick_settings_open && shell::quick_settings_rect(w, h).contains(qs_pos) {
+    if state.shell.quick_settings_open
+        && shell::quick_settings_rect(w, h).contains_rounded(qs_pos, shell::shade_radius())
+    {
+        if state.shell.appearance_error.is_some()
+            && state
+                .shell
+                .appearance_status_rect(shell::quick_settings_rect(w, h), shell::shade_split(w))
+                .contains(qs_pos)
+        {
+            return Target::Shell(Control::AppearanceRetry);
+        }
         if shell::tablet_mode()
             && (!state.shell.notifications_open || shell::shade_split(w))
             && state.shell.connection_page.is_none()
+            && !state.shell.appearance_page
         {
             if let Some(value) = shell::shade_brightness_hit(w, h, qs_pos) {
                 return Target::Shell(if state.shell.brightness_available {
@@ -140,7 +153,9 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
                 });
             }
         }
-        if (state.shell.notifications_open || state.shell.connection_page.is_some())
+        if (state.shell.notifications_open
+            || state.shell.connection_page.is_some()
+            || state.shell.appearance_page)
             && shell::shade_page_button(w, h).contains(qs_pos)
         {
             return Target::Shell(Control::ShadePage);
@@ -185,6 +200,20 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
             });
         }
         qs_pos.y += f64::from(state.shell.shade_scroll);
+        if state.shell.appearance_page {
+            let chip = if state.shell.shade_scroll == 0.0 {
+                shell::palette_chip_hit(w, h, qs_pos)
+            } else {
+                (0..VARIANTS.len()).find(|&i| {
+                    shell::palette_chip_rect_in(shell::quick_settings_rect(w, h), i)
+                        .contains(qs_pos)
+                })
+            };
+            return Target::Shell(chip.map(Control::Chip).unwrap_or(Control::Block));
+        }
+        if shell::shade_style_button(shell::quick_settings_rect(w, h)).contains(qs_pos) {
+            return Target::Shell(Control::AppearancePage);
+        }
         for action in [QuickAction::Wifi, QuickAction::Bluetooth] {
             let r = shell::quick_setting_tile_rect(w, h, shell::quick_action_index(action));
             if r.contains(qs_pos)
@@ -197,17 +226,6 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
 
         let control = shell::quick_settings_hit(w, h, qs_pos, 1.0)
             .map(Control::Quick)
-            .or_else(|| {
-                if state.shell.shade_scroll == 0.0 {
-                    return shell::palette_chip_hit(w, h, qs_pos).map(Control::Chip);
-                }
-                (0..VARIANTS.len())
-                    .find(|&i| {
-                        shell::palette_chip_rect_in(shell::quick_settings_rect(w, h), i)
-                            .contains(qs_pos)
-                    })
-                    .map(Control::Chip)
-            })
             .unwrap_or(Control::Block);
         return Target::Shell(control);
     }
@@ -301,6 +319,19 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     super::shortcut_drag::candidate(state, control, pos);
     let (key, rect) = match control {
+        Control::AppearancePage => {
+            state.shell.appearance_page = true;
+            state.shell.notifications_open = false;
+            state.shell.connection_page = None;
+            state.shell.reset_shade_scroll();
+            state.shell.consume_menu_release = true;
+            return;
+        }
+        Control::AppearanceRetry => {
+            state.save_appearance();
+            state.shell.consume_menu_release = true;
+            return;
+        }
         Control::Block if state.overview.open => {
             state.overview.background_pressed = true;
             return;
@@ -328,9 +359,9 @@ pub(super) fn press(state: &mut State, control: Control, pos: Point<f64, Logical
             return;
         }
         Control::ShadePage => {
-            state.shell.notifications_open =
-                !state.shell.notifications_open && state.shell.connection_page.is_none();
+            state.shell.notifications_open = false;
             state.shell.connection_page = None;
+            state.shell.appearance_page = false;
             state.shell.reset_shade_scroll();
             state.shell.consume_menu_release = true;
             return;

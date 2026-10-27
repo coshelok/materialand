@@ -31,6 +31,7 @@ pub(super) fn paint(
     let design = &crate::config::design().overview;
     let rounded_shader = super::rounded::program(renderer);
     let layer = crate::shell::LayerFrame {
+        rounded: None,
         source: None,
         buffer: state.shell.scrim_buffer(&theme),
         loc: (0.0, 0.0).into(),

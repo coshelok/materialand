@@ -19,7 +19,9 @@ The reveal shader also has an explicit offscreen EGL pixel test. It can run on a
 cargo test --locked egl_reveal_preserves_pixels_clipping_scaling_and_shader_isolation -- --ignored
 ```
 
-This checks shader compilation, radial clipping, alpha blending, scaled/cropped sources, framebuffer orientation and shader state isolation. It does not measure physical display FPS. CPU regressions cover native-resolution refresh selection, 30–360 Hz/fractional animation intervals and retention of both cached theme endpoints.
+This checks shader compilation, radial and rounded clipping independently and together, antialiased edges, alpha blending, scaled/cropped sources, framebuffer orientation and shader state isolation. It does not measure physical display FPS. CPU regressions cover native-resolution refresh selection, 30–360 Hz/fractional animation intervals and retention of both cached theme endpoints.
+
+For sheet motion, run `cargo test --locked --offline write_expressive_motion_previews -- --ignored --nocapture` with ffmpeg installed. Inspect the videos and trajectory CSVs in `target/visual-audit`: opening, bounded rebound, closing and reversal before closing finishes. In a real session, also check rounded corners during scrolling, clicking both shade columns, rapid theme changes and reduced motion. The synthetic videos do not verify live frame pacing or gesture tracking.
 
 Live recent-app corners have a separate offscreen GPU regression:
 
@@ -27,7 +29,7 @@ Live recent-app corners have a separate offscreen GPU regression:
 cargo test --locked egl_rounded_previews_preserve_clipping_transforms_and_shader_isolation -- --ignored
 ```
 
-It checks actual rounded clipping and alpha with scaled/cropped sources, both direct/nested framebuffer orientations, and shader isolation. Check real client snapshots, app identity/actions, neighboring card depth and upward dismissal in a normal session. Check the home search capsule, full-width home/drawer grids and available top-left cells, and full-height drawer/shade in both themes. Existing gesture ownership and split behavior must remain intact.
+It checks actual rounded clipping and alpha with scaled/cropped sources, both direct/nested framebuffer orientations, and shader isolation. Check real client snapshots, app identity/actions, neighboring card depth and upward dismissal in a normal session. Check the home search capsule, centered, width-limited home/drawer grids and available top-left cells, and full-height drawer/shade in both themes. Existing gesture ownership and split behavior must remain intact.
 
 ## Nested session
 
@@ -135,3 +137,52 @@ CPU tests cover direct finger tracking, release inertia, refresh-independent dec
 On the laptop, flick long launcher, network and notification lists, touch again to stop, then click an app. Move the pointer between shade columns during a scroll: the original column must keep ownership. Open another panel mid-scroll and verify the old sequence does not scroll it. Check horizontal two-finger home paging, direction inversion and vertical/diagonal motion. Test tap-and-drag on shortcuts, recents dismissal, the split divider and brightness slider; lift/reposition the finger and tap to finish, then repeat with drag lock disabled. Verify typing suppression and touchpad reconnects. These hardware interactions require a direct session; automated tests do not establish the physical pad's behavior.
 
 Bare Super regression: press/release either Win key to minimize all windows and show home. Hold Super and use P, Tab, S, or a client shortcut; releasing Super must not then show home. Check both release orders, Shift held before Super, and a VT switch mid-press. Verify the old Back/Home/Recents area has no visible buttons or hidden click targets and that maximized windows and fullscreen sheets use the freed bottom space.
+
+## User-facing backlog regressions
+
+CPU tests cover elapsed animation time at 10–360 Hz and across dropped frames,
+activation input ownership/expiry/one-time use, and titlebar press/release
+cancellation. The ignored Wayland suite additionally checks a client rejecting
+close, a save-dialog toplevel, activation-token replay and titlebar releases over
+an overlay. CI's `integration` job runs ignored Wayland/D-Bus/EGL tests with Mesa
+software rendering, excluding local preview writers. A configured job is not
+evidence of a successful CI run.
+
+Check server-side titlebar buttons with a real client: hover, press, leave and
+return, release outside, open a shell overlay while holding a button, and switch
+VT. Close must reach the client only on a matching release; a rejected close
+must leave the content and save dialog usable. Ordinary close currently waits
+for the client's unmap without an exit animation; a safe snapshot exit is
+tracked in TODO U16.
+
+`write_installed_icons_preview` also writes
+`target/visual-audit/installed-app-identities.png`, comparing launcher icons with
+recent-app headers. These are installed icons in synthetic cards. CPU pixel
+tests verify that the original icon reaches a card, preserving aspect/alpha,
+and exact desktop IDs beat executable aliases. Check actual app IDs and icons
+in SSD titles, dock and recent apps in a live session.
+
+For packaging, build release and run `DESTDIR=/absolute/staging sh
+packaging/install.sh`. Verify the binary, Roboto weights, Material Icons,
+`codepoints` and session entry. Run the staged binary from an unrelated cwd.
+The `installed_resources_follow_xdg_and_relocated_binary_without_checkout` test
+loads fonts and canonical icon names from a temporary installation, without
+supplying checkout or system-font roots. A real graphical session after removing
+the checkout remains a separate manual check.
+
+Appearance-write regressions hold the worker behind a deterministic gate while
+queuing 1000 requests, then verify coalescing, ordering and shutdown draining.
+They also check stale results, invalid TOML preservation, retry after repair,
+and the Retry hit target in the fixed shade header at 320/1280 px while scrolling
+or viewing notifications. The error remains until the latest write succeeds.
+Run `cargo test --locked write_appearance_error_previews -- --ignored --nocapture`
+to generate four light/dark, compact/wide error previews in `target/visual-audit`.
+In a real session, deny config writes, change the theme, restore permissions and
+press Retry; then restart and verify the final preference. Repeat rapid changes
+followed immediately by normal logout. Abrupt process termination cannot drain
+an unfinished background save.
+
+`cargo test --locked measure_theme_input_preparation -- --ignored --nocapture`
+times the theme input handler with no live windows or disk writes. It does not
+measure rendering/presentation or guarantee a smooth first frame; scene assembly
+still prepares cold visible layers. The timing helper is excluded from CI.

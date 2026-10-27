@@ -44,11 +44,10 @@ impl Shell {
     pub fn launcher_placement(&self, w: f32, h: f32, progress: f32) -> CardPlacement {
         let source = launcher_card(w, h);
         if tablet_mode() && config::design().launcher.fullscreen {
-            let t = progress.clamp(0.0, 1.0);
             return CardPlacement {
                 source,
                 target: RectF {
-                    y: source.y + (h - source.y) * (1.0 - t),
+                    y: source.y + sheet_travel(progress, h - source.y),
                     ..source
                 },
             };
@@ -73,11 +72,10 @@ impl Shell {
         let design = crate::config::design();
         let source = quick_settings_rect(w, h);
         if tablet_mode() {
-            let t = progress.clamp(0.0, 1.0);
             return CardPlacement {
                 source,
                 target: RectF {
-                    y: source.y - (source.bottom() + design.shade.margin) * (1.0 - t),
+                    y: source.y - sheet_travel(progress, source.bottom() + design.shade.margin),
                     ..source
                 },
             };
@@ -128,5 +126,16 @@ fn panel_placement(source: RectF, bar_bottom: f32, progress: f32, corner: bool) 
             w: source.w * scale,
             h: source.h * scale,
         },
+    }
+}
+
+/// Preserve spring velocity through the landing, softly limiting excess travel
+/// to 16 logical pixels even on a very tall display. No hard stop at progress 1.
+fn sheet_travel(progress: f32, distance: f32) -> f32 {
+    let offset = (1.0 - progress.max(0.0)) * distance;
+    if offset < 0.0 {
+        16.0 * (offset / 16.0).tanh()
+    } else {
+        offset
     }
 }

@@ -67,7 +67,7 @@ fn occupied_drop_swaps_only_two_apps_and_failed_write_changes_nothing() {
     assert!(!s.is_on_home(&app(3)));
 }
 #[test]
-fn full_width_grid_keeps_shortcuts_reachable_after_output_resize() {
+fn bounded_grid_keeps_shortcuts_reachable_after_output_resize() {
     let mut s = Shell::new(vec![], ThemeSpec::default());
     s.set_reduce_motion(true);
     for i in 0..95 {
@@ -80,7 +80,15 @@ fn full_width_grid_keeps_shortcuts_reachable_after_output_resize() {
         (1920.0, 1080.0),
     ] {
         let layout = home_layout(w, h);
-        assert!(layout.grid.w >= w - 2.0 * config::design().home.margin_x - 0.01);
+        assert!(layout.grid.w <= config::design().home.max_width + 0.01);
+        assert!((layout.grid.x + layout.grid.w / 2.0 - w / 2.0).abs() < 0.01);
+        if layout.glance.h > 0.0 {
+            assert_eq!(
+                s.home_hit(w, h, center(layout.glance)),
+                Some(HomeHit::Calendar)
+            );
+            assert_eq!(s.home_drop_index(w, h, center(layout.glance)), None);
+        }
         let cells = s.home.cells(layout);
         let unique: std::collections::HashSet<_> = cells.values().collect();
         assert_eq!(unique.len(), cells.len());

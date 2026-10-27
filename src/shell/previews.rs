@@ -1,5 +1,166 @@
 //! Explicit visual-review artifacts; no seat, live clients or system changes.
 use super::*;
+
+#[test]
+#[ignore = "writes synthetic spring-motion videos; requires ffmpeg"]
+fn write_expressive_motion_previews() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    std::fs::create_dir_all("target/visual-audit").unwrap();
+    let mut fonts = Fonts::load().unwrap();
+    let theme = ThemeSpec::default().light();
+    let (w, h) = (640, 480);
+    let apps: Vec<_> = [
+        ("Browser", "public"),
+        ("Terminal", "terminal"),
+        ("Code", "code"),
+        ("Files", "folder"),
+        ("Music", "music_note"),
+        ("Photos", "photo"),
+        ("Mail", "mail"),
+        ("Calculator", "calculate"),
+    ]
+    .into_iter()
+    .map(|(name, icon)| AppEntry {
+        name: name.into(),
+        exec: "/bin/true".into(),
+        icon: icon.into(),
+        terminal: false,
+        desktop_file: Some(format!("/applications/{name}.desktop").into()),
+    })
+    .collect();
+    for name in ["shade", "launcher"] {
+        let mut shell = Shell::new(apps.clone(), ThemeSpec::default());
+        shell.clock = "14:32".into();
+        shell.render_wallpaper(&theme, w, h, None);
+        let wallpaper = shell.wallpapers.last().unwrap().surface.pixmap.clone();
+        let path = format!("target/visual-audit/expressive-{name}");
+        let mut encoder = Command::new("ffmpeg")
+            .args([
+                "-v",
+                "error",
+                "-f",
+                "rawvideo",
+                "-pixel_format",
+                "rgba",
+                "-video_size",
+                "640x480",
+                "-framerate",
+                "30",
+                "-i",
+                "pipe:0",
+                "-an",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "18",
+                "-pix_fmt",
+                "yuv420p",
+                "-movflags",
+                "+faststart",
+                "-y",
+            ])
+            .arg(format!("{path}.mp4"))
+            .stdin(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut input = encoder.stdin.take().unwrap();
+        let mut trajectory = String::from("frame,progress,y\n");
+        for frame_index in 0..108 {
+            // Include a reversal before closing has finished, not just a loop.
+            if matches!(frame_index, 6 | 32 | 37 | 78) {
+                let open = matches!(frame_index, 6 | 37);
+                if name == "shade" {
+                    shell.set_quick_settings_open(open);
+                } else {
+                    shell.launcher_open = open;
+                    shell.set_launcher_open(open);
+                }
+            }
+            // Integrate at display cadence, sampling every second frame for video.
+            shell.tick(1.0 / 60.0);
+            shell.tick(1.0 / 60.0);
+            let progress = if name == "shade" {
+                shell.quick_settings_progress()
+            } else {
+                shell.launcher_progress()
+            };
+            let placement = if name == "shade" {
+                shell.quick_settings_placement(w as f32, h as f32, progress)
+            } else {
+                shell.launcher_placement(w as f32, h as f32, progress)
+            };
+            trajectory.push_str(&format!(
+                "{frame_index},{progress},{}\n",
+                placement.target.y
+            ));
+            // Wallpaper textures may be taller than the output (rounded cache
+            // size); encode only the output, never the backing texture padding.
+            let mut canvas = Surface::new(w, h);
+            canvas.blit(
+                &Surface {
+                    pixmap: wallpaper.clone(),
+                },
+                SkTransform::identity(),
+                1.0,
+                None,
+            );
+            if progress > 0.001 {
+                let frame = if name == "shade" {
+                    shell.render_quick_settings(
+                        &theme,
+                        &mut fonts,
+                        w as f32,
+                        h as f32,
+                        progress,
+                        0.6,
+                        ThemeSpec::default().variant,
+                        None,
+                    )
+                } else {
+                    shell.render_launcher(&theme, &mut fonts, w as f32, h as f32, progress, None)
+                };
+                for (i, (layer, alpha)) in frame.pieces.iter().enumerate() {
+                    let size = if i == 0 {
+                        (1, 1)
+                    } else if name == "shade" || i == 1 {
+                        let surface = if name == "launcher" {
+                            &shell.launcher_layer.as_ref().unwrap().surface
+                        } else if i >= 3 {
+                            &shell.notice_layer.as_ref().unwrap().surface
+                        } else {
+                            &shell.qs_layer.as_ref().unwrap().surface
+                        };
+                        (surface.width(), surface.pixmap.height())
+                    } else if layer.source.is_some() {
+                        let side = config::design().launcher.tile_size.ceil() as u32;
+                        (side, side)
+                    } else {
+                        let surface = &shell.launcher_scrollbar.as_ref().unwrap().surface;
+                        (surface.width(), surface.pixmap.height())
+                    };
+                    paint_preview_layer(&mut canvas, layer, *alpha, size);
+                }
+            }
+            paint_preview_bars(&mut canvas, &mut shell, &mut fonts, &theme, w, h);
+            if matches!(frame_index, 10 | 16 | 28 | 34 | 40) {
+                canvas
+                    .pixmap
+                    .save_png(format!("{path}-{frame_index}.png"))
+                    .unwrap();
+            }
+            assert_eq!(canvas.pixmap.data().len(), (w * h * 4) as usize);
+            input.write_all(canvas.pixmap.data()).unwrap();
+        }
+        drop(input);
+        assert!(encoder.wait().unwrap().success());
+        std::fs::write(format!("{path}.csv"), trajectory).unwrap();
+    }
+}
+
 fn raster(mut buffer: MemoryRenderBuffer, w: u32, h: u32) -> Surface {
     let mut data = Vec::new();
     buffer
@@ -12,6 +173,55 @@ fn raster(mut buffer: MemoryRenderBuffer, w: u32, h: u32) -> Surface {
     Surface {
         pixmap: tiny_skia::Pixmap::from_vec(data, tiny_skia::IntSize::from_wh(w, h).unwrap())
             .unwrap(),
+    }
+}
+#[test]
+#[ignore = "writes appearance save-error previews for local visual review"]
+fn write_appearance_error_previews() {
+    std::fs::create_dir_all("target/visual-audit").unwrap();
+    let mut fonts = Fonts::load().unwrap();
+    for (w, h) in [(320, 640), (1280, 800)] {
+        for (name, theme) in [
+            ("light", ThemeSpec::default().light()),
+            ("dark", ThemeSpec::default().dark()),
+        ] {
+            let mut shell = Shell::new(vec![], ThemeSpec::default());
+            shell.set_reduce_motion(true);
+            shell.set_quick_settings_open(true);
+            shell.appearance_error = Some("Save permission denied".into());
+            shell.clock = "14:32".into();
+            let frame = shell.render_quick_settings(
+                &theme,
+                &mut fonts,
+                w as f32,
+                h as f32,
+                1.0,
+                0.6,
+                ThemeSpec::default().variant,
+                None,
+            );
+            let mut canvas = Surface::new(w, h);
+            canvas.clear(theme.surface);
+            for (i, (layer, alpha)) in frame.pieces.iter().enumerate() {
+                let size = if i == 0 {
+                    (1, 1)
+                } else {
+                    let surface = if i >= 3 {
+                        &shell.notice_layer.as_ref().unwrap().surface
+                    } else {
+                        &shell.qs_layer.as_ref().unwrap().surface
+                    };
+                    (surface.width(), surface.pixmap.height())
+                };
+                paint_preview_layer(&mut canvas, layer, *alpha, size);
+            }
+            canvas
+                .pixmap
+                .save_png(format!(
+                    "target/visual-audit/appearance-error-{name}-{w}.png"
+                ))
+                .unwrap();
+        }
     }
 }
 #[test]
@@ -113,6 +323,7 @@ fn write_tablet_design_previews() {
                     "target/visual-audit/materialand-tablet-{name}-{w}-home.png"
                 ))
                 .unwrap();
+            shell.set_launcher_open(true);
             let drawer = launcher_card(w as f32, h as f32);
             let drawer_pad = config::design().launcher.shadow_spread
                 + config::design().launcher.shadow_extra_padding;
@@ -144,6 +355,8 @@ fn write_tablet_design_previews() {
                     "target/visual-audit/materialand-tablet-{name}-{w}-launcher.png"
                 ))
                 .unwrap();
+            shell.set_launcher_open(false);
+            shell.set_quick_settings_open(true);
             let frame = shell.render_quick_settings(
                 &theme,
                 &mut fonts,
@@ -177,40 +390,43 @@ fn write_tablet_design_previews() {
                     "target/visual-audit/materialand-tablet-{name}-{w}-shade.png"
                 ))
                 .unwrap();
-            shell.notifications_open = true;
-            let frame = shell.render_quick_settings(
-                &theme,
-                &mut fonts,
-                w as f32,
-                h as f32,
-                1.0,
-                0.6,
-                ThemeSpec::default().variant,
-                None,
-            );
-            let mut canvas = Surface {
-                pixmap: home_canvas,
-            };
-            for (i, (layer, alpha)) in frame.pieces.iter().enumerate() {
-                let size = if i == 0 {
-                    (1, 1)
-                } else {
-                    let surface = if i >= 3 {
-                        &shell.notice_layer.as_ref().unwrap().surface
-                    } else {
-                        &shell.qs_layer.as_ref().unwrap().surface
-                    };
-                    (surface.width(), surface.pixmap.height())
+            for page in ["notifications", "style"] {
+                shell.notifications_open = page == "notifications";
+                shell.appearance_page = page == "style";
+                let frame = shell.render_quick_settings(
+                    &theme,
+                    &mut fonts,
+                    w as f32,
+                    h as f32,
+                    1.0,
+                    0.6,
+                    ThemeSpec::default().variant,
+                    None,
+                );
+                let mut canvas = Surface {
+                    pixmap: home_canvas.clone(),
                 };
-                paint_preview_layer(&mut canvas, layer, *alpha, size);
+                for (i, (layer, alpha)) in frame.pieces.iter().enumerate() {
+                    let size = if i == 0 {
+                        (1, 1)
+                    } else {
+                        let surface = if i >= 3 {
+                            &shell.notice_layer.as_ref().unwrap().surface
+                        } else {
+                            &shell.qs_layer.as_ref().unwrap().surface
+                        };
+                        (surface.width(), surface.pixmap.height())
+                    };
+                    paint_preview_layer(&mut canvas, layer, *alpha, size);
+                }
+                paint_preview_bars(&mut canvas, &mut shell, &mut fonts, &theme, w, h);
+                canvas
+                    .pixmap
+                    .save_png(format!(
+                        "target/visual-audit/materialand-tablet-{name}-{w}-{page}.png"
+                    ))
+                    .unwrap();
             }
-            paint_preview_bars(&mut canvas, &mut shell, &mut fonts, &theme, w, h);
-            canvas
-                .pixmap
-                .save_png(format!(
-                    "target/visual-audit/materialand-tablet-{name}-{w}-notifications.png"
-                ))
-                .unwrap();
         }
     }
 }
@@ -250,7 +466,7 @@ fn write_recent_preview(
         .enumerate()
     {
         let r = overview.card(w as f32, h as f32, index);
-        let mut card = super::overview::paint_recent_card(
+        let mut card = shell.paint_recent_card(
             theme,
             fonts,
             &crate::desktop::WindowMeta {
@@ -301,12 +517,32 @@ fn paint_preview_layer(canvas: &mut Surface, layer: &LayerFrame, alpha: f32, siz
     let (sx, sy) = (w / source.w, h / source.h);
     let (x, y) = (layer.loc.x as f32, layer.loc.y as f32);
     let clip = round_rect_path(x, y, w, h, 0.0);
-    canvas.blit(
-        &image,
-        SkTransform::from_scale(sx, sy).post_translate(x - source.x * sx, y - source.y * sy),
-        alpha,
-        Some(&clip),
-    );
+    // CPU reference for the same screen-space GPU contour. Keep the crop and
+    // corner masks independent so scrolled content cannot refill the corners.
+    if let Some(round) = layer.rounded {
+        let mut piece = Surface::new(canvas.width(), canvas.pixmap.height());
+        piece.blit(
+            &image,
+            SkTransform::from_scale(sx, sy).post_translate(x - source.x * sx, y - source.y * sy),
+            alpha,
+            Some(&clip),
+        );
+        let contour = round_rect_path(
+            round.rect.x,
+            round.rect.y,
+            round.rect.w,
+            round.rect.h,
+            round.radius,
+        );
+        canvas.blit(&piece, SkTransform::identity(), 1.0, Some(&contour));
+    } else {
+        canvas.blit(
+            &image,
+            SkTransform::from_scale(sx, sy).post_translate(x - source.x * sx, y - source.y * sy),
+            alpha,
+            Some(&clip),
+        );
+    }
 }
 
 fn paint_preview_bars(
@@ -350,6 +586,8 @@ fn write_installed_icons_preview() {
         }
     }
     let mut shell = Shell::new(selected, ThemeSpec::default());
+    shell.set_reduce_motion(true);
+    shell.set_launcher_open(true);
     let loaded = shell
         .apps
         .iter()
@@ -399,5 +637,27 @@ fn write_installed_icons_preview() {
     canvas
         .pixmap
         .save_png("target/visual-audit/installed-app-icons.png")
+        .unwrap();
+    let mut identities = Surface::new(1280, 800);
+    identities.clear(theme.surface);
+    for (index, app) in shell.apps.iter().take(8).enumerate() {
+        let meta = crate::desktop::WindowMeta {
+            title: app.name.clone(),
+            app_id: app
+                .desktop_file
+                .as_ref()
+                .and_then(|p| p.file_stem())
+                .map(|id| id.to_string_lossy().into_owned())
+                .unwrap_or_else(|| app.name.clone()),
+        };
+        let x = 20.0 + (index % 4) as f32 * 315.0;
+        let y = 20.0 + (index / 4) as f32 * 390.0;
+        shell.draw_launcher_tile(&mut identities, &mut fonts, &theme, app, x, y, 1.0);
+        let card = shell.paint_recent_card(&theme, &mut fonts, &meta, (280.0, 160.0), false, false);
+        identities.blit(&card, SkTransform::from_translate(x, y + 130.0), 1.0, None);
+    }
+    identities
+        .pixmap
+        .save_png("target/visual-audit/installed-app-identities.png")
         .unwrap();
 }

@@ -19,7 +19,9 @@ const BTN_LEFT: u32 = 0x110;
 
 mod keyboard;
 pub(crate) use keyboard::*;
+mod decorations;
 mod pointer;
+pub(crate) use decorations::update_hover as update_decoration_hover;
 pub(crate) use pointer::*;
 mod grab;
 use grab::*;

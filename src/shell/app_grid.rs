@@ -77,6 +77,7 @@ impl LayerFrame {
         };
         let target = placement.map_rect(crop);
         Some(Self {
+            rounded: None,
             buffer,
             source: Some(RectF {
                 x: x - tile.x,

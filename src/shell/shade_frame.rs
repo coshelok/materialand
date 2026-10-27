@@ -36,9 +36,11 @@ impl Shell {
             .f32(full.h)
             .str(&self.clock)
             .str(&self.calendar.now.date_text())
+            .str(self.appearance_error.as_deref().unwrap_or(""))
             .str(&format!("{:?}", self.system_status))
             .u64(self.notifications.revision)
             .bool(self.notifications_open)
+            .bool(self.appearance_page)
             .str(&format!("{:?}", self.connection_page))
             .str(variant.name())
             .f32(brightness)
@@ -65,12 +67,16 @@ impl Shell {
                 buffer,
             });
         }
-        if !self.shade_backdrop.select(theme.cache_key()) {
+        let backdrop_key = KeyHash::new()
+            .u64(theme.cache_key())
+            .str("shade scrim")
+            .finish();
+        if !self.shade_backdrop.select(backdrop_key) {
             let mut surface = Surface::new(1, 1);
-            surface.clear(theme.surface_container_low);
+            surface.clear(theme.scrim);
             let buffer = surface.to_memory_buffer();
             self.shade_backdrop.store(CachedLayer {
-                key: theme.cache_key(),
+                key: backdrop_key,
                 surface,
                 buffer,
             });
@@ -80,9 +86,9 @@ impl Shell {
         let alpha = 1.0;
         let mut frame = OverlayFrame::single(
             self.shade_backdrop.as_ref().unwrap().buffer.clone(),
-            (0.0, f64::from(target.y)).into(),
-            Some((w.ceil() as i32, rect.h.ceil() as i32).into()),
-            alpha,
+            (0.0, 0.0).into(),
+            Some((w.ceil() as i32, h.ceil() as i32).into()),
+            progress.clamp(0.0, 1.0) * config::design().launcher.scrim_alpha,
         );
         // Notifications keep their Clear all row fixed too.
         let header = (quick_tiles_top()
@@ -108,6 +114,10 @@ impl Shell {
             });
             frame.pieces.push((
                 LayerFrame {
+                    rounded: Some(RoundedClip {
+                        rect: target,
+                        radius: sheet_radius(),
+                    }),
                     buffer: self.qs_layer.as_ref().unwrap().buffer.clone(),
                     source: Some(RectF {
                         x: pad,
@@ -189,6 +199,13 @@ impl Shell {
             }
             frame.pieces.push((
                 LayerFrame {
+                    rounded: Some(RoundedClip {
+                        rect: RectF {
+                            y: rect.y + dy,
+                            ..rect
+                        },
+                        radius: sheet_radius(),
+                    }),
                     buffer: self.notice_layer.as_ref().unwrap().buffer.clone(),
                     source: Some(RectF {
                         x: 0.0,

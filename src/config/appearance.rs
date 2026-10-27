@@ -14,10 +14,12 @@ pub struct Appearance {
     pub variant: ColorVariant,
     pub reduce_motion: bool,
 }
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct AppearanceStore {
     path: Option<PathBuf>,
 }
+mod worker;
+pub use worker::AppearanceWriter;
 impl AppearanceStore {
     pub fn at(path: Option<PathBuf>) -> Self {
         Self { path }

@@ -28,7 +28,7 @@ pub(super) fn launch_or_focus(
             window,
             app: Some(known),
             ..
-        } if known.identity() == app.identity() && !state.shell.is_closing(&window) => Some(window),
+        } if known.identity() == app.identity() => Some(window),
         _ => None,
     });
     if let Some(window) = existing {

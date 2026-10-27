@@ -320,31 +320,72 @@ fn launcher_columns_positive() {
 }
 
 #[test]
-fn fullscreen_drawer_preserves_content_shape_and_lands_without_a_gap() {
-    let mut shell = Shell::new(vec![], ThemeSpec::default());
-    shell.launcher_open = true;
-    shell.set_launcher_open(true);
-    let rect = launcher_card(1280.0, 800.0);
-    let mut previous = 800.0;
-    for _ in 0..240 {
-        shell.tick(1.0 / 144.0);
-        let placement = shell.launcher_placement(1280.0, 800.0, shell.launcher_progress());
-        assert_eq!(placement.target.w, rect.w);
-        assert_eq!(placement.target.h, rect.h);
-        assert!(placement.target.y >= rect.y);
-        assert!(placement.target.y <= previous);
-        previous = placement.target.y;
-        let icon = RectF {
-            x: 100.0,
-            y: 180.0,
-            w: 56.0,
-            h: 56.0,
-        };
-        let drawn = placement.map_rect(icon);
-        let point = placement.unmap(pt(f64::from(drawn.x + 28.0), f64::from(drawn.y + 28.0)));
-        assert!((point.x - 128.0).abs() < 0.001 && (point.y - 208.0).abs() < 0.001);
+fn sheets_rebound_preserve_content_shape_and_reverse_without_a_jump() {
+    for (w, h) in [(320.0, 640.0), (1280.0, 800.0), (3840.0, 2160.0)] {
+        let mut shell = Shell::new(vec![], ThemeSpec::default());
+        shell.launcher_open = true;
+        shell.set_launcher_open(true);
+        shell.set_quick_settings_open(true);
+        let mut launcher_peak = 0.0_f32;
+        let mut shade_peak = 0.0_f32;
+        for _ in 0..240 {
+            shell.tick(1.0 / 144.0);
+            for placement in [
+                shell.launcher_placement(w, h, shell.launcher_progress()),
+                shell.quick_settings_placement(w, h, shell.quick_settings_progress()),
+            ] {
+                assert_eq!(placement.target.w, placement.source.w);
+                assert_eq!(placement.target.h, placement.source.h);
+                let icon = RectF {
+                    x: 100.0,
+                    y: 180.0,
+                    w: 56.0,
+                    h: 56.0,
+                };
+                let drawn = placement.map_rect(icon);
+                let point =
+                    placement.unmap(pt(f64::from(drawn.x + 28.0), f64::from(drawn.y + 28.0)));
+                assert!((point.x - 128.0).abs() < 0.001 && (point.y - 208.0).abs() < 0.001);
+            }
+            launcher_peak = launcher_peak.max(
+                launcher_card(w, h).y
+                    - shell
+                        .launcher_placement(w, h, shell.launcher_progress())
+                        .target
+                        .y,
+            );
+            shade_peak = shade_peak.max(
+                shell
+                    .quick_settings_placement(w, h, shell.quick_settings_progress())
+                    .target
+                    .y
+                    - quick_settings_rect(w, h).y,
+            );
+        }
+        assert!(
+            launcher_peak > 3.0 && launcher_peak <= 16.01,
+            "drawer rebound {launcher_peak}"
+        );
+        assert!(
+            shade_peak > 3.0 && shade_peak <= 16.01,
+            "shade rebound {shade_peak}"
+        );
+        assert_eq!(shell.launcher_progress(), 1.0);
+        assert_eq!(shell.quick_settings_progress(), 1.0);
+        shell.set_quick_settings_open(false);
+        shell.tick(0.1);
+        let before = shell.quick_settings_progress();
+        shell.set_quick_settings_open(true);
+        assert_eq!(
+            shell.quick_settings_progress(),
+            before,
+            "retargeting must not reset position"
+        );
+        shell.set_reduce_motion(true);
+        assert_eq!(shell.quick_settings_progress(), 1.0);
+        shell.set_quick_settings_open(false);
+        assert_eq!(shell.quick_settings_progress(), 0.0);
     }
-    assert!((previous - rect.y).abs() < 0.001);
 }
 
 #[test]

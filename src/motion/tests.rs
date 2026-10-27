@@ -130,7 +130,9 @@ fn spring_trajectory_is_independent_of_refresh_and_frame_partitioning() {
         advance(&mut reference, 0.17, 240.0);
         reference.set_target(-40.0);
         advance(&mut reference, 0.23, 240.0);
-        for hz in [30.0, 59.94, 60.0, 90.0, 120.0, 144.0, 165.0, 360.0] {
+        for hz in [
+            10.0, 15.0, 30.0, 59.94, 60.0, 90.0, 120.0, 144.0, 165.0, 360.0,
+        ] {
             let mut actual = Spring::at(0.0, 300.0, damping);
             actual.set_target(100.0);
             advance(&mut actual, 0.17, hz);
@@ -141,5 +143,19 @@ fn spring_trajectory_is_independent_of_refresh_and_frame_partitioning() {
                 "different trajectory at {hz} Hz, damping {damping}"
             );
         }
+    }
+}
+
+#[test]
+fn analytic_spring_handles_stalls_and_invalid_steps_without_poisoning_state() {
+    for damping in [0.68, 1.0, 1.4] {
+        let mut spring = Spring::at(0.0, 300.0, damping);
+        spring.set_target(1.0);
+        for dt in [f32::NAN, f32::INFINITY, -1.0, 0.0] {
+            assert!(spring.step(dt));
+            assert_eq!(spring.value(), 0.0);
+        }
+        assert!(!spring.step(60.0));
+        assert_eq!(spring.value(), 1.0);
     }
 }

@@ -11,10 +11,6 @@ pub(super) fn validate(d: &Design, doc: &DocumentMut) -> io::Result<()> {
             Err(invalid(message))
         }
     }
-    require(
-        d.motion.sheet_damping >= 1.0,
-        "motion.sheet_damping must be at least 1 to keep fullscreen sheet edges covered",
-    )?;
     require(d.schema_version == 1, "unsupported design schema_version")?;
     require(
         (2.0..=30.0).contains(&d.input.touchpad.scroll_friction)

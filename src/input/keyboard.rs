@@ -11,14 +11,24 @@ pub fn on_keyboard<B: InputBackend, E: KeyboardKeyEvent<B>>(state: &mut State, e
         state.launcher_swipe = Default::default();
     }
     let code = event.key_code();
+    let mut forwarded = false;
     keyboard.input::<(), _>(
         state,
         event.key_code(),
         event.state(),
         serial,
         time,
-        |state, mods, handle| on_key(state, mods, handle, pressed, code),
+        |state, mods, handle| {
+            let result = on_key(state, mods, handle, pressed, code);
+            forwarded = matches!(result, FilterResult::Forward);
+            result
+        },
     );
+    if forwarded {
+        if let Some(surface) = keyboard.current_focus() {
+            state.record_activation_input(serial, &surface);
+        }
+    }
 }
 
 pub(super) fn on_key(
@@ -218,7 +228,8 @@ pub(super) fn on_key(
     if state.shell.quick_settings_open && sym == Keysym::Escape {
         state.swallowed_keys.insert(code);
         if std::mem::take(&mut state.shell.notifications_open)
-            || state.shell.connection_page.take().is_some()
+            | state.shell.connection_page.take().is_some()
+            | std::mem::take(&mut state.shell.appearance_page)
         {
             state.shell.reset_shade_scroll();
         } else {

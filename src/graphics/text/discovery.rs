@@ -6,6 +6,12 @@ pub(super) fn font_search_roots() -> Vec<PathBuf> {
     if !directory.is_empty() {
         roots.push(PathBuf::from(directory));
     }
+    roots.extend(installed_font_roots(
+        std::env::current_exe().ok().as_deref(),
+        std::env::var_os("XDG_DATA_HOME").as_deref().map(Path::new),
+        std::env::var_os("HOME").as_deref().map(Path::new),
+        std::env::var_os("XDG_DATA_DIRS").as_deref(),
+    ));
     roots.push(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/fonts"));
     roots.push(PathBuf::from("assets/fonts"));
     if let Some(home) = std::env::var_os("HOME") {
@@ -28,10 +34,39 @@ pub(super) fn font_search_roots() -> Vec<PathBuf> {
     roots
 }
 
-pub(super) fn find_file(names: &[&str]) -> Option<PathBuf> {
-    let roots = font_search_roots();
+fn installed_font_roots(
+    executable: Option<&Path>,
+    data_home: Option<&Path>,
+    home: Option<&Path>,
+    data_dirs: Option<&std::ffi::OsStr>,
+) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(data) = data_home
+        .filter(|p| p.is_absolute())
+        .map(Path::to_path_buf)
+        .or_else(|| home.map(|p| p.join(".local/share")))
+    {
+        roots.push(data.join("materialand/fonts"));
+    }
+    // Support staged/custom prefixes and moving a complete installation.
+    if let Some(prefix) = executable.and_then(Path::parent).and_then(Path::parent) {
+        roots.push(prefix.join("share/materialand/fonts"));
+    }
+    for dir in std::env::split_paths(
+        data_dirs
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| std::ffi::OsStr::new("/usr/local/share:/usr/share")),
+    ) {
+        if dir.is_absolute() {
+            roots.push(dir.join("materialand/fonts"));
+        }
+    }
+    roots
+}
+
+pub(super) fn find_file(roots: &[PathBuf], names: &[&str]) -> Option<PathBuf> {
     // Fast path for the customary font directory layout.
-    for root in &roots {
+    for root in roots {
         for name in names {
             let candidate = root.join(name);
             if candidate.is_file() {
@@ -64,7 +99,7 @@ pub(super) fn find_file(names: &[&str]) -> Option<PathBuf> {
     }
     for root in roots {
         if root.is_dir() {
-            if let Some(found) = walk(&root, names, 0) {
+            if let Some(found) = walk(root, names, 0) {
                 return Some(found);
             }
         }
@@ -139,4 +174,70 @@ pub(super) fn parse_codepoints(path: &Path) -> HashMap<String, char> {
         }
     }
     map
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn installed_resources_follow_xdg_and_relocated_binary_without_checkout() {
+        let stage =
+            std::env::temp_dir().join(format!("materialand-font-install-{}", std::process::id()));
+        let executable = stage.join("opt/materialand/bin/materialand");
+        let font_dir = stage.join("opt/materialand/share/materialand/fonts");
+        std::fs::create_dir_all(&font_dir).unwrap();
+        for file in [
+            "Roboto-Regular.ttf",
+            "Roboto-Medium.ttf",
+            "Roboto-Bold.ttf",
+            "MaterialIcons-Regular.ttf",
+            "codepoints",
+        ] {
+            std::fs::copy(
+                Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("assets/fonts")
+                    .join(file),
+                font_dir.join(file),
+            )
+            .unwrap();
+        }
+        // No source tree or system-font paths are supplied to the loader.
+        let roots = installed_font_roots(
+            Some(&executable),
+            None,
+            None,
+            Some(std::ffi::OsStr::new("relative-ignored")),
+        );
+        assert_eq!(roots, vec![font_dir]);
+        let fonts = Fonts::load_from_roots(&roots).unwrap();
+        assert_eq!(fonts.icon_codepoints.get("wifi"), Some(&'\u{e63e}'));
+        assert_eq!(fonts.icon_codepoints.get("splitscreen"), Some(&'\u{f06d}'));
+        std::fs::remove_dir_all(stage).unwrap();
+
+        let roots = installed_font_roots(
+            None,
+            Some(Path::new("/custom/data")),
+            Some(Path::new("/user")),
+            Some(std::ffi::OsStr::new("/opt/data:relative:/usr/share")),
+        );
+        assert_eq!(
+            roots,
+            vec![
+                PathBuf::from("/custom/data/materialand/fonts"),
+                PathBuf::from("/opt/data/materialand/fonts"),
+                PathBuf::from("/usr/share/materialand/fonts")
+            ]
+        );
+        let roots = installed_font_roots(
+            None,
+            Some(Path::new("relative")),
+            Some(Path::new("/user")),
+            None,
+        );
+        assert_eq!(
+            roots[0],
+            PathBuf::from("/user/.local/share/materialand/fonts")
+        );
+    }
 }

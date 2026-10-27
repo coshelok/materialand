@@ -4,10 +4,10 @@ pub fn launcher_card(win_w: f32, win_h: f32) -> RectF {
     let design = crate::config::design();
     if tablet_mode() && design.launcher.fullscreen {
         return RectF {
-            x: 0.0,
-            y: top_inset(),
-            w: win_w.max(1.0),
-            h: (win_h - top_inset() - bottom_inset()).max(1.0),
+            x: sheet_inset(win_w),
+            y: top_inset() + sheet_inset(win_w),
+            w: (win_w - 2.0 * sheet_inset(win_w)).max(1.0),
+            h: (win_h - top_inset() - bottom_inset() - 2.0 * sheet_inset(win_w)).max(1.0),
         };
     }
     let available_w = (win_w - 2.0 * design.launcher.margin_x).max(1.0);
@@ -37,7 +37,7 @@ pub fn launcher_card(win_w: f32, win_h: f32) -> RectF {
 pub fn search_rect(win_w: f32, win_h: f32) -> RectF {
     let design = crate::config::design();
     let card = launcher_card(win_w, win_h);
-    let width = (card.w - 2.0 * design.launcher.search_inset_x).max(1.0);
+    let width = (card.w.min(design.launcher.width) - 2.0 * design.launcher.search_inset_x).max(1.0);
     RectF {
         x: card.x + (card.w - width) / 2.0,
         y: card.y + design.launcher.search_inset_y,
@@ -48,7 +48,8 @@ pub fn search_rect(win_w: f32, win_h: f32) -> RectF {
 
 pub fn launcher_columns(card_w: f32) -> usize {
     let design = crate::config::design();
-    let usable = card_w - 2.0 * design.launcher.grid_padding + design.launcher.grid_gap;
+    let usable = card_w.min(design.launcher.width) - 2.0 * design.launcher.grid_padding
+        + design.launcher.grid_gap;
     ((usable / (design.launcher.tile_size + design.launcher.grid_gap)).floor() as usize)
         .max(1)
         .min(design.launcher.max_columns)
@@ -59,7 +60,7 @@ pub fn launcher_grid_origin(win_w: f32, win_h: f32) -> (f32, f32, f32) {
     let card = launcher_card(win_w, win_h);
     let cols = launcher_columns(card.w);
     let pitch = if tablet_mode() && d.launcher.fullscreen {
-        (card.w - 2.0 * d.launcher.grid_padding).max(1.0) / cols as f32
+        (card.w.min(d.launcher.width) - 2.0 * d.launcher.grid_padding).max(1.0) / cols as f32
     } else {
         d.launcher.tile_size + d.launcher.grid_gap
     };
@@ -84,9 +85,11 @@ pub fn launcher_viewport(w: f32, h: f32) -> RectF {
     let card = launcher_card(w, h);
     let (_, y, _) = launcher_grid_origin(w, h);
     RectF {
-        x: card.x + design.launcher.grid_padding,
+        x: card.x
+            + (card.w - card.w.min(design.launcher.width)) / 2.0
+            + design.launcher.grid_padding,
         y,
-        w: card.w - 2.0 * design.launcher.grid_padding,
+        w: (card.w.min(design.launcher.width) - 2.0 * design.launcher.grid_padding).max(1.0),
         h: (card.bottom() - design.launcher.bottom_padding - y).max(1.0),
     }
 }
@@ -106,7 +109,7 @@ pub fn launcher_hit(
 ) -> LauncherHit {
     let design = crate::config::design();
     let card = launcher_card(w, h);
-    if !card.contains(pos) {
+    if !card.contains_rounded(pos, sheet_radius()) {
         return LauncherHit::Scrim;
     }
     if search_rect(w, h).contains(pos) {

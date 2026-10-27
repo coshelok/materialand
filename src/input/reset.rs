@@ -3,6 +3,7 @@ use super::*;
 // Shell entry must release a client's pointer grab without re-entering the
 // keyboard filter that may have requested the overlay.
 pub(crate) fn prepare_shell_overlay(state: &mut State) {
+    state.clear_activation_input();
     super::touchpad_scroll::interrupt(state);
     state.overview.cancel_press(state.shell.reduce_motion);
     super::shortcut_drag::cancel(state);
@@ -39,9 +40,13 @@ pub(crate) fn prepare_shell_overlay(state: &mut State) {
     );
     pointer.frame(state);
     state.last_interactive_press = None;
+    // A release belonging to the old layer must not dismiss the new launcher
+    // through its background/scrim fallback after cancel_presses cleared its owner.
+    state.shell.consume_menu_release |= state.swallowed_buttons.contains(&BTN_LEFT);
     state.shell.cancel_presses();
 }
 pub fn cancel(state: &mut State) {
+    state.clear_activation_input();
     state.super_tap = Default::default();
     super::stop_touchpad_scroll(state);
     state.overview.cancel_press(state.shell.reduce_motion);
@@ -88,6 +93,7 @@ pub fn cancel(state: &mut State) {
     pointer.frame(state);
     state.swallowed_keys.clear();
     state.swallowed_buttons.clear();
+    state.shell.consume_menu_release = false;
     state.last_interactive_press = None;
     state.shell.cancel_presses();
     state.shell.close_app_menu();

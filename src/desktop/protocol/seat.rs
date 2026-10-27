@@ -12,6 +12,7 @@ impl SeatHandler for State {
         &mut self.seat_state
     }
     fn focus_changed(&mut self, seat: &Seat<Self>, focused: Option<&WlSurface>) {
+        self.clear_activation_input();
         use smithay::reexports::wayland_server::Resource;
         let client = focused.and_then(|surface| self.display_handle.get_client(surface.id()).ok());
         smithay::wayland::selection::data_device::set_data_device_focus(

@@ -33,11 +33,16 @@ Use `./target/release/materialand --check` to inspect DRM connectors before laun
 Run from the repository root after building:
 
 ```sh
-sudo install -Dm755 target/release/materialand /usr/local/bin/materialand
-sudo install -Dm644 packaging/materialand.desktop /usr/share/wayland-sessions/materialand.desktop
+sudo sh packaging/install.sh
 ```
 
-Select **Materialand** in SDDM. After rebuilding, reinstall the binary to update the installed session.
+This installs the binary into `/usr/local/bin`, its fonts and icon mapping into
+`/usr/local/share/materialand/fonts`, and the session entry into
+`/usr/share/wayland-sessions`. Select **Materialand** in SDDM. After rebuilding,
+run the installer again. The installed session does not require the source checkout.
+Packagers can set `PREFIX`, `SESSIONDIR` and `DESTDIR` (all absolute paths);
+`DESTDIR` stages files without changing their runtime paths. A custom binary prefix
+must be on the display manager's PATH.
 
 ## Controls
 
@@ -72,13 +77,13 @@ Right-click an app to add/remove its home shortcut. Drag an icon to any free cel
 
 Wi-Fi and Bluetooth tiles show actual service state. Click a tile to toggle the radio; its chevron opens available Wi-Fi networks or paired Bluetooth devices. The shade also shows battery percentage and charging state. On wide outputs, quick settings and notifications sit side by side with independent scrolling. On compact outputs, the status-strip bell opens the notification page. Notifications support individual dismissal and Clear all. See [System controls](docs/SYSTEM_CONTROLS.md) for dependencies and connection setup.
 
-App icons come from the `Icon` field of installed `.desktop` entries, including absolute paths and installed icon themes. Home and launcher share these images; missing or unreadable icons retain their Material fallback. PNG and SVG decode directly at startup and are cached, so scrolling and animations do not reload image files. Legacy image formats use GdkPixbuf.
+App icons come from the `Icon` field of installed `.desktop` entries, including absolute paths and installed icon themes. Home, launcher, dock, server-side titlebars and recent apps share these images; missing or unreadable icons retain their Material fallback. PNG and SVG decode directly at startup and are cached, so scrolling and animations do not reload image files. Legacy image formats use GdkPixbuf.
 
 ## Configuration
 
 Appearance, layout, typography and animation settings live in `~/.config/materialand/config.toml`, or under `$XDG_CONFIG_HOME/materialand/`. A complete file with comments explaining every parameter is created on first launch; `materialand --init-config` creates it without starting a session. Saved theme and palette choices migrate automatically.
 
-Edit the file and restart the session to apply design changes. Quick settings save theme, palette and reduced motion immediately, preserving comments and other settings. Set `[input.touchpad] invert_scroll = true` to reverse touchpad scrolling. Use `materialand --check-config` to validate edits. See [Design configuration](docs/DESIGN.md) and the commented [default configuration](config/default.toml).
+Edit the file and restart the session to apply design changes. Quick settings apply theme, palette and reduced motion immediately and save them in the background, preserving comments and other settings. Rapid changes keep the latest choice; normal session shutdown waits for its write. A failed save appears in the shade header with Retry. Repair an invalid config before retrying; it is never silently replaced. Set `[input.touchpad] invert_scroll = true` to reverse touchpad scrolling. Use `materialand --check-config` to validate edits. See [Design configuration](docs/DESIGN.md) and the commented [default configuration](config/default.toml).
 
 Set `[navigation] mode = "desktop"` to restore the topbar and application dock, including its separate pin menu. Home shortcuts and dock pins persist separately in the same directory. [Configuration](docs/CONFIGURATION.md) covers keyboard and display options.
 

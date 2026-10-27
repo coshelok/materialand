@@ -31,8 +31,8 @@ ripple = 0.12  # Touch/click ripple opacity.
 
 # Spring stiffness: higher = faster. Damping ratio: lower = bouncier, 1 = no oscillation.
 [motion]
-sheet_stiffness = 300.0  # Full-screen drawer/shade spring; independent from bouncing cards.
-sheet_damping = 1.0  # At least 1: full-screen edges land without bouncing open a gap.
+sheet_stiffness = 380.0  # Drawer/shade spring; higher values give a faster arrival.
+sheet_damping = 0.72  # Soft rebound; screen-space overshoot is bounded independently.
 spatial_stiffness = 420.0  # Spring stiffness for panels, dock resizing and home-page changes.
 spatial_damping = 0.68  # Damping ratio for spatial motion.
 responsive_stiffness = 850.0  # Spring stiffness for press feedback.
@@ -50,7 +50,7 @@ settings_initial_scale = 0.82  # Initial quick-settings panel scale relative to 
 window_initial_scale = 0.86  # Initial window scale when no launch icon is available.
 window_initial_alpha = 0.06  # Initial opacity of a newly opening window, 0..1.
 window_alpha_gain = 1.8  # Opacity increase per unit of opening progress; final opacity is capped at 1.
-window_close_shrink = 0.06  # Fraction of window size lost while minimizing/closing.
+window_close_shrink = 0.06  # Legacy key retained for compatibility; close requests keep live windows visible.
 home_offset = 18.0  # Home content's initial vertical reveal offset in pixels.
 calendar_offset = 14.0  # Calendar's initial vertical reveal offset in pixels.
 press_scale = 0.9  # Scale at full press; 0.9 shrinks a control to 90%.
@@ -196,7 +196,7 @@ page_dot_gap = 12.0  # Distance between home-page indicator centers in logical p
 top_gap = 12.0  # Gap below the topbar area.
 bottom_gap = 16.0  # Gap above the dock area.
 margin_x = 24.0  # Minimum horizontal screen margin.
-max_width = 1120.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
+max_width = 1120.0  # Maximum centered home workspace width.
 compact_threshold = 430.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 hero_height = 224.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.
 compact_hero_height = 96.0  # Legacy key accepted for config compatibility; unused by the cell-based workspace.

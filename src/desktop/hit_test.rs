@@ -16,7 +16,7 @@ pub enum WindowHit {
 impl State {
     pub fn window_under(&self, point: Point<f64, Logical>) -> Option<WindowHit> {
         for window in self.windows.space.elements().rev() {
-            if !self.window_has_content(window) || self.shell.is_closing(window) {
+            if !self.window_has_content(window) {
                 continue;
             }
             let split_pose = self
@@ -30,10 +30,20 @@ impl State {
             });
             if self.shell.is_opening(window) || split_transforming {
                 if self.window_frame_rect(window).is_some_and(|frame| {
-                    split_pose
-                        .unwrap_or_else(|| self.shell.window_presentation(window, frame))
-                        .target
-                        .contains(point)
+                    let pose =
+                        split_pose.unwrap_or_else(|| self.shell.window_presentation(window, frame));
+                    // The rendered group includes popup/subsurface/CSD pixels
+                    // outside the frame. Consume their clicks during motion too;
+                    // otherwise they reach an unrelated window underneath.
+                    pose.target.contains(point)
+                        || pose.source_point(point).is_some_and(|source| {
+                            window
+                                .surface_under(
+                                    self.surface_space(window).local(source),
+                                    WindowSurfaceType::ALL,
+                                )
+                                .is_some()
+                        })
                 }) {
                     return Some(WindowHit::Opening(window.clone()));
                 }
