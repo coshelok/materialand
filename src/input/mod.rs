@@ -47,7 +47,7 @@ pub(crate) use home::show_home;
 use home::{launch_or_focus, launcher_launch_origin};
 
 mod gestures;
-pub(crate) use gestures::{swipe_begin, swipe_end, LauncherSwipe};
+pub(crate) use gestures::{cancel_swipe, swipe_begin, swipe_end, swipe_update, LauncherSwipe};
 
 mod navigation;
 

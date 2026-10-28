@@ -6,6 +6,7 @@ use smithay::{
 };
 pub fn on_pointer_axis<B: InputBackend>(state: &mut State, event: B::PointerAxisEvent) {
     state.super_tap.cancel();
+    super::cancel_swipe(state);
     let invert = crate::config::design().input.touchpad.invert_scroll;
     if event.source() == AxisSource::Finger {
         let sign = scroll_sign(event.source(), invert);

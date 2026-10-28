@@ -138,6 +138,7 @@ impl Shell {
                     .pieces,
             );
         }
+        self.reveal_shade_frame(&mut frame, theme, w, h, progress);
         frame
     }
 

@@ -71,6 +71,13 @@ impl Shell {
     pub fn quick_settings_placement(&self, w: f32, h: f32, progress: f32) -> CardPlacement {
         let design = crate::config::design();
         let source = quick_settings_rect(w, h);
+        if tablet_mode() && design.shade.fullscreen {
+            // Content stays at native size; the contour expands downward over it.
+            return CardPlacement {
+                source,
+                target: source,
+            };
+        }
         if tablet_mode() {
             return CardPlacement {
                 source,
@@ -109,6 +116,19 @@ impl Shell {
 
     pub fn power_placement(&self, w: f32, progress: f32) -> CardPlacement {
         panel_placement(power_menu_rect(w), topbar_rect(w).bottom(), progress, true)
+    }
+}
+
+/// Shared by drawing and hit testing: reveal the top of the shade first.
+pub fn shade_contour(w: f32, h: f32, progress: f32, notifications: bool) -> RectF {
+    let rect = if notifications {
+        notification_panel(w, h)
+    } else {
+        quick_settings_rect(w, h)
+    };
+    RectF {
+        h: (rect.h - sheet_travel(progress, rect.h)).max(0.0),
+        ..rect
     }
 }
 

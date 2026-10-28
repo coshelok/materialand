@@ -458,7 +458,7 @@ drag_lock = true  # Allow lifting and repositioning a finger during tap-and-drag
 disable_while_typing = true  # Suppress accidental touchpad input while typing, when supported.
 kinetic_scroll = true  # Let shell lists coast after a two-finger scroll; a new touch stops them.
 scroll_friction = 9.0  # Inertia decay per second, 2..30; larger values stop sooner.
-swipe_distance = 70.0  # Minimum gesture travel in logical input units, 20..300; also used for home page swipes.
+swipe_distance = 70.0  # Panel midpoint travel in input units, 20..300; full travel is twice this. Also the home/reduced-motion swipe threshold.
 invert_scroll = false  # true reverses both scroll axes; false keeps the original direction. Three-finger gestures are unchanged.
 
 # Laptop controls with an Android-style shell. "desktop" restores the topbar and app dock.

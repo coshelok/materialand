@@ -67,6 +67,18 @@ impl Default for Overview {
     }
 }
 impl Overview {
+    pub fn drag_progress(&mut self, progress: f32) {
+        self.progress.snap(progress);
+    }
+    pub fn release_gesture(&mut self, open: bool, velocity: f32, reduced: bool) {
+        self.open = open;
+        self.progress.set_target(if open { 1.0 } else { 0.0 });
+        if reduced {
+            self.progress.finish();
+        } else {
+            self.progress.set_velocity(velocity);
+        }
+    }
     pub fn visible(&self) -> bool {
         self.open || !self.progress.settled()
     }

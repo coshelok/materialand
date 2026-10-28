@@ -2,6 +2,26 @@
 use super::*;
 
 impl Shell {
+    /// During a drag, the pointer owns progress; idle ticks must not move it.
+    pub fn drag_launcher(&mut self, progress: f32) {
+        self.launcher.snap(progress);
+    }
+    pub fn drag_shade(&mut self, progress: f32) {
+        self.quick_settings.snap(progress);
+    }
+    pub fn release_launcher_drag(&mut self, open: bool, velocity: f32) {
+        self.launcher_open = open;
+        self.set_launcher_open(open);
+        if !self.reduce_motion {
+            self.launcher.set_velocity(velocity);
+        }
+    }
+    pub fn release_shade_drag(&mut self, open: bool, velocity: f32) {
+        self.set_quick_settings_open(open);
+        if !self.reduce_motion {
+            self.quick_settings.set_velocity(velocity);
+        }
+    }
     pub fn theme_fade(&self) -> Option<(Theme, f32)> {
         match &self.prev_theme {
             Some(prev) if !self.theme_mix.is_done() => Some((*prev, self.theme_mix.value())),

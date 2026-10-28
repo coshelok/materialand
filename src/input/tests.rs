@@ -182,7 +182,7 @@ fn navigation_actions_and_gestures_select_distinct_layers() {
     let swipe = |state: &mut State, fingers, dy| {
         swipe_begin(state, "pad".into(), fingers);
         state.launcher_swipe.update("pad", 0.0, dy);
-        swipe_end(state, "pad", false);
+        swipe_end(state, "pad", false, 100);
     };
     swipe(&mut state, 4, 100.0); // Overview owns the downward dismissal.
     assert!(!state.overview.open && !state.shell.quick_settings_open);
@@ -205,6 +205,125 @@ fn navigation_actions_and_gestures_select_distinct_layers() {
     assert!(state.shell.launcher_open && !state.overview.open);
     swipe(&mut state, 3, 100.0);
     assert!(!state.shell.launcher_open);
+}
+
+#[test]
+fn swipes_track_hold_reverse_and_cancel_without_switching_panels() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(false);
+    swipe_begin(&mut state, "pad".into(), 3);
+    swipe_update(&mut state, "pad", 0.0, 35.0, 10);
+    assert!(state.shell.quick_settings_open);
+    let held = state.shell.quick_settings_progress();
+    assert!((held - 0.25).abs() < 0.001);
+    state.shell.tick(0.5);
+    assert_eq!(
+        state.shell.quick_settings_progress(),
+        held,
+        "holding must not auto-complete"
+    );
+    swipe_begin(&mut state, "other".into(), 4);
+    swipe_update(&mut state, "other", 0.0, -100.0, 20);
+    swipe_end(&mut state, "other", false, 22);
+    assert_eq!(state.shell.quick_settings_progress(), held);
+    swipe_update(&mut state, "pad", 0.0, -28.0, 30);
+    assert!(state.shell.quick_settings_progress() < held);
+    assert!(!state.shell.launcher_open && !state.overview.open);
+    swipe_end(&mut state, "pad", true, 40);
+    assert!(!state.shell.quick_settings_open);
+    state.shell.tick(1.0);
+    assert!(state.shell.quick_settings_progress().abs() < 0.001);
+
+    // A cancelled closing swipe restores the original open state.
+    state.shell.set_reduce_motion(true);
+    state.shell.set_quick_settings_open(true);
+    state.shell.set_reduce_motion(false);
+    swipe_begin(&mut state, "pad".into(), 3);
+    swipe_update(&mut state, "pad", 0.0, -35.0, 50);
+    assert!((state.shell.quick_settings_progress() - 0.75).abs() < 0.001);
+    swipe_end(&mut state, "pad", true, 60);
+    state.shell.tick(1.0);
+    assert!(state.shell.quick_settings_open);
+    assert_eq!(state.shell.quick_settings_progress(), 1.0);
+}
+
+#[test]
+fn swipe_release_uses_recent_velocity_but_a_pause_uses_distance() {
+    for pause in [false, true] {
+        let (_display, mut state) = tablet_state();
+        state.shell.set_reduce_motion(false);
+        swipe_begin(&mut state, "pad".into(), 3);
+        swipe_update(&mut state, "pad", 0.0, 20.0, 10);
+        swipe_update(&mut state, "pad", 0.0, 20.0, 30);
+        assert!(state.shell.quick_settings_progress() < 0.5);
+        let pose = state.shell.quick_settings_progress();
+        swipe_end(&mut state, "pad", false, if pause { 250 } else { 32 });
+        assert_eq!(state.shell.quick_settings_open, !pause);
+        assert_eq!(
+            state.shell.quick_settings_progress(),
+            pose,
+            "release must not jump"
+        );
+        state.shell.tick(1.0);
+        assert!(
+            (state.shell.quick_settings_progress() - if pause { 0.0 } else { 1.0 }).abs() < 0.001
+        );
+    }
+}
+
+#[test]
+fn drawer_and_recents_track_and_interruptions_never_leave_half_open_layers() {
+    for fingers in [3, 4] {
+        let (_display, mut state) = tablet_state();
+        state.shell.set_reduce_motion(false);
+        swipe_begin(&mut state, "pad".into(), fingers);
+        swipe_update(&mut state, "pad", 0.0, -35.0, 10);
+        let progress = if fingers == 3 {
+            state.shell.launcher_progress()
+        } else {
+            state.overview.progress()
+        };
+        assert!((progress - 0.25).abs() < 0.001);
+        state.shell.tick(0.5);
+        state.overview.tick(0.5);
+        assert_eq!(
+            if fingers == 3 {
+                state.shell.launcher_progress()
+            } else {
+                state.overview.progress()
+            },
+            progress
+        );
+        prepare_shell_overlay(&mut state);
+        state.shell.tick(1.0);
+        state.overview.tick(1.0);
+        assert!(!state.shell.launcher_open && !state.overview.open);
+        assert!(state.shell.launcher_progress().abs() < 0.001);
+        assert!(state.overview.progress().abs() < 0.001);
+        swipe_end(&mut state, "pad", false, 20);
+        assert!(!state.shell.launcher_open && !state.overview.open);
+    }
+}
+
+#[test]
+fn swipe_axis_resize_and_reduced_motion_are_respected() {
+    let (_display, mut state) = tablet_state();
+    state.shell.set_reduce_motion(false);
+    swipe_begin(&mut state, "pad".into(), 3);
+    swipe_update(&mut state, "pad", 100.0, 20.0, 10);
+    swipe_end(&mut state, "pad", false, 20);
+    assert!(!state.shell.quick_settings_open);
+    swipe_begin(&mut state, "pad".into(), 3);
+    swipe_update(&mut state, "pad", 0.0, 35.0, 30);
+    state.display.size.w += 100;
+    swipe_update(&mut state, "pad", 0.0, 35.0, 40);
+    assert!(!state.shell.quick_settings_open);
+    state.shell.set_reduce_motion(true);
+    swipe_begin(&mut state, "pad".into(), 3);
+    swipe_update(&mut state, "pad", 0.0, 100.0, 50);
+    assert_eq!(state.shell.quick_settings_progress(), 0.0);
+    swipe_end(&mut state, "pad", false, 60);
+    assert_eq!(state.shell.quick_settings_progress(), 1.0);
 }
 #[test]
 fn scrolled_shade_hits_exactly_one_offset_and_keeps_header_out_of_tiles() {
@@ -328,11 +447,11 @@ fn closing_shade_animation_does_not_become_a_new_launcher_gesture() {
     state.shell.tick(0.05);
     swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, -100.0);
-    swipe_end(&mut state, "pad", false);
+    swipe_end(&mut state, "pad", false, 100);
     assert!(!state.shell.quick_settings_open && state.shell.quick_settings_progress() > 0.001);
     swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, -100.0);
-    swipe_end(&mut state, "pad", false);
+    swipe_end(&mut state, "pad", false, 100);
     assert!(!state.overview.open && !state.shell.launcher_open);
 }
 #[test]

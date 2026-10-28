@@ -197,6 +197,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         state.shell.press_end(PressKey::Tile(i));
         if state.shell.quick_settings_open
             && qs_body_contains
+            && state.shell.shade_content_visible(w, h, pos)
             && !state.shell.appearance_page
             && shell::quick_settings_hit(w, h, qs_pos, 1.0) == Some(action)
         {
@@ -209,6 +210,7 @@ pub(crate) fn finish_compositor_press(state: &mut State, pos: Point<f64, Logical
         state.shell.press_end(PressKey::Chip(i));
         if state.shell.quick_settings_open
             && qs_body_contains
+            && state.shell.shade_content_visible(w, h, pos)
             && state.shell.appearance_page
             && shell::palette_chip_rect_in(shell::quick_settings_rect(w, h), i).contains(qs_pos)
         {

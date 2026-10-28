@@ -43,6 +43,7 @@ impl State {
         {
             return;
         }
+        crate::input::cancel_swipe(self);
         self.display.size = mode.size.to_logical(1);
         self.display.handle.change_current_state(
             Some(mode),

@@ -28,6 +28,16 @@ The default tablet layout uses a compact Android-style status strip at the top (
 
 Gestures belong to the panel visible when they start. Three fingers down closes an open launcher without opening the shade; three fingers up closes the shade without opening the launcher or recents. Four fingers down closes recents. Other global swipes inside a panel are ignored. A closing animation cannot turn the same action into another overlay. Global swipe directions do not change with scroll inversion.
 
+Three-finger shade/drawer gestures and four-finger recents gestures track movement
+before release. Hold still to hold the panel, or reverse direction to bring it back.
+Release settles it using distance and recent velocity; a pause clears the fling.
+Cancelling the gesture restores its starting state. With Reduce motion enabled,
+the action happens at the end of the gesture without intermediate motion.
+
+The shade reveals downward from its top edge: header, brightness, tile rows, then
+notification content. These phases follow expansion progress, including reversal;
+text and icons keep their native size.
+
 ## Touchpad input
 
 Touchpad tapping, tap-and-drag and drag lock are enabled by default in direct sessions. One-finger tap clicks; two-finger tap opens a context menu. Tap, then touch again and move to drag icons, windows, recent-app cards, split dividers or sliders without pressing the pad. Drag lock lets you reposition the finger during a drag; tap again to finish. Two-finger scrolling is explicitly selected when supported, and accidental input while typing is suppressed.

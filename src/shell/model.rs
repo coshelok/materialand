@@ -59,6 +59,7 @@ impl Shell {
             app_tiles: HashMap::new(),
             qs_layer: LayerCache::default(),
             shade_backdrop: LayerCache::default(),
+            shade_surface: LayerCache::default(),
             notice_layer: LayerCache::default(),
             notice_scroll: Spring::effects(0.0),
             notice_scroll_target: 0.0,

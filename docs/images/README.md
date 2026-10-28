@@ -25,6 +25,9 @@ ffmpeg -v error -i target/visual-audit/expressive-shade.mp4 \
   -loop 0 -y docs/images/shade-motion.gif
 ```
 
-The GIF demonstrates opening, bounded rebound, and reversal during closing.
+The GIF demonstrates top-down expansion, staged content opacity, bounded rebound,
+and reversal during closing. The motion generator also writes
+`expressive-shade-gesture.mp4`: a scripted drag, hold and reverse using the shell's
+progress API. Actual input events are covered separately by gesture regressions.
 It is not a frame-pacing benchmark. Keep the static previews available so the
 README remains useful without playing the animation.

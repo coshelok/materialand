@@ -355,11 +355,8 @@ fn sheets_rebound_preserve_content_shape_and_reverse_without_a_jump() {
                         .y,
             );
             shade_peak = shade_peak.max(
-                shell
-                    .quick_settings_placement(w, h, shell.quick_settings_progress())
-                    .target
-                    .y
-                    - quick_settings_rect(w, h).y,
+                shade_contour(w, h, shell.quick_settings_progress(), false).h
+                    - quick_settings_rect(w, h).h,
             );
         }
         assert!(

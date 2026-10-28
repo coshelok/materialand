@@ -35,7 +35,7 @@ invert_scroll = true
 
 `drag_lock = true` allows lifting/repositioning a finger during tap-and-drag; tap again to release. Set it to `false` for release on finger lift. `disable_while_typing = true` uses the device's typing suppression when available. One/two/three-finger taps map to left/right/middle buttons; supported pads use two-finger scrolling.
 
-`kinetic_scroll = true` enables shell-list inertia after finger release. `scroll_friction = 9.0` controls its decay (2–30; higher stops sooner). A new touch/click or keyboard action stops coasting; reduced motion disables it. Client applications keep their own scrolling. `swipe_distance = 70.0` sets the gesture threshold (20–300 input units), including horizontal home-page changes. These changes take effect after restarting.
+`kinetic_scroll = true` enables shell-list inertia after finger release. `scroll_friction = 9.0` controls its decay (2–30; higher stops sooner). A new touch/click or keyboard action stops coasting; reduced motion disables it. Client applications keep their own scrolling. `swipe_distance = 70.0` sets the midpoint travel for shade/drawer/recents gestures (20–300 input units); full travel is twice this value. Release also considers recent velocity. It remains the threshold for horizontal home-page changes and reduced-motion gestures. These changes take effect after restarting.
 
 Three fingers up opens the launcher or closes an open shade. Three fingers down opens the shade or closes an open launcher. Four fingers up/down opens/closes recents. Each gesture belongs to its initial panel, so it cannot close one panel and open another in the same movement.
 
@@ -79,7 +79,7 @@ Manage these through an application's context menu. Drag home shortcuts into fre
 
 ## Navigation and system services
 
-The default `[navigation] mode = "tablet"` uses a home screen, app grid, recent-app overview and system shade, with the top status controls and no bottom navigation buttons. Bare Super returns home on release; Super chords retain their existing actions. Set `mode = "desktop"` to restore the topbar and app dock. See the [controls table](../README.md#controls) for gestures and keyboard shortcuts.
+The default `[navigation] mode = "tablet"` uses a home screen, app grid, recent-app overview and system shade, with the top status controls and no bottom navigation buttons. Bare Super returns home on release; Super chords retain their existing actions. Set `mode = "desktop"` to restore the topbar and app dock. See the [controls table](USAGE.md#keyboard-and-gestures) for gestures and keyboard shortcuts.
 
 Battery, Wi-Fi and Bluetooth readings come from Linux power-supply attributes, NetworkManager and BlueZ respectively. [System controls](SYSTEM_CONTROLS.md) documents runtime dependencies and connection setup. No radio state is stored in the design configuration.
 

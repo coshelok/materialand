@@ -115,16 +115,21 @@ pub(super) fn on_input_event(app: &mut App, event: InputEvent<LibinputInputBacke
         InputEvent::GestureSwipeBegin { event } => {
             input::swipe_begin(&mut app.state, event.device().id(), event.fingers())
         }
-        InputEvent::GestureSwipeUpdate { event } => {
-            app.state
-                .launcher_swipe
-                .update(&event.device().id(), event.delta_x(), event.delta_y())
-        }
-        InputEvent::GestureSwipeEnd { event } => {
-            input::swipe_end(&mut app.state, &event.device().id(), event.cancelled())
-        }
+        InputEvent::GestureSwipeUpdate { event } => input::swipe_update(
+            &mut app.state,
+            &event.device().id(),
+            event.delta_x(),
+            event.delta_y(),
+            event.time_msec(),
+        ),
+        InputEvent::GestureSwipeEnd { event } => input::swipe_end(
+            &mut app.state,
+            &event.device().id(),
+            event.cancelled(),
+            event.time_msec(),
+        ),
         InputEvent::DeviceRemoved { .. } => {
-            app.state.launcher_swipe = Default::default();
+            input::cancel_swipe(&mut app.state);
             app.state.super_tap = Default::default();
             input::stop_touchpad_scroll(&mut app.state);
         }

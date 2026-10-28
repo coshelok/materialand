@@ -30,7 +30,7 @@ fn write_expressive_motion_previews() {
         desktop_file: Some(format!("/applications/{name}.desktop").into()),
     })
     .collect();
-    for name in ["shade", "launcher"] {
+    for name in ["shade", "launcher", "shade-gesture"] {
         let mut shell = Shell::new(apps.clone(), ThemeSpec::default());
         shell.clock = "14:32".into();
         shell.render_wallpaper(&theme, w, h, None);
@@ -68,34 +68,56 @@ fn write_expressive_motion_previews() {
             .spawn()
             .unwrap();
         let mut input = encoder.stdin.take().unwrap();
-        let mut trajectory = String::from("frame,progress,y\n");
+        let mut trajectory = String::from("frame,progress,y,visible_height\n");
         for frame_index in 0..108 {
             // Include a reversal before closing has finished, not just a loop.
-            if matches!(frame_index, 6 | 32 | 37 | 78) {
+            if matches!(frame_index, 6 | 32 | 37 | 78)
+                && (name != "shade-gesture" || matches!(frame_index, 6 | 78))
+            {
                 let open = matches!(frame_index, 6 | 37);
-                if name == "shade" {
+                if name.starts_with("shade") {
                     shell.set_quick_settings_open(open);
                 } else {
                     shell.launcher_open = open;
                     shell.set_launcher_open(open);
                 }
             }
+            if name == "shade-gesture" {
+                let held = match frame_index {
+                    6..=25 => Some((frame_index - 5) as f32 * 0.0375),
+                    26..=35 => Some(0.75),
+                    36..=45 => Some(0.75 - (frame_index - 35) as f32 * 0.035),
+                    46..=60 => Some(0.4 + (frame_index - 45) as f32 * 0.04),
+                    _ => None,
+                };
+                if let Some(progress) = held {
+                    shell.drag_shade(progress);
+                }
+                if frame_index == 61 {
+                    shell.release_shade_drag(true, 0.0);
+                }
+            }
             // Integrate at display cadence, sampling every second frame for video.
             shell.tick(1.0 / 60.0);
             shell.tick(1.0 / 60.0);
-            let progress = if name == "shade" {
+            let progress = if name.starts_with("shade") {
                 shell.quick_settings_progress()
             } else {
                 shell.launcher_progress()
             };
-            let placement = if name == "shade" {
+            let placement = if name.starts_with("shade") {
                 shell.quick_settings_placement(w as f32, h as f32, progress)
             } else {
                 shell.launcher_placement(w as f32, h as f32, progress)
             };
             trajectory.push_str(&format!(
-                "{frame_index},{progress},{}\n",
-                placement.target.y
+                "{frame_index},{progress},{},{}\n",
+                placement.target.y,
+                if name.starts_with("shade") {
+                    shade_contour(w as f32, h as f32, progress, false).h
+                } else {
+                    placement.target.h
+                }
             ));
             // Wallpaper textures may be taller than the output (rounded cache
             // size); encode only the output, never the backing texture padding.
@@ -109,7 +131,7 @@ fn write_expressive_motion_previews() {
                 None,
             );
             if progress > 0.001 {
-                let frame = if name == "shade" {
+                let frame = if name.starts_with("shade") {
                     shell.render_quick_settings(
                         &theme,
                         &mut fonts,
@@ -124,16 +146,12 @@ fn write_expressive_motion_previews() {
                     shell.render_launcher(&theme, &mut fonts, w as f32, h as f32, progress, None)
                 };
                 for (i, (layer, alpha)) in frame.pieces.iter().enumerate() {
-                    let size = if i == 0 {
+                    let size = if name.starts_with("shade") {
+                        shade_preview_size(&shell, layer, w as f32, h as f32)
+                    } else if i == 0 {
                         (1, 1)
-                    } else if name == "shade" || i == 1 {
-                        let surface = if name == "launcher" {
-                            &shell.launcher_layer.as_ref().unwrap().surface
-                        } else if i >= 3 {
-                            &shell.notice_layer.as_ref().unwrap().surface
-                        } else {
-                            &shell.qs_layer.as_ref().unwrap().surface
-                        };
+                    } else if i == 1 {
+                        let surface = &shell.launcher_layer.as_ref().unwrap().surface;
                         (surface.width(), surface.pixmap.height())
                     } else if layer.source.is_some() {
                         let side = config::design().launcher.tile_size.ceil() as u32;
@@ -146,7 +164,7 @@ fn write_expressive_motion_previews() {
                 }
             }
             paint_preview_bars(&mut canvas, &mut shell, &mut fonts, &theme, w, h);
-            if matches!(frame_index, 10 | 16 | 28 | 34 | 40) {
+            if matches!(frame_index, 6 | 7 | 8 | 9 | 10 | 12 | 16 | 28 | 34 | 40) {
                 canvas
                     .pixmap
                     .save_png(format!("{path}-{frame_index}.png"))
@@ -500,6 +518,18 @@ fn write_recent_preview(
             "target/visual-audit/materialand-tablet-{name}-{w}-recents.png"
         ))
         .unwrap();
+}
+
+fn shade_preview_size(shell: &Shell, layer: &LayerFrame, w: f32, h: f32) -> (u32, u32) {
+    if layer.source.is_none() {
+        return (1, 1);
+    }
+    let surface = if shade_split(w) && layer.loc.x >= f64::from(notification_panel(w, h).x) {
+        &shell.notice_layer.as_ref().unwrap().surface
+    } else {
+        &shell.qs_layer.as_ref().unwrap().surface
+    };
+    (surface.width(), surface.pixmap.height())
 }
 
 fn paint_preview_layer(canvas: &mut Surface, layer: &LayerFrame, alpha: f32, size: (u32, u32)) {

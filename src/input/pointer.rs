@@ -154,7 +154,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
     if pressed {
         state.super_tap.cancel();
         super::stop_touchpad_scroll(state);
-        state.launcher_swipe = Default::default();
+        super::cancel_swipe(state);
     }
     let time = event.time_msec();
     if !pressed {
@@ -225,11 +225,7 @@ pub fn on_pointer_button<B: InputBackend, E: PointerButtonEvent<B>>(state: &mut 
         && !state.shell.brightness_open
     {
         let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
-        let pos = state
-            .shell
-            .quick_settings_placement(w, h, state.shell.quick_settings_progress())
-            .unmap(state.cursor);
-        if !(shell::shade_contains(w, h, pos)
+        if !(state.shell.shade_visible_contains(w, h, state.cursor)
             || state
                 .shell
                 .statusbar_visible(state.has_fullscreen_window(), state.overview.visible())

@@ -8,7 +8,7 @@ pub fn on_keyboard<B: InputBackend, E: KeyboardKeyEvent<B>>(state: &mut State, e
     let pressed = event.state() == KeyState::Pressed;
     if pressed {
         super::stop_touchpad_scroll(state);
-        state.launcher_swipe = Default::default();
+        super::cancel_swipe(state);
     }
     let code = event.key_code();
     let mut forwarded = false;

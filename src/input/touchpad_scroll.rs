@@ -64,6 +64,9 @@ fn pick(state: &State) -> Option<Owner> {
         return Some(Owner::Overview);
     }
     if state.shell.quick_settings_open {
+        if !state.shell.shade_visible_contains(w, h, state.cursor) {
+            return None;
+        }
         let pos = state
             .shell
             .quick_settings_placement(w, h, state.shell.quick_settings_progress())

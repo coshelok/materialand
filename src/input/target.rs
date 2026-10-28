@@ -117,6 +117,9 @@ pub(super) fn target(state: &State, pos: Point<f64, Logical>) -> Target {
                 .unmap(pos),
         )));
     }
+    if state.shell.quick_settings_open && !state.shell.shade_content_visible(w, h, pos) {
+        return Target::Shell(Control::Block);
+    }
     if state.shell.quick_settings_open
         && shell::shade_split(w)
         && shell::notification_panel(w, h).contains_rounded(qs_pos, shell::shade_radius())
@@ -291,10 +294,6 @@ pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
         .shell
         .brightness_placement(w, state.shell.brightness_progress())
         .unmap(pos);
-    let qs_pos = state
-        .shell
-        .quick_settings_placement(w, h, state.shell.quick_settings_progress())
-        .unmap(pos);
     if state.shell.power_open
         && !shell::power_menu_rect(w).contains(power_pos)
         && top != Some(TopAction::Power)
@@ -308,7 +307,7 @@ pub(super) fn dismiss_outside(state: &mut State, pos: Point<f64, Logical>) {
         state.shell.set_brightness_open(false);
     }
     if state.shell.quick_settings_open
-        && !shell::shade_contains(w, h, qs_pos)
+        && !state.shell.shade_visible_contains(w, h, pos)
         && top != Some(TopAction::QuickSettings)
     {
         state.shell.set_quick_settings_open(false);

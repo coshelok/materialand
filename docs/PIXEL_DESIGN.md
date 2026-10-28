@@ -130,3 +130,41 @@ testing and selected v0.6.0 instead of the proposed beta. Cargo package and lock
 now use 0.6.0; `docs/RELEASE_NOTES.md` describes the regular v0.6.0 release relative
 to the local v0.5.0 release commit `5c89b3b` (no local release tags). This report
 does not establish compatibility across different hardware or client toolkits.
+
+## Continuous gestures and staged shade reveal, 2026-10-28
+
+The user requested U09 and specifically noted that shade elements should appear
+in sequence. The old whole-sheet slide could expose lower content first. The
+fullscreen tablet shade now expands a rounded contour downward over native-size
+content; header, brightness, tile rows and notifications have separate opacity
+phases driven by expansion. Closing and drag reversal use the same phases in
+reverse. The contour retains the bounded spring rebound. Drawer motion is unchanged
+visually, but now follows the touchpad, as does recents.
+
+The concept of separate animation tracks is supported by
+[AOSP QSAnimator](https://android.googlesource.com/platform/frameworks/base/+/3e869b8f6916/packages/SystemUI/src/com/android/systemui/qs/QSAnimator.java).
+This implementation is an adaptation for Materialand's layout, not a claim of
+pixel-identical behavior for a particular Pixel OS version.
+
+Three- and four-finger gestures now own one panel, track displacement and hold
+their position until release. Distance and recent velocity choose the endpoint;
+cancellation restores the initial state. Input interruption, output resize and
+reduced motion have explicit paths. Hit regions follow the revealed contour and
+content visibility. `src/shell/shade_reveal.rs` splits existing cached texture crops
+into phase bands; it does not rasterize content for every animation frame. Extra
+band draws are limited to the transition; no physical performance gain is claimed.
+
+Verification: 229 unit tests pass, 14 explicitly ignored, Clippy all-targets with
+warnings denied passes, and the explicit offscreen EGL reveal test passes. New
+regressions cover gesture ownership, hold/reversal/cancel, paused versus fast
+release, interruption, reduced motion, resizing, cache reuse, native-size content
+and hidden hit targets. Selected opening/held/settled frames were inspected. The
+motion generator now writes three videos: `expressive-shade.mp4`,
+`expressive-launcher.mp4`, and `expressive-shade-gesture.mp4`, each 640×480, 108 frames,
+3.6 seconds. The third uses a scripted drag/hold/reversal rather than the spring
+alone. These are synthetic painter previews; direct-session touchpad feel and
+display frame pacing remain pending. The README motion GIF was regenerated.
+
+The release build succeeds; `target/release/materialand --help` and `--check-config`
+pass. Formatting and `git diff --check` pass. All three videos pass full ffmpeg
+decode. The running compositor was not restarted and the binary was not installed.

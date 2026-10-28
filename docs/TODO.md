@@ -46,9 +46,10 @@ publishing GitHub issues, commits, messages, and releases was not requested.
   transition; preserve the client, focus, and access to saved work.
 - [ ] **U08. Maximize/fullscreen changes geometry abruptly.** Add an interruptible
   transition synchronized with configure/commit; test returning from fullscreen.
-- [ ] **U09. The shade, launcher, and recents do not follow finger movement.** Swipes
-  currently trigger an action only when completed. Tie progress to displacement,
-  finish based on distance/velocity, cancel correctly, and preserve gesture ownership.
+- [~] **U09. The shade, launcher, and recents do not follow finger movement.**
+  Continuous progress, distance/velocity settling, cancellation and ownership are
+  implemented with CPU regressions. Real touchpad tracking and presentation remain
+  to be checked in a direct session; see the 2026-10-28 handoff.
 - [ ] **U10. Split stretches text and window controls.** Risk identified in code:
   nonuniform scaling before the new buffer arrives. Reproduce with a slow client;
   coordinate transitions and resizing without distortion or incorrect clicks.
@@ -151,6 +152,34 @@ publishing GitHub issues, commits, messages, and releases was not requested.
 - Real DRM/VT/hotplug and nested sessions; mockups do not replace these checks.
 
 ## Continuation / handoff
+
+2026-10-28: the user resumed U09 and specifically requested sequential shade reveal.
+Implemented continuous three-finger shade/drawer and four-finger recents tracking
+through direct-session libinput events. Holding freezes progress; reversal stays
+with the same panel. Release uses distance and recent velocity (discarded after a
+100 ms pause); cancellation restores the starting open/closed state. Keyboard,
+pointer, axis input, seat reset and output resize cancel an active drag. Reduced
+motion retains the threshold action without intermediate animation.
+
+Fullscreen tablet shade content now stays at native size while a rounded contour
+expands downward. Header, brightness, tile rows and notifications fade in by
+expansion phase; closing reverses the same phases. Hidden content cannot receive
+clicks. Cached rasters are reused; settled frames retain their original draw count.
+Implementation: `src/input/gestures.rs`, `src/shell/shade_reveal.rs`, shell/overview
+motion APIs and input interruption hooks. U07/U08 remain subsequent work.
+
+Verification: 229 tests pass, 14 explicitly ignored; Clippy all-targets with warnings
+denied and the explicit offscreen EGL reveal test pass. Regressions cover hold,
+reversal, cancellation, foreign-device events, velocity versus paused release,
+interruptions, reduced motion, resize, cache reuse, native proportions and hit
+bounds. Three synthetic motion previews cover shade/drawer spring motion and a
+scripted shade drag/hold/reversal (`target/visual-audit/expressive-*.mp4`); README
+GIF refreshed. These are painter previews, not live touchpad captures or FPS
+measurements. U09 remains `[~]` pending the direct-session checks in
+`docs/VALIDATION.md`. Do not repeat implementation on context recovery.
+Release binary rebuilt at `target/release/materialand`; `--help` and
+`--check-config` pass. Formatting and `git diff --check` pass; all three motion
+videos pass complete ffmpeg decoding. No session restart or installation performed.
 
 2026-10-23: U01/U02/U12 are implemented, pending execution of the new protocol tests
 in a normal environment. U06 is verified by CPU tests. U15 is implemented and checked

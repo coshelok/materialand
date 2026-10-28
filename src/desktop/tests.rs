@@ -316,42 +316,44 @@ fn animated_quick_setting_click_follows_the_rendered_tile() {
     let (_display, mut state) = fresh();
     let (w, h) = (state.display.size.w as f32, state.display.size.h as f32);
     state.shell.set_quick_settings_open(true);
-    for _ in 0..3 {
-        state.shell.tick(1.0 / 60.0);
-    }
-    let progress = state.shell.quick_settings_progress();
+    let tile = crate::shell::quick_setting_tile_rect(w, h, 0);
+    let point = Point::from((
+        f64::from(tile.x + tile.w / 2.0),
+        f64::from(tile.y + tile.h / 2.0),
+    ));
+    let initial = state.theme.is_dark;
+    state.shell.drag_shade(0.15);
+    state.shell.press_tile = Some(crate::shell::QuickAction::Theme);
+    crate::input::finish_compositor_press(&mut state, point);
+    assert_eq!(
+        state.theme.is_dark, initial,
+        "unrevealed tiles cannot receive a stale release"
+    );
+    state.shell.drag_shade(0.8);
     let frame = state.shell.render_quick_settings(
         &state.theme,
         &mut state.fonts,
         w,
         h,
-        progress,
+        0.8,
         state.brightness,
         state.theme_spec.variant,
         None,
     );
-    let layer = &frame.pieces[2].0;
-    let source = layer.source.expect("cropped shade body");
-    let size = layer.size.unwrap();
-    let card = crate::shell::quick_settings_rect(w, h);
-    let tile = crate::shell::quick_setting_tile_rect(w, h, 0);
-    let pad = crate::config::design().shadow.padding;
-    let point = Point::from((
-        layer.loc.x
-            + f64::from(
-                (tile.x - card.x + pad + tile.w / 2.0 - source.x) * size.w as f32 / source.w,
-            ),
-        layer.loc.y
-            + f64::from(
-                (tile.y - card.y + pad + tile.h / 2.0 - source.y) * size.h as f32 / source.h,
-            ),
-    ));
-    let initial = state.theme.is_dark;
+    assert!(frame.pieces.iter().any(|(layer, alpha)| {
+        layer.source.is_some_and(|s| s.h > 1.0)
+            && layer
+                .rounded
+                .is_some_and(|clip| clip.rect.contains_rounded(point, clip.radius))
+            && *alpha > 0.1
+            && point.y >= layer.loc.y
+            && point.y < layer.loc.y + f64::from(layer.size.unwrap().h)
+    }));
     state.shell.press_tile = Some(crate::shell::QuickAction::Theme);
     crate::input::finish_compositor_press(&mut state, point);
     assert_ne!(
         state.theme.is_dark, initial,
-        "clicking the visible moving tile toggles the theme"
+        "the revealed native-size tile is clickable"
     );
 }
 
@@ -478,17 +480,17 @@ fn three_finger_swipes_open_and_close_the_launcher_without_stale_toggles() {
     state.shell.set_reduce_motion(true);
     crate::input::swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, -100.0);
-    crate::input::swipe_end(&mut state, "pad", false);
+    crate::input::swipe_end(&mut state, "pad", false, 100);
     assert!(state.shell.launcher_open);
     crate::input::swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, 100.0);
-    crate::input::swipe_end(&mut state, "pad", false);
+    crate::input::swipe_end(&mut state, "pad", false, 100);
     assert!(!state.shell.launcher_open);
     crate::input::swipe_begin(&mut state, "pad".into(), 3);
     state.launcher_swipe.update("pad", 0.0, -100.0);
     state.shell.launcher_open = true;
     state.shell.set_launcher_open(true);
-    crate::input::swipe_end(&mut state, "pad", false);
+    crate::input::swipe_end(&mut state, "pad", false, 100);
     assert!(
         state.shell.launcher_open,
         "a concurrent keyboard action is not undone by an old gesture"

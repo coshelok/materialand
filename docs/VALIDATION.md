@@ -23,6 +23,11 @@ This checks shader compilation, radial and rounded clipping independently and to
 
 For sheet motion, run `cargo test --locked --offline write_expressive_motion_previews -- --ignored --nocapture` with ffmpeg installed. Inspect the videos and trajectory CSVs in `target/visual-audit`: opening, bounded rebound, closing and reversal before closing finishes. In a real session, also check rounded corners during scrolling, clicking both shade columns, rapid theme changes and reduced motion. The synthetic videos do not verify live frame pacing or gesture tracking.
 
+The generator also writes `expressive-shade-gesture.mp4`, which scripts a drag,
+hold and reversal through the shell progress API. Check that the contour expands
+downward and that the heading, brightness and tile rows appear in sequence, with
+native-size text. This is a visual fixture, not recorded libinput input.
+
 Live recent-app corners have a separate offscreen GPU regression:
 
 ```sh
@@ -61,6 +66,14 @@ It checks actual rounded clipping and alpha with scaled/cropped sources, both di
 7. Drag brightness and verify actual panel luminance changes without modifying pixel colors or contrast. Compare the slider with `/sys/class/backlight/*/brightness` and `max_brightness`; use hardware brightness keys/external controls and check the slider follows. Simulate denied access and check an error is shown with the actual value restored.
 8. Toggle Night light on black, gray, white and colorful windows, including fullscreen/direct-scanout clients and the cursor. Black must remain black, the white point must change gently, and turning it off must restore neutral color. Switch VTs, resume, reconnect and exit; ensure the LUT is restored/reapplied without affecting the other session.
 9. Swipe up with three fingers on the touchpad to open the launcher, then down to close it. Try short, horizontal, cancelled, wrong-direction and four-finger swipes. Change launcher state with the keyboard during a swipe and check that its end does not reverse that change. Switch VT during a gesture and unplug/replug the input device; a stale gesture must not open the launcher. Repeat above a fullscreen app. These gestures are provided by libinput in the direct session; nested winit does not deliver them.
+   Also drag down with three fingers to open the shade and up with four to open
+   recents; reverse to dismiss each. Hold halfway without lifting: the panel must
+   stay still. Reverse before release, compare a short fast fling with a slow drag,
+   and pause before releasing to discard old velocity. Cancel an opening and a
+   closing gesture, interrupt with a key/click/two-finger scroll, resize the output,
+   and try a second touchpad. No panel should remain stuck halfway or switch to a
+   different overlay. Repeat with reduced motion. Check both shade columns and
+   ensure controls below the expanding contour cannot be clicked.
 10. Maximize CSD and SSD clients, especially when decoration negotiation occurs after the first configure. Resize the output and restore/minimize/reopen windows. Normal and maximized titlebars must stay below the top bar; true fullscreen must fill the output with shell bars hidden. Test F11 entry/exit, opening another window above a fullscreen window and Super+H/Super+Q.
 11. Close the compositor normally and verify that the display manager/console regains the device.
 

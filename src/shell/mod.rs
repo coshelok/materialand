@@ -81,6 +81,7 @@ pub struct Shell {
     /// Cached quick-settings sheet content (settled state only).
     qs_layer: LayerCache,
     shade_backdrop: LayerCache,
+    shade_surface: LayerCache,
     notice_layer: LayerCache,
     notice_scroll: Spring,
     notice_scroll_target: f32,
@@ -186,6 +187,8 @@ mod app_grid;
 mod buttons;
 mod launcher_tile;
 mod placement;
+pub use placement::shade_contour;
+mod shade_reveal;
 
 mod calendar;
 pub use calendar::{calendar_hit, calendar_rect, CalendarAction};
